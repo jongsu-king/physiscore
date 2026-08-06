@@ -1,0 +1,58 @@
+# Byte-compiled / build artifacts
+__pycache__/
+*.py[cod]
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# PyInstaller intermediates (the .spec files ARE tracked)
+*.manifest
+_internal/
+
+# Frozen binaries -- rebuilt from source, never committed
+*.exe
+*.pyd
+*.dll
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local machine configuration.
+# Both config files hold machine-specific paths (Origin install location) and a
+# Gemini API key. Ship the *.example templates instead -- never the real ones.
+physisfera_config.json
+jv_config.json
+scripts/*/[a-z]*_config.json
+
+# Measured data -- kept locally, not published. The test suite skips the
+# measured-file checks when this directory is absent (see tests/conftest.py).
+rawdata/
+
+# Office documents
+*.pptx
+*.docx
+*.lnk
+
+# Analysis output
+JV_output/
+*_output/
+
+# macOS AppleDouble sidecars (created on exFAT/FAT volumes)
+._*
+.Spotlight-V100
+.Trashes

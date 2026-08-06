@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "physiscore"
+version = "2.0.0"
+description = "Integrated, physics-constrained analysis suite for thin-film photovoltaic device and material characterization"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Kyungsik Kim" },
+    { name = "Jaeho Shin" },
+    { name = "Jongsu Im" },
+    { name = "Hyunsung Ji" },
+    { name = "Seungeon Lee" },
+    { name = "Jinho Lee", email = "jlee@inu.ac.kr" },
+]
+maintainers = [{ name = "Jinho Lee", email = "jlee@inu.ac.kr" }]
+keywords = [
+    "photovoltaics", "solar cells", "perovskite", "characterization",
+    "J-V", "EQE", "XRD", "photoluminescence", "XPS", "Raman", "FTIR",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+    "numpy>=2.1",
+    "scipy>=1.14.1",
+    "pandas>=2.2",
+    "matplotlib>=3.8",
+    "openpyxl>=3.1",
+    "xlrd>=2.0.1",
+    "pillow>=10.0",
+    "customtkinter>=5.2",
+    "opencv-python>=4.9",
+    "pybaselines>=1.1",
+    "lmfit>=1.3",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+ai = ["google-generativeai>=0.8"]
+origin = ["pywin32>=306; sys_platform == 'win32'"]
+build = ["pyinstaller>=6.6"]
+test = ["pytest>=8.0"]
+
+[project.urls]
+Repository = "https://github.com/jongsu-king/physiscore"
+Homepage = "https://sites.google.com/view/h-mol"
+
+# NOTE (Phase 2): the importable top-level names are still `scripts` and `spectra`,
+# which are too generic to publish on PyPI. Renaming to `physiscore.*` touches every
+# `from scripts.X import Y` in the codebase and is tracked as its own refactor; until
+# then the project is installed from source, not from an index.
+[tool.setuptools]
+packages = ["scripts", "spectra"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = ["error::DeprecationWarning:scripts.*"]

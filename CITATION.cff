@@ -1,0 +1,48 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Physiscore"
+abstract: >-
+  Integrated, physics-constrained analysis suite for thin-film photovoltaic
+  device and material characterization, covering J-V (light and dark), EQE,
+  absorbance, photoluminescence, Raman, FTIR, XRD, SEM and XPS.
+version: "2.0.0"
+type: software
+license: MIT
+repository-code: "https://github.com/jongsu-king/physiscore"
+url: "https://sites.google.com/view/h-mol"
+authors:
+  - family-names: Kim
+    given-names: Kyungsik
+    affiliation: "Hybrid Materials and Optoelectronics Laboratory (H-MOL), Incheon National University"
+  - family-names: Shin
+    given-names: Jaeho
+    affiliation: "Hybrid Materials and Optoelectronics Laboratory (H-MOL), Incheon National University"
+  - family-names: Im
+    given-names: Jongsu
+    affiliation: "Hybrid Materials and Optoelectronics Laboratory (H-MOL), Incheon National University"
+  - family-names: Ji
+    given-names: Hyunsung
+    affiliation: "Hybrid Materials and Optoelectronics Laboratory (H-MOL), Incheon National University"
+  - family-names: Lee
+    given-names: Seungeon
+    affiliation: "Hybrid Materials and Optoelectronics Laboratory (H-MOL), Incheon National University"
+  - family-names: Lee
+    given-names: Jinho
+    affiliation: "Hybrid Materials and Optoelectronics Laboratory (H-MOL), Incheon National University"
+    email: jlee@inu.ac.kr
+# Corresponding author.
+contact:
+  - family-names: Lee
+    given-names: Jinho
+    affiliation: "Hybrid Materials and Optoelectronics Laboratory (H-MOL), Incheon National University"
+    email: jlee@inu.ac.kr
+keywords:
+  - photovoltaics
+  - solar cells
+  - perovskite
+  - characterization
+  - J-V
+  - EQE
+  - XRD
+  - photoluminescence
+  - XPS
