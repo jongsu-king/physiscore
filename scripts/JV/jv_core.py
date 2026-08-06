@@ -4,7 +4,6 @@ import re
 import math
 import time
 import json
-import subprocess
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, List, Dict, Any
 
@@ -13,29 +12,37 @@ import numpy as np
 import openpyxl
 from openpyxl.styles import PatternFill
 
+from scripts.common import app_config
+from scripts.common.naming import (base_name as _base_name,
+                                   cell_number as _cell_number,
+                                   display_name_from_path, natural_sort_key)
+from scripts.common.origin import WIN32COM_AVAILABLE, connect_to_origin
+
 # =========================
 # Constants & Settings
 # =========================
-DEFAULT_CELL_AREA_CM2 = 0.04       # active area used historically (factor -25000)
+DEFAULT_CELL_AREA_CM2 = app_config.DEFAULT_CELL_AREA_CM2  # historical: factor -25000
 STANDARD_IRRADIANCE_MW_CM2 = 100.0  # AM1.5G, 1 sun
 
 
-def _load_cell_area_cm2() -> float:
-    """Read 'cell_area_cm2' from physisfera_config.json (project root).
-    Falls back to the historical default 0.04 cm^2."""
-    try:
-        cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "..", "..", "physisfera_config.json")
-        with open(cfg_path, "r", encoding="utf-8") as f:
-            area = float(json.load(f).get("cell_area_cm2", DEFAULT_CELL_AREA_CM2))
-        return area if area > 0 else DEFAULT_CELL_AREA_CM2
-    except Exception:
-        return DEFAULT_CELL_AREA_CM2
+def cell_area_cm2(override: Optional[float] = None) -> float:
+    """Active device area [cm^2], read from the config on every call.
+
+    Deliberately not a module-level constant. The area scales Jsc -- and
+    therefore PCE -- linearly, and it used to be captured once at import time,
+    so correcting it in physisfera_config.json did nothing until the whole
+    application was restarted.
+    """
+    return app_config.cell_area_cm2(override)
 
 
-CELL_AREA_CM2 = _load_cell_area_cm2()
-# measured current [A] * factor -> current density [mA/cm^2] (sign flip: SMU convention)
-CURRENT_CONVERSION_FACTOR = -1000.0 / CELL_AREA_CM2
+def current_conversion_factor(area_cm2: Optional[float] = None) -> float:
+    """Measured current [A] * factor -> current density [mA/cm^2].
+
+    Negative: the source-meter reports photocurrent with the sign opposite to
+    the photovoltaic convention.
+    """
+    return app_config.current_conversion_factor(area_cm2)
 
 
 # =========================
@@ -127,14 +134,6 @@ def compute_jv_parameters(voltage, current_density,
     return out
 
 
-def natural_sort_key(s):
-    """Natural sort key for strings containing numbers (e.g., 2k, 2.5k, 3k)."""
-    def convert(text):
-        if text.replace('.', '', 1).isdigit():
-            return float(text)
-        return text.lower()
-    return [convert(c) for c in re.split(r'(\d+\.?\d*)', str(s))]
-
 @dataclass
 class JVSettings:
     x_min: float = -0.2
@@ -146,9 +145,13 @@ class JVSettings:
 # =========================
 # Data Parsing
 # =========================
-def parse_jv_file(file_path: str) -> Tuple[Optional[Dict], List[Dict]]:
+def parse_jv_file(file_path: str,
+                  area_cm2: Optional[float] = None) -> Tuple[Optional[Dict], List[Dict]]:
     """
     Parse a single JV text file.
+
+    area_cm2: active device area for the current-density conversion. None reads
+    it from the configuration at call time.
     Returns: (summary_data, voltage_data_list)
     """
     try:
@@ -161,23 +164,8 @@ def parse_jv_file(file_path: str) -> Tuple[Optional[Dict], List[Dict]]:
     except Exception as e:
         return None, []
 
-    filename = os.path.basename(file_path)
-    # Remove only the .txt extension (preserve decimal numbers like 2.5k, 3.0k)
-    if filename.lower().endswith('.txt'):
-        display_name = filename[:-4]
-    else:
-        # For other extensions, remove only the last extension
-        last_dot = filename.rfind('.')
-        display_name = filename[:last_dot] if last_dot > 0 else filename
-    # Remove date-time pattern like "2026-01-20 18-35-48" at the end
-    display_name = re.sub(r'\s+\d{4}-\d{2}-\d{2}\s+\d{2}-\d{2}-\d{2}$', '', display_name)
-    # Remove trailing dot after cell number (e.g., "01." -> "01")
-    display_name = re.sub(r'\.$', '', display_name)
-    # Handle leading file numbering if present (e.g., "01. sample name")
-    display_name = re.sub(r'^\d+\.\s+', '', display_name)
-    display_name = display_name.replace('_', ' ')
-    # Convert temperature format (e.g., "110C" -> "110°C")
-    display_name = re.sub(r'(\d+)C\b', r'\1°C', display_name)
+    display_name = display_name_from_path(file_path)
+    conversion_factor = current_conversion_factor(area_cm2)
 
     summary_data = None
     voltage_data = []
@@ -237,7 +225,7 @@ def parse_jv_file(file_path: str) -> Tuple[Optional[Dict], List[Dict]]:
                     try:
                         voltage_value = float(values[0])
                         if -3 <= voltage_value <= 3:
-                            current_value = float(values[1]) * CURRENT_CONVERSION_FACTOR
+                            current_value = float(values[1]) * conversion_factor
                             voltage_data.append({
                                 "Voltage(V)": round(voltage_value, 4),
                                 "Sample": display_name,
@@ -261,11 +249,17 @@ def parse_jv_file(file_path: str) -> Tuple[Optional[Dict], List[Dict]]:
     return summary_data, voltage_data
 
 
-def process_jv_directory(directory_path: str, progress_callback=None) -> Dict[str, Any]:
+def process_jv_directory(directory_path: str, progress_callback=None,
+                         area_cm2: Optional[float] = None) -> Dict[str, Any]:
     """
     Process all JV text files in a directory.
+
+    area_cm2: active device area for the current-density conversion. None reads
+    it from the configuration at call time, so a corrected area takes effect on
+    the next analysis instead of on the next application start.
     Returns dictionary with all processed data.
     """
+    area = cell_area_cm2(area_cm2)
     # Accept a single folder or a list of folders (JV_Analysis.exe '+ Add'
     # folder-comparison). Duplicate display names across folders get a
     # ' (2)', ' (3)'... suffix instead of being silently averaged together.
@@ -292,7 +286,7 @@ def process_jv_directory(directory_path: str, progress_callback=None) -> Dict[st
         if progress_callback:
             progress_callback(idx, filename, len(file_pairs))
 
-        summary, v_data = parse_jv_file(file_path)
+        summary, v_data = parse_jv_file(file_path, area_cm2=area)
         if summary:
             nm = summary["Filename"]
             if nm in seen_names:
@@ -318,16 +312,9 @@ def process_jv_directory(directory_path: str, progress_callback=None) -> Dict[st
 
     summary_df = pd.DataFrame(table_data_list)
 
-    # Helper functions for grouping
-    def get_base_name(filename):
-        return re.sub(r'\d+$', '', filename.strip())
-
-    def get_number(filename):
-        match = re.search(r'(\d+)$', filename.strip())
-        return int(match.group(1)) if match else 0
-
-    summary_df['Base_Name'] = summary_df['Filename'].apply(get_base_name)
-    summary_df['Number'] = summary_df['Filename'].apply(get_number)
+    # Group cells of one condition together: "Ref 1", "Ref 2" -> "Ref"
+    summary_df['Base_Name'] = summary_df['Filename'].apply(_base_name)
+    summary_df['Number'] = summary_df['Filename'].apply(_cell_number)
 
     # Find best performance per group (all-NaN groups fall back to first entry)
     best_performance = summary_df.copy()
@@ -352,7 +339,7 @@ def process_jv_directory(directory_path: str, progress_callback=None) -> Dict[st
         new_columns = {}
         for col in best_combined_data.columns:
             if col != 'Voltage (V)':
-                new_columns[col] = re.sub(r'\d+$', '', col.strip())
+                new_columns[col] = _base_name(col)
         best_combined_data = best_combined_data.rename(columns=new_columns)
 
         # Sort columns using natural sort (keep 'Voltage (V)' first)
@@ -451,7 +438,7 @@ def process_jv_directory(directory_path: str, progress_callback=None) -> Dict[st
         "box_charts": box_charts,
         "curve_analysis": curve_analysis,
         "statistics_df": statistics_df,
-        "cell_area_cm2": CELL_AREA_CM2,
+        "cell_area_cm2": area,
         "total_files": len(txt_files)
     }
 
@@ -747,57 +734,8 @@ def create_box_plot(ax, box_df: pd.DataFrame, param_name: str, selected_samples:
 # =========================
 # Origin Integration
 # =========================
-try:
-    import win32com.client
-    WIN32COM_AVAILABLE = True
-except ImportError:
-    WIN32COM_AVAILABLE = False
-
-
-def connect_to_origin(origin_exe_path: str = "", log_callback=None) -> Optional[Any]:
-    """Connect to Origin application."""
-    if not WIN32COM_AVAILABLE:
-        if log_callback:
-            log_callback("pywin32 not installed")
-        return None
-
-    # Try existing instance
-    try:
-        origin = win32com.client.Dispatch("Origin.ApplicationSI")
-        origin.Visible = 1
-        if log_callback:
-            log_callback("Connected to existing Origin")
-        return origin
-    except:
-        pass
-
-    # Launch new instance
-    if origin_exe_path and os.path.exists(origin_exe_path):
-        if log_callback:
-            log_callback(f"Launching Origin: {origin_exe_path}")
-        try:
-            subprocess.Popen([origin_exe_path])
-            for i in range(60):
-                time.sleep(1)
-                try:
-                    origin = win32com.client.Dispatch("Origin.ApplicationSI")
-                    origin.Visible = 1
-                    if log_callback:
-                        log_callback("New Origin instance started")
-                    return origin
-                except:
-                    continue
-            if log_callback:
-                log_callback("Timeout: Origin connection failed")
-        except Exception as e:
-            if log_callback:
-                log_callback(f"Origin launch error: {e}")
-    else:
-        if log_callback:
-            log_callback(f"Origin path not found: {origin_exe_path}")
-
-    return None
-
+# connect_to_origin lives in scripts/common/origin.py and is imported above,
+# so all nine tools share one connection routine.
 
 def save_selected_to_transit_excel(
     best_combined_data: pd.DataFrame,

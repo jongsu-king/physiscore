@@ -59,8 +59,16 @@ Homepage = "https://sites.google.com/view/h-mol"
 # which are too generic to publish on PyPI. Renaming to `physiscore.*` touches every
 # `from scripts.X import Y` in the codebase and is tracked as its own refactor; until
 # then the project is installed from source, not from an index.
-[tool.setuptools]
-packages = ["scripts", "spectra"]
+# Explicit list of the two top-level packages excluded the twelve subpackages
+# (scripts.JV, scripts.XRD, spectra.core, ...), so an install produced two empty
+# namespaces and every `from scripts.JV.jv_core import ...` failed. Discovery
+# keeps the set correct as subpackages are added.
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["scripts*", "spectra*"]
+
+[tool.setuptools.package-data]
+"scripts.EQE" = ["*.csv"]   # bundled ASTM G173-03 AM1.5G reference spectrum
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

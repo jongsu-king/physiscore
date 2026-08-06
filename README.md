@@ -80,8 +80,9 @@ cp physisfera_config.example.json physisfera_config.json
 ```
 
 `cell_area_cm2` (default `0.04`) sets the device area used for current-density
-conversion. The AI-report feature is **optional**: with no API key configured, every
-physics computation and export path behaves identically.
+conversion; it is re-read for every analysis, so a correction applies to the next
+folder you process. The AI-report feature is **optional**: with no API key
+configured, every physics computation and export path behaves identically.
 
 ## Example data
 

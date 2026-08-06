@@ -15,53 +15,13 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from scipy.optimize import curve_fit
 import os
-import subprocess
-import time
+
+from scripts.common.origin import WIN32COM_AVAILABLE, connect_to_origin
 
 # --- 1. Origin Connection Logic (Same as XRD) ---
-try:
-    import win32com.client
-    WIN32COM_AVAILABLE = True
-except ImportError:
-    WIN32COM_AVAILABLE = False
+# connect_to_origin lives in scripts/common/origin.py (imported above); all nine
+# tools share one connection routine.
 
-def connect_to_origin(origin_exe_path: str = "", log_callback=None):
-    """
-    Connect to Origin application using XRD-style robust logic.
-    """
-    if not WIN32COM_AVAILABLE:
-        if log_callback: log_callback("Error: 'pywin32' library not installed.")
-        return None
-
-    # 1. Try connecting to existing instance
-    try:
-        origin = win32com.client.Dispatch("Origin.ApplicationSI")
-        origin.Visible = 1
-        if log_callback: log_callback("Connected to running Origin instance.")
-        return origin
-    except: pass
-        
-    # 2. Try launching new instance
-    if origin_exe_path and os.path.exists(origin_exe_path):
-        if log_callback: log_callback(f"Launching Origin from: {origin_exe_path}...")
-        try:
-            subprocess.Popen([origin_exe_path])
-            # Wait loop (max 60s)
-            for i in range(60):
-                time.sleep(1)
-                try:
-                    origin = win32com.client.Dispatch("Origin.ApplicationSI")
-                    origin.Visible = 1
-                    if log_callback: log_callback("New Origin instance started.")
-                    return origin
-                except:
-                    if i % 5 == 0 and log_callback: log_callback("Waiting for Origin...")
-        except Exception as e:
-            if log_callback: log_callback(f"Failed to launch Origin: {e}")
-    else:
-        if log_callback: log_callback("Origin EXE path not found or invalid.")
-            
-    return None
 
 def plot_all_pl_to_origin(origin, x, data_dict, title="PL_Data"):
     """
@@ -237,13 +197,15 @@ def process_spectrum(x, y, filter_width, rigidity, protection):
         # the spectrum and the corrected signal collapses to zero. Clamp to the
         # physically sensible ALS range.
         p = float(min(max(protection, 1e-3), 0.5))
-        D = sparse.diags([1,-2,1],[0,-1,-2], shape=(L,L-2))
+        # float dtype and CSC format are explicit: spsolve silently converts a
+        # non-CSC/CSR matrix on every iteration, which dominates the cost here.
+        D = sparse.diags([1,-2,1],[0,-1,-2], shape=(L,L-2), dtype=float)
+        DDT = (D @ D.transpose()).tocsc()
         w_vec = np.ones(L)
         lam = 10 ** rigidity
         for _ in range(10):
-            W = sparse.spdiags(w_vec, 0, L, L)
-            Z = W + lam * D.dot(D.transpose())
-            z = spsolve(Z, w_vec*y_smooth)
+            W = sparse.diags(w_vec, 0, shape=(L, L), format="csc")
+            z = spsolve((W + lam * DDT).tocsc(), w_vec*y_smooth)
             w_vec = p * (y_smooth > z) + (1-p) * (y_smooth < z)
         baseline = z
 

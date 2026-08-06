@@ -22,7 +22,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-CONFIG_FILE = os.path.join(BASE_DIR, "physisfera_config.json")
+from scripts.common import app_config  # noqa: E402  (needs BASE_DIR on sys.path)
+
+CONFIG_FILE = app_config.config_path()
 APP_VERSION = "2.0.0"
 
 # ------------------------------------------------------------
@@ -225,33 +227,21 @@ class LauncherApp(ctk.CTk):
 
     # ---------------- config ----------------
     def load_config(self):
-        try:
-            if os.path.exists(CONFIG_FILE):
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                self.origin_path = data.get("origin_path", "")
-                self.gemini_api_key = data.get("gemini_api_key", "")
-        except Exception as e:
-            print(f"Config load error: {e}")
+        data = app_config.load(refresh=True)
+        self.origin_path = data.get("origin_path", "")
+        self.gemini_api_key = data.get("gemini_api_key", "")
         if self.gemini_api_key:
             os.environ["GEMINI_API_KEY"] = self.gemini_api_key
             os.environ.setdefault("GOOGLE_API_KEY", self.gemini_api_key)
 
     def save_config(self):
+        # merge-preserve: keep keys managed elsewhere (cell_area_cm2 for the
+        # JV/Dark-JV cores, name_presets for the sample-naming menu) instead of
+        # overwriting the file. app_config.update also writes atomically, so an
+        # interrupted save cannot truncate the config.
         try:
-            # merge-preserve: keep keys managed elsewhere (e.g. cell_area_cm2
-            # used by the JV/Dark-JV cores) instead of overwriting the file
-            data = {}
-            if os.path.exists(CONFIG_FILE):
-                try:
-                    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                except Exception:
-                    data = {}
-            data["origin_path"] = self.origin_path
-            data["gemini_api_key"] = self.gemini_api_key
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            app_config.update({"origin_path": self.origin_path,
+                               "gemini_api_key": self.gemini_api_key})
         except Exception as e:
             print(f"Config save error: {e}")
         if self.gemini_api_key:

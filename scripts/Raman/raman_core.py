@@ -4,8 +4,8 @@ raman_core.py - Raman Analysis Core Logic
 import pandas as pd
 import numpy as np
 import os
-import subprocess
-import time
+
+from scripts.common.origin import WIN32COM_AVAILABLE, connect_to_origin
 from scipy.signal import find_peaks
 try:
     import google.generativeai as genai
@@ -15,12 +15,6 @@ except Exception:
     GENAI_AVAILABLE = False
 import json
 import re
-
-try:
-    import win32com.client
-    WIN32COM_AVAILABLE = True
-except ImportError:
-    WIN32COM_AVAILABLE = False
 
 def load_data(file_path, max_layers=10):
     try:
@@ -170,34 +164,9 @@ def save_all_layers_to_excel(file_path, layers):
     df.to_excel(file_path, index=False)
     return True
 
-def connect_to_origin(origin_exe_path: str = "", log_callback=None):
-    """Connect to Origin application."""
-    if not WIN32COM_AVAILABLE:
-        if log_callback: log_callback("pywin32 not installed")
-        return None
+# connect_to_origin lives in scripts/common/origin.py (imported above); all nine
+# tools share one connection routine.
 
-    try:
-        origin = win32com.client.Dispatch("Origin.ApplicationSI")
-        origin.Visible = 1
-        if log_callback: log_callback("Connected to existing Origin")
-        return origin
-    except: pass
-
-    if origin_exe_path and os.path.exists(origin_exe_path):
-        if log_callback: log_callback(f"Launching Origin: {origin_exe_path}")
-        try:
-            subprocess.Popen([origin_exe_path])
-            for _ in range(30):
-                time.sleep(1)
-                try:
-                    origin = win32com.client.Dispatch("Origin.ApplicationSI")
-                    origin.Visible = 1
-                    if log_callback: log_callback("New Origin instance started")
-                    return origin
-                except: continue
-        except Exception as e:
-            if log_callback: log_callback(f"Origin launch error: {e}")
-    return None
 
 def plot_raman_to_origin(origin, layers, colors=None, log_callback=None):
     """Plot Raman spectra to Origin in a single combined graph."""

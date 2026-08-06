@@ -12,17 +12,11 @@ except Exception:
 import json, re
 from scipy.signal import find_peaks, peak_widths
 import os
-import subprocess
-import time
+
+from scripts.common.origin import WIN32COM_AVAILABLE, connect_to_origin
 
 # [physical constants]
 LAMBDA_CU = 1.5406
-
-try:
-    import win32com.client
-    WIN32COM_AVAILABLE = True
-except ImportError:
-    WIN32COM_AVAILABLE = False
 
 try:
     from lmfit.models import VoigtModel, LinearModel
@@ -66,13 +60,16 @@ def _als_baseline(y, lam=1e7, p=0.01, niter=10):
     L = len(y)
     if L < 10:
         return np.full_like(y, np.min(y))
-    D = sparse.diags([1, -2, 1], [0, -1, -2], shape=(L, L - 2))
+    # float dtype and CSC format are explicit: spsolve silently converts a
+    # non-CSC/CSR matrix on every one of the `niter` iterations, which for a
+    # full diffraction pattern is the dominant cost of the baseline.
+    D = sparse.diags([1, -2, 1], [0, -1, -2], shape=(L, L - 2), dtype=float)
+    DDT = (D @ D.transpose()).tocsc()
     w = np.ones(L)
     z = y.copy()
     for _ in range(niter):
-        W = sparse.spdiags(w, 0, L, L)
-        Z = W + lam * D.dot(D.transpose())
-        z = spsolve(Z, w * y)
+        W = sparse.diags(w, 0, shape=(L, L), format="csc")
+        z = spsolve((W + lam * DDT).tocsc(), w * y)
         w = p * (y > z) + (1 - p) * (y < z)
     return z
 
@@ -286,34 +283,9 @@ def analyze_with_gemini(api_key, model_name, context, peaks_df):
     except Exception as e:
         return f"Error during AI analysis: {str(e)}"
 
-def connect_to_origin(origin_exe_path: str = "", log_callback=None):
-    """Connect to Origin application."""
-    if not WIN32COM_AVAILABLE:
-        if log_callback: log_callback("pywin32 not installed")
-        return None
+# connect_to_origin lives in scripts/common/origin.py (imported above); all nine
+# tools share one connection routine.
 
-    try:
-        origin = win32com.client.Dispatch("Origin.ApplicationSI")
-        origin.Visible = 1
-        if log_callback: log_callback("Connected to existing Origin")
-        return origin
-    except: pass
-
-    if origin_exe_path and os.path.exists(origin_exe_path):
-        if log_callback: log_callback(f"Launching Origin: {origin_exe_path}")
-        try:
-            subprocess.Popen([origin_exe_path])
-            for _ in range(30):
-                time.sleep(1)
-                try:
-                    origin = win32com.client.Dispatch("Origin.ApplicationSI")
-                    origin.Visible = 1
-                    if log_callback: log_callback("New Origin instance started")
-                    return origin
-                except: continue
-        except Exception as e:
-            if log_callback: log_callback(f"Origin launch error: {e}")
-    return None
 
 def plot_xrd_to_origin(origin, x, y, y_fit, peaks_df=None, log_callback=None):
     """
@@ -361,7 +333,7 @@ def plot_xrd_to_origin(origin, x, y, y_fit, peaks_df=None, log_callback=None):
     
     origin.Execute(f"win -a {gp_name};")
     origin.Execute("layer.x.showAxes = 3; layer.y.showAxes = 3;") # Box frame
-    origin.Execute("label -xl 2\g(h) (degrees);")
+    origin.Execute(r"label -xl 2\g(h) (degrees);")
     origin.Execute("label -yl Intensity (a.u.);")
     origin.Execute("doc -uw;")
     

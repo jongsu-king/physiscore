@@ -28,6 +28,7 @@ matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
+from scripts.common import app_config
 from spectra.core.config import PipelineConfig
 from spectra.core.utils import safe_sorted_xy, robust_read_csv
 
@@ -39,28 +40,12 @@ from spectra.core.report import generate_ai_peak_report
 
 
 def _resolve_api_key() -> str | None:
-    # 1. Check environment variables
-    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if key:
-        return key
-    
-    # 2. fallback: project root physisfera_config.json
-    try:
-        here = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.abspath(os.path.join(here, "..", "..", ".."))
-        cfg_path = os.path.join(project_root, "physisfera_config.json")
-        if os.path.exists(cfg_path):
-            import json
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            key = data.get("gemini_api_key")
-            if key:
-                os.environ.setdefault("GEMINI_API_KEY", key)
-                os.environ.setdefault("GOOGLE_API_KEY", key)
-                return key
-    except Exception:
-        pass
-    return None
+    """Environment first, then physisfera_config.json - see app_config.api_key.
+
+    The local copy this replaced walked three directories up from spectra/gui/,
+    one level above the project root, so a key in the config was never found.
+    """
+    return app_config.api_key()
 
 # -------------------------
 # Theme (you can tweak)

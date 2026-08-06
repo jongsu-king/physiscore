@@ -8,6 +8,7 @@ from typing import Optional, Callable
 import numpy as np
 import pandas as pd
 
+from scripts.common import app_config
 from spectra.core.config import PipelineConfig
 
 # Optional Gemini - use google.generativeai, the same SDK as every other
@@ -22,32 +23,12 @@ except Exception:
 
 
 def _get_api_key() -> Optional[str]:
-    """Resolve Gemini API key.
-    Priority: env (GEMINI_API_KEY/GOOGLE_API_KEY) -> physisfera_config.json (project root).
-    """
-    key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if key:
-        return key
+    """Resolve Gemini API key: env (GEMINI_API_KEY/GOOGLE_API_KEY) then config.
 
-    # Try load from project root config (this file lives at
-    # <project>/spectra/core/report.py -> project root is two levels up;
-    # the old "..','..','.." went one directory ABOVE the project)
-    try:
-        here = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.abspath(os.path.join(here, "..", ".."))
-        cfg_path = os.path.join(project_root, "physisfera_config.json")
-        if os.path.exists(cfg_path):
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            key = data.get("gemini_api_key") or data.get("GEMINI_API_KEY") or data.get("GOOGLE_API_KEY")
-            if key:
-                # also expose as env for downstream modules
-                os.environ.setdefault("GEMINI_API_KEY", key)
-                os.environ.setdefault("GOOGLE_API_KEY", key)
-                return key
-    except Exception:
-        pass
-    return None
+    Path resolution and the env export live in scripts.common.app_config, so
+    every panel that offers AI commentary finds the same key.
+    """
+    return app_config.api_key()
 
 def _log(log_cb: Optional[Callable[[str], None]], s: str):
     if log_cb:

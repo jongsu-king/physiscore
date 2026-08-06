@@ -10,42 +10,34 @@
 # ============================================================
 from __future__ import annotations
 
-import json
 import os
 import tkinter as tk
 from tkinter import simpledialog, messagebox
 
 import customtkinter as ctk
 
-_CONFIG = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..",
-                                       "physisfera_config.json"))
+from scripts.common import app_config
 
 
 # ------------------------------------------------------------
 # Preset storage (shared, merge-preserving)
 # ------------------------------------------------------------
 def load_presets():
-    try:
-        with open(_CONFIG, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        p = data.get("name_presets", [])
-        return [str(x) for x in p if str(x).strip()]
-    except Exception:
+    presets = app_config.get("name_presets", [])
+    if not isinstance(presets, list):
         return []
+    return [str(x) for x in presets if str(x).strip()]
 
 
 def save_presets(presets):
-    data = {}
+    """Persist the preset list, de-duplicated and order-preserving.
+
+    Writes through app_config so the launcher's origin_path / API key survive:
+    the merge and the atomic replace both live there.
+    """
+    cleaned = list(dict.fromkeys(str(p).strip() for p in presets if str(p).strip()))
     try:
-        if os.path.exists(_CONFIG):
-            with open(_CONFIG, "r", encoding="utf-8") as f:
-                data = json.load(f)
-    except Exception:
-        data = {}
-    data["name_presets"] = list(dict.fromkeys(str(p).strip() for p in presets if str(p).strip()))
-    try:
-        with open(_CONFIG, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        app_config.update({"name_presets": cleaned})
         return True
     except Exception:
         return False
