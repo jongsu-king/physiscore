@@ -14,7 +14,7 @@ authors = [
     { name = "Jaeho Shin" },
     { name = "Jongsu Lim" },
     { name = "Hyunsung Ji" },
-    { name = "Seung-eon Lee" },
+    { name = "Seung-Eon Lee" },
     { name = "Jinho Lee", email = "jlee@inu.ac.kr" },
 ]
 maintainers = [{ name = "Jinho Lee", email = "jlee@inu.ac.kr" }]
