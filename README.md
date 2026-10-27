@@ -1,5 +1,7 @@
 # Physiscore
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22267588.svg)](https://doi.org/10.5281/zenodo.22267588)
+
 **An integrated, physics-constrained analysis suite for thin-film photovoltaic device and material characterization.**
 
 Physiscore unifies nine measurement techniques behind one interface and one set of
@@ -106,8 +108,13 @@ Gaussian PL peaks) and against measured reference files.
 
 ## Citing
 
-See `CITATION.cff`. A software paper is in preparation; please cite the archived release
-DOI in the meantime.
+A software paper is in preparation; please cite the archived release in the meantime:
+
+> Kim, K., Shin, J., Lim, J., Ji, H., Lee, S., & Lee, J. (2026). *Physiscore* (Version 2.0.0)
+> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267589
+
+The concept DOI [10.5281/zenodo.22267588](https://doi.org/10.5281/zenodo.22267588) always
+resolves to the latest release. Full metadata is in `CITATION.cff`.
 
 ## License
 
