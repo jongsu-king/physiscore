@@ -250,14 +250,18 @@ def parse_jv_file(file_path: str,
 
 
 def process_jv_directory(directory_path: str, progress_callback=None,
-                         area_cm2: Optional[float] = None) -> Dict[str, Any]:
+                         area_cm2: Optional[float] = None, diode_fit: bool = True) -> Dict[str, Any]:
     """
     Process all JV text files in a directory.
 
     area_cm2: active device area for the current-density conversion. None reads
     it from the configuration at call time, so a corrected area takes effect on
     the next analysis instead of on the next application start.
-    Returns dictionary with all processed data.
+    diode_fit: also fit the one-diode equivalent circuit to every device
+    (adds n, J0, Jph, Rs, Rsh columns to the CurveAnalysis table).
+    Returns dictionary with all processed data, including 'hysteresis_df'
+    (per-direction parameters and hysteresis index for files that were
+    swept both ways) and 'diode_fits' (fit results keyed by sample).
     """
     area = cell_area_cm2(area_cm2)
     # Accept a single folder or a list of folders (JV_Analysis.exe '+ Add'
@@ -279,6 +283,7 @@ def process_jv_directory(directory_path: str, progress_callback=None,
     voltage_data = []
     table_data_list = []
     seen_names: Dict[str, int] = {}
+    file_of_sample: Dict[str, str] = {}
 
     for idx, (d, filename) in enumerate(file_pairs):
         file_path = os.path.join(d, filename)
@@ -298,6 +303,7 @@ def process_jv_directory(directory_path: str, progress_callback=None,
             else:
                 seen_names[nm] = 1
             table_data_list.append(summary)
+            file_of_sample[summary["Filename"]] = file_path
         voltage_data.extend(v_data)
     txt_files = [f for _, f in file_pairs]
 
@@ -392,12 +398,14 @@ def process_jv_directory(directory_path: str, progress_callback=None,
     # --- Curve-derived parameters for every device (independent cross-check
     #     of the instrument summary; also yields Rs/Rsh which the summary lacks)
     curve_rows = []
+    diode_fits: Dict[str, Dict[str, Any]] = {}
     v_arr = combined_data['Voltage(V)'].to_numpy(dtype=float)
     for col in combined_data.columns:
         if col == 'Voltage(V)':
             continue
-        p = compute_jv_parameters(v_arr, combined_data[col].to_numpy(dtype=float))
-        curve_rows.append({
+        j_arr = combined_data[col].to_numpy(dtype=float)
+        p = compute_jv_parameters(v_arr, j_arr)
+        row = {
             "Filename": col,
             "Voc (V)": round(p["Voc"], 4) if np.isfinite(p["Voc"]) else np.nan,
             "Jsc (mA/cm2)": round(p["Jsc"], 3) if np.isfinite(p["Jsc"]) else np.nan,
@@ -408,8 +416,47 @@ def process_jv_directory(directory_path: str, progress_callback=None,
             "Pmax (mW/cm2)": round(p["Pmax"], 3) if np.isfinite(p["Pmax"]) else np.nan,
             "Rs (Ohm cm2)": round(p["Rs"], 2) if np.isfinite(p["Rs"]) else np.nan,
             "Rsh (Ohm cm2)": round(p["Rsh"], 1) if np.isfinite(p["Rsh"]) else np.nan,
-        })
+        }
+        # one-diode equivalent circuit (Lambert-W form); ~20 ms per device
+        if diode_fit and np.isfinite(p["PCE"]):
+            try:
+                fit = fit_single_diode(v_arr, j_arr)
+            except Exception:
+                fit = {"success": False}
+            if fit.get("success"):
+                diode_fits[col] = fit
+                row.update({
+                    "n (diode fit)": round(fit["n"], 3),
+                    "J0 fit (mA/cm2)": float(f'{fit["J0"]:.3e}'),
+                    "Jph fit (mA/cm2)": round(fit["Jph"], 3),
+                    "Rs fit (Ohm cm2)": round(fit["Rs"], 3),
+                    "Rsh fit (Ohm cm2)": round(fit["Rsh"], 1),
+                    "Diode fit R2": round(fit["R2"], 5),
+                })
+        curve_rows.append(row)
     curve_analysis = pd.DataFrame(curve_rows)
+
+    # --- Scan-direction analysis (forward / reverse, hysteresis index) ---
+    hyst_rows = []
+    for name, path in file_of_sample.items():
+        try:
+            v_raw, j_raw = read_jv_curve(path, area_cm2=area)
+            h = analyze_scan_hysteresis(v_raw, j_raw)
+        except Exception:
+            continue
+        if h["n_segments"] < 2 or not (h["forward"] and h["reverse"]):
+            continue
+        f, r = h["forward"], h["reverse"]
+        hyst_rows.append({
+            "Filename": name,
+            "Segments": h["n_segments"],
+            "PCE fwd (%)": round(f["PCE"], 3), "PCE rev (%)": round(r["PCE"], 3),
+            "Voc fwd (V)": round(f["Voc"], 4), "Voc rev (V)": round(r["Voc"], 4),
+            "Jsc fwd (mA/cm2)": round(f["Jsc"], 3), "Jsc rev (mA/cm2)": round(r["Jsc"], 3),
+            "FF fwd (%)": round(f["FF"], 2), "FF rev (%)": round(r["FF"], 2),
+            "HI (%)": round(h["HI"], 2) if np.isfinite(h["HI"]) else np.nan,
+        })
+    hysteresis_df = pd.DataFrame(hyst_rows)
 
     # --- Group statistics (mean +/- std, publication-style reporting) ---
     stats_rows = []
@@ -438,6 +485,8 @@ def process_jv_directory(directory_path: str, progress_callback=None,
         "box_charts": box_charts,
         "curve_analysis": curve_analysis,
         "statistics_df": statistics_df,
+        "hysteresis_df": hysteresis_df,
+        "diode_fits": diode_fits,
         "cell_area_cm2": area,
         "total_files": len(txt_files)
     }
@@ -480,6 +529,9 @@ def _save_to_excel_impl(data: Dict[str, Any], excel_path: str) -> str:
             st = data.get("statistics_df")
             if st is not None and not st.empty:
                 st.to_excel(writer, sheet_name="Statistics", index=False)
+            hy = data.get("hysteresis_df")
+            if hy is not None and not hy.empty:
+                hy.to_excel(writer, sheet_name="Hysteresis", index=False)
 
             for param, df in data["box_charts"].items():
                 if not df.empty:
@@ -960,3 +1012,253 @@ def _plot_single_box_chart(origin, box_df: pd.DataFrame, parameter_name: str, lo
     origin.Execute("set %C -pbci 1;")     # border color (color index 1: black)
 
     origin.Execute("doc -uw;")
+
+
+# =========================
+# Single-diode equivalent circuit (explicit Lambert-W form)
+# =========================
+Q_E = 1.602176634e-19          # C
+K_B = 1.380649e-23             # J/K
+
+
+def thermal_voltage(temperature_k: float = 298.15) -> float:
+    """kT/q [V]."""
+    return K_B * float(temperature_k) / Q_E
+
+
+def _lambertw_exp(z):
+    """W(exp(z)) on the principal branch, stable for arbitrarily large z.
+
+    exp(z) overflows beyond z ~ 709, but the quantity that enters the diode
+    equation is W(exp(z)), which grows only like z - ln z. For large z the
+    fixed point of w + ln w = z is found by Newton iteration instead.
+    """
+    from scipy.special import lambertw
+    z = np.asarray(z, dtype=float)
+    out = np.empty_like(z)
+    small = z < 500.0
+    if np.any(small):
+        out[small] = lambertw(np.exp(z[small])).real
+    if np.any(~small):
+        zl = z[~small]
+        w = zl - np.log(zl)
+        for _ in range(30):
+            w = w - (w + np.log(w) - zl) / (1.0 + 1.0 / w)
+        out[~small] = w
+    return out
+
+
+def single_diode_current(voltage, jph, j0, n, rs, rsh, temperature_k: float = 298.15):
+    """Current density [mA/cm^2] of the one-diode model, photocurrent positive.
+
+        J = Jph - J0 [exp((V + J Rs)/(n kT/q)) - 1] - (V + J Rs)/Rsh
+
+    solved explicitly with the Lambert W function (Jain & Kapoor, Sol. Energy
+    Mater. Sol. Cells 81, 269 (2004)). Jph, J0 in mA/cm^2; Rs, Rsh in Ohm cm^2.
+    """
+    v = np.asarray(voltage, dtype=float)
+    vt = float(n) * thermal_voltage(temperature_k)
+    jph_a, j0_a = float(jph) / 1000.0, float(j0) / 1000.0   # A/cm^2 so that J*R is a voltage
+    rs, rsh = float(rs), float(rsh)
+    if rs <= 0:
+        return 1000.0 * (jph_a - j0_a * np.expm1(np.clip(v / vt, -700, 700)) - v / rsh)
+    log_a = math.log(rs * rsh * j0_a / (vt * (rs + rsh)))
+    z = log_a + rsh * (rs * (jph_a + j0_a) + v) / (vt * (rs + rsh))
+    w = _lambertw_exp(z)
+    j = (rsh * (jph_a + j0_a) - v) / (rs + rsh) - (vt / rs) * w
+    return 1000.0 * j
+
+
+def fit_single_diode(voltage, current_density, temperature_k: float = 298.15,
+                     pin_mw_cm2: float = STANDARD_IRRADIANCE_MW_CM2) -> Dict[str, Any]:
+    """Fit the one-diode model to an illuminated J-V curve.
+
+    Returns Jph, J0 [mA/cm^2], n, Rs, Rsh [Ohm cm^2], the goodness of fit
+    (R^2, RMSE in mA/cm^2) and the model curve on the input voltages. The
+    fit works in log space for Jph, J0, Rs and Rsh (they span decades) and
+    starts from the curve-derived Jsc, Voc, Rs and Rsh so that it converges
+    from a physically sensible point. Three ideality-factor starts are tried
+    and the lowest-cost solution kept.
+    """
+    from scipy.optimize import least_squares
+
+    out = {k: float("nan") for k in ("Jph", "J0", "n", "Rs", "Rsh", "R2", "RMSE", "cost")}
+    out.update(success=False, message="", y_fit=None, voltage=None)
+
+    v = np.asarray(voltage, dtype=float)
+    j = np.asarray(current_density, dtype=float)
+    ok = np.isfinite(v) & np.isfinite(j)
+    v, j = v[ok], j[ok]
+    if len(v) < 8:
+        out["message"] = "too few points"
+        return out
+    order = np.argsort(v)
+    v, j = v[order], j[order]
+    vu, inv = np.unique(v, return_inverse=True)
+    if len(vu) != len(v):
+        j = np.bincount(inv, weights=j) / np.maximum(np.bincount(inv), 1)
+        v = vu
+
+    base = compute_jv_parameters(v, j, pin_mw_cm2)
+    if not np.isfinite(base["Jsc"]) or not np.isfinite(base["Voc"]):
+        out["message"] = "no photovoltaic response (Jsc/Voc undefined)"
+        return out
+    sign = -1.0 if float(np.interp(0.0, v, j)) < 0 else 1.0
+    jw = sign * j
+    jsc, voc = base["Jsc"], base["Voc"]
+    rs0 = base["Rs"] if np.isfinite(base["Rs"]) and base["Rs"] > 0 else 1.0
+    rsh0 = base["Rsh"] if np.isfinite(base["Rsh"]) and base["Rsh"] > 0 else 1e4
+    rs0 = float(np.clip(rs0, 1e-2, 1e2))
+    rsh0 = float(np.clip(rsh0, 10.0, 1e7))
+    vt = thermal_voltage(temperature_k)
+
+    # fit only the region that carries information about the diode: from
+    # the most negative bias up to a little beyond Voc
+    m = v <= voc + 0.15
+    vf, jf = v[m], jw[m]
+    scale = max(jsc, 1e-6)
+
+    def residual(theta):
+        jph, j0, n, rs, rsh = 10 ** theta[0], 10 ** theta[1], theta[2], 10 ** theta[3], 10 ** theta[4]
+        with np.errstate(all="ignore"):
+            model = single_diode_current(vf, jph, j0, n, rs, rsh, temperature_k)
+        r = (model - jf) / scale
+        r[~np.isfinite(r)] = 10.0
+        return r
+
+    lo = [math.log10(0.5 * jsc), -25.0, 0.5, -3.0, 0.0]
+    hi = [math.log10(1.5 * jsc), 0.0, 6.0, 3.0, 9.0]
+    best = None
+    for n0 in (1.0, 1.5, 2.0):
+        j0_0 = jsc / max(math.expm1(voc / (n0 * vt)), 1e-300)
+        theta0 = [math.log10(jsc), math.log10(max(j0_0, 1e-25)), n0,
+                  math.log10(rs0), math.log10(rsh0)]
+        theta0 = [min(max(t, l), h) for t, l, h in zip(theta0, lo, hi)]
+        try:
+            res = least_squares(residual, theta0, bounds=(lo, hi), method="trf",
+                                x_scale="jac", max_nfev=4000)
+        except Exception as exc:  # noqa: BLE001
+            out["message"] = str(exc)
+            continue
+        if best is None or res.cost < best.cost:
+            best = res
+    if best is None:
+        return out
+
+    jph, j0, n, rs, rsh = 10 ** best.x[0], 10 ** best.x[1], best.x[2], 10 ** best.x[3], 10 ** best.x[4]
+    y_fit = sign * single_diode_current(v, jph, j0, n, rs, rsh, temperature_k)
+    resid = sign * y_fit - jw
+    ss_tot = float(np.sum((jw - jw.mean()) ** 2))
+    out.update(Jph=float(jph), J0=float(j0), n=float(n), Rs=float(rs), Rsh=float(rsh),
+               R2=1.0 - float(np.sum(resid ** 2)) / ss_tot if ss_tot > 0 else float("nan"),
+               RMSE=float(np.sqrt(np.mean(resid ** 2))), cost=float(best.cost),
+               success=bool(best.success), message=str(best.message),
+               y_fit=y_fit, voltage=v)
+    return out
+
+
+# =========================
+# Scan direction and hysteresis
+# =========================
+def read_jv_curve(file_path: str, area_cm2: Optional[float] = None):
+    """Return (V, J) of one source-meter file in the order measured, without
+    the duplicate-voltage averaging that `parse_jv_file` performs. Needed to
+    separate forward and reverse sweeps."""
+    try:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except UnicodeDecodeError:
+            with open(file_path, "r", encoding="cp949") as f:
+                lines = f.readlines()
+    except Exception:
+        return np.array([]), np.array([])
+    factor = current_conversion_factor(area_cm2)
+    start = next((i + 1 for i, ln in enumerate(lines) if "Vmeas" in ln and "Imeas" in ln), None)
+    if start is None:
+        return np.array([]), np.array([])
+    v, j = [], []
+    for ln in lines[start:]:
+        parts = ln.split("\t")
+        if len(parts) < 2:
+            continue
+        try:
+            vv, ii = float(parts[0]), float(parts[1])
+        except ValueError:
+            continue
+        if -3 <= vv <= 3:
+            v.append(vv)
+            j.append(ii * factor)
+    return np.asarray(v, dtype=float), np.asarray(j, dtype=float)
+
+
+def split_scan_directions(voltage, current_density, min_points: int = 5) -> List[Dict[str, Any]]:
+    """Split a sweep (in measured order) into monotonic segments.
+
+    Returns a list of {"direction": "forward" | "reverse", "v", "j"}; a
+    forward segment goes from low to high voltage (Jsc -> Voc). Segments
+    shorter than `min_points` are dropped.
+    """
+    v = np.asarray(voltage, dtype=float)
+    j = np.asarray(current_density, dtype=float)
+    if len(v) < min_points:
+        return []
+    dv = np.diff(v)
+    sgn = np.sign(dv)
+    # carry the previous direction across repeated voltages
+    for i in range(1, len(sgn)):
+        if sgn[i] == 0:
+            sgn[i] = sgn[i - 1]
+    segments, start = [], 0
+    for i in range(1, len(sgn)):
+        if sgn[i] != 0 and sgn[i - 1] != 0 and sgn[i] != sgn[i - 1]:
+            segments.append((start, i + 1))
+            start = i
+    segments.append((start, len(v)))
+    out = []
+    for s, e in segments:
+        if e - s < min_points:
+            continue
+        direction = "forward" if v[e - 1] > v[s] else "reverse"
+        out.append({"direction": direction, "v": v[s:e].copy(), "j": j[s:e].copy()})
+    return out
+
+
+def hysteresis_index(pce_reverse: float, pce_forward: float) -> float:
+    """HI = (PCE_rev - PCE_fwd) / PCE_rev, in percent (Snaith et al., JPCL 5,
+    1511 (2014)). Positive: the reverse (Voc -> Jsc) scan over-estimates."""
+    if not (np.isfinite(pce_reverse) and np.isfinite(pce_forward)) or pce_reverse == 0:
+        return float("nan")
+    return 100.0 * (pce_reverse - pce_forward) / pce_reverse
+
+
+def analyze_scan_hysteresis(voltage, current_density, pin_mw_cm2: float = STANDARD_IRRADIANCE_MW_CM2) -> Dict[str, Any]:
+    """Per-direction photovoltaic parameters and the hysteresis index of a
+    sweep measured in both directions. Keys: n_segments, forward, reverse
+    (parameter dicts or None), HI (%), dVoc, dJsc, dFF (reverse - forward)."""
+    segs = split_scan_directions(voltage, current_density)
+    fwd = next((s for s in segs if s["direction"] == "forward"), None)
+    rev = next((s for s in segs if s["direction"] == "reverse"), None)
+    res: Dict[str, Any] = {"n_segments": len(segs), "forward": None, "reverse": None,
+                           "HI": float("nan"), "dVoc": float("nan"), "dJsc": float("nan"),
+                           "dFF": float("nan")}
+    if fwd is not None:
+        res["forward"] = compute_jv_parameters(fwd["v"], fwd["j"], pin_mw_cm2)
+    if rev is not None:
+        res["reverse"] = compute_jv_parameters(rev["v"], rev["j"], pin_mw_cm2)
+    if res["forward"] and res["reverse"]:
+        f, r = res["forward"], res["reverse"]
+        res["HI"] = hysteresis_index(r["PCE"], f["PCE"])
+        for key, name in (("Voc", "dVoc"), ("Jsc", "dJsc"), ("FF", "dFF")):
+            res[name] = float(r[key] - f[key]) if np.isfinite(r[key]) and np.isfinite(f[key]) else float("nan")
+    return res
+
+
+def jsc_mismatch(jsc_jv: float, jsc_eqe: float) -> float:
+    """Relative difference (%) between the J-V short-circuit current density
+    and the AM1.5G-integrated EQE value: (Jsc_JV - Jsc_EQE) / Jsc_EQE. Values
+    beyond about +-5% point to spectral mismatch, an area error or
+    light-intensity miscalibration."""
+    if not (np.isfinite(jsc_jv) and np.isfinite(jsc_eqe)) or jsc_eqe == 0:
+        return float("nan")
+    return 100.0 * (jsc_jv - jsc_eqe) / jsc_eqe

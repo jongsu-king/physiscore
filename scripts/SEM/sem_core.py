@@ -675,3 +675,70 @@ def try_origin_histogram_direct(
         return False
 
     return True
+
+
+# =========================
+# Grain-size statistics
+# =========================
+def size_statistics(diameters_nm) -> Dict[str, float]:
+    """Descriptive statistics and log-normal parameters of a grain-size
+    distribution.
+
+    Returns n, mean, std (sample, ddof=1), median, min, max, D10/D50/D90,
+    coefficient of variation, and the log-normal fit (mu, sigma of ln d;
+    geometric mean exp(mu), geometric standard deviation exp(sigma), mode
+    exp(mu - sigma^2)) obtained by maximum likelihood, which is the standard
+    description of grain-growth distributions. Also the Freedman-Diaconis
+    bin width for a histogram of the data.
+    """
+    d = np.asarray(diameters_nm, dtype=float)
+    d = d[np.isfinite(d) & (d > 0)]
+    out = {k: float("nan") for k in ("n", "mean", "std", "median", "min", "max", "D10", "D50", "D90",
+                                     "cv", "lognorm_mu", "lognorm_sigma", "geo_mean", "gsd",
+                                     "lognorm_mode", "bin_width")}
+    out["n"] = float(len(d))
+    if len(d) == 0:
+        return out
+    out.update(mean=float(np.mean(d)), median=float(np.median(d)), min=float(np.min(d)), max=float(np.max(d)))
+    out["std"] = float(np.std(d, ddof=1)) if len(d) > 1 else 0.0
+    out["cv"] = out["std"] / out["mean"] if out["mean"] > 0 else float("nan")
+    q10, q50, q90 = np.percentile(d, [10, 50, 90])
+    out.update(D10=float(q10), D50=float(q50), D90=float(q90))
+    ln = np.log(d)
+    mu = float(np.mean(ln))
+    sigma = float(np.std(ln, ddof=1)) if len(d) > 1 else 0.0
+    out.update(lognorm_mu=mu, lognorm_sigma=sigma, geo_mean=float(math.exp(mu)), gsd=float(math.exp(sigma)),
+               lognorm_mode=float(math.exp(mu - sigma ** 2)))
+    if len(d) >= 4:
+        iqr = float(np.subtract(*np.percentile(d, [75, 25])))
+        out["bin_width"] = 2.0 * iqr / len(d) ** (1.0 / 3.0) if iqr > 0 else float(np.ptp(d)) / 10.0
+    return out
+
+
+def lognormal_pdf(x, mu: float, sigma: float):
+    """Probability density of ln-normal(mu, sigma) at x (> 0)."""
+    x = np.asarray(x, dtype=float)
+    out = np.zeros_like(x)
+    m = x > 0
+    if sigma <= 0:
+        return out
+    out[m] = np.exp(-(np.log(x[m]) - mu) ** 2 / (2 * sigma ** 2)) / (x[m] * sigma * math.sqrt(2 * math.pi))
+    return out
+
+
+def histogram_with_fit(diameters_nm, bins: Optional[int] = None):
+    """Histogram counts/edges plus the log-normal curve scaled to the
+    histogram (counts per bin) for overlay plotting."""
+    stats = size_statistics(diameters_nm)
+    d = np.asarray(diameters_nm, dtype=float)
+    d = d[np.isfinite(d) & (d > 0)]
+    if len(d) == 0:
+        return stats, np.array([]), np.array([]), np.array([]), np.array([])
+    if bins is None:
+        bw = stats["bin_width"]
+        bins = max(5, int(math.ceil(float(np.ptp(d)) / bw))) if np.isfinite(bw) and bw > 0 else 10
+    counts, edges = np.histogram(d, bins=bins)
+    xs = np.linspace(edges[0], edges[-1], 300)
+    width = float(edges[1] - edges[0])
+    curve = lognormal_pdf(xs, stats["lognorm_mu"], stats["lognorm_sigma"]) * len(d) * width
+    return stats, counts, edges, xs, curve

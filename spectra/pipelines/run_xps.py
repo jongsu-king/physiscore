@@ -19,11 +19,18 @@ def run_xps_pipeline(x, y, outdir, cfg: PipelineConfig, log_cb=None):
     except Exception:
         pass
 
+    x = np.asarray(x, dtype=float) + float(getattr(cfg, "xps_charge_shift_ev", 0.0) or 0.0)
+
     log("Smoothing...")
     y_s = smooth_signal(y, cfg.sg_window, cfg.sg_poly)
 
-    log("Baseline (AsLS)...")
-    bl = baseline_asls(x, y_s, cfg.als_lam, cfg.als_p, cfg.als_max_iter)
+    if str(getattr(cfg, "xps_background", "shirley")).lower() == "shirley":
+        log("Background (Shirley)...")
+        from spectra.core.xps import shirley_background
+        bl = shirley_background(x, y_s)
+    else:
+        log("Baseline (AsLS)...")
+        bl = baseline_asls(x, y_s, cfg.als_lam, cfg.als_p, cfg.als_max_iter)
     y_corr = y_s - bl
 
     log("Finding peak candidates...")

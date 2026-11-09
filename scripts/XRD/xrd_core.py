@@ -1,7 +1,9 @@
 """
 xrd_core.py - XRD Core with Total Fitting & Origin Fit Export
 """
+import math
 import pandas as pd
+from typing import Any, Dict, Optional
 import numpy as np
 try:
     import google.generativeai as genai
@@ -338,3 +340,176 @@ def plot_xrd_to_origin(origin, x, y, y_fit, peaks_df=None, log_callback=None):
     origin.Execute("doc -uw;")
     
     if log_callback: log_callback("Origin plotting with Fit complete.")
+
+# =========================
+# Line-broadening analysis, Kalpha2 stripping, lattice parameters, texture
+# =========================
+LAMBDA_CU_KA1 = 1.540562   # Angstrom
+LAMBDA_CU_KA2 = 1.544390   # Angstrom
+KA2_KA1_INTENSITY_RATIO = 0.5
+
+
+def scherrer_size(two_theta_deg, fwhm_deg, instrumental_fwhm_deg: float = 0.0,
+                  k: float = 0.9, wavelength_a: float = LAMBDA_CU, breadth: str = "fwhm") -> float:
+    """Crystallite size [nm], tau = K lambda / (beta cos theta).
+
+    beta is the sample broadening in radians: FWHM corrected for the
+    instrument in quadrature (Gaussian approximation; use `breadth="linear"`
+    for the Lorentzian beta = FWHM - FWHM_inst). K = 0.9 for spherical
+    crystallites of unknown shape (Scherrer 1918; Langford & Wilson 1978).
+    """
+    fwhm_deg = float(fwhm_deg)
+    inst = float(instrumental_fwhm_deg or 0.0)
+    if breadth == "linear":
+        beta_deg = fwhm_deg - inst
+    else:
+        beta_deg = math.sqrt(fwhm_deg ** 2 - inst ** 2) if fwhm_deg > inst else float("nan")
+    if not np.isfinite(beta_deg) or beta_deg <= 0:
+        return float("nan")
+    theta = math.radians(float(two_theta_deg) / 2.0)
+    return (k * wavelength_a / 10.0) / (math.radians(beta_deg) * math.cos(theta))
+
+
+def williamson_hall(two_theta_deg, fwhm_deg, instrumental_fwhm_deg: float = 0.0,
+                    k: float = 0.9, wavelength_a: float = LAMBDA_CU) -> Dict[str, Any]:
+    """Uniform-deformation Williamson-Hall analysis (Williamson & Hall 1953):
+
+        beta cos(theta) = K lambda / D + 4 epsilon sin(theta)
+
+    beta is the instrument-corrected FWHM in radians. Returns D [nm],
+    the microstrain epsilon (dimensionless), their standard errors from the
+    fit covariance, R^2 and the plotted points. Needs >= 2 reflections; with
+    exactly 2 the uncertainties are undefined.
+    """
+    tt = np.asarray(two_theta_deg, dtype=float)
+    fw = np.asarray(fwhm_deg, dtype=float)
+    inst = float(instrumental_fwhm_deg or 0.0)
+    beta = np.where(fw > inst, np.sqrt(np.clip(fw ** 2 - inst ** 2, 0, None)), np.nan)
+    ok = np.isfinite(tt) & np.isfinite(beta) & (beta > 0)
+    out = {"D_nm": float("nan"), "strain": float("nan"), "D_err_nm": float("nan"),
+           "strain_err": float("nan"), "intercept": float("nan"), "slope": float("nan"),
+           "R2": float("nan"), "n_peaks": int(np.sum(ok)), "x": np.array([]), "y": np.array([])}
+    if out["n_peaks"] < 2:
+        return out
+    theta = np.radians(tt[ok] / 2.0)
+    x = 4.0 * np.sin(theta)
+    y = np.radians(beta[ok]) * np.cos(theta)
+    if out["n_peaks"] >= 3:
+        (slope, intercept), cov = np.polyfit(x, y, 1, cov=True)
+        se_slope, se_int = math.sqrt(max(cov[0, 0], 0)), math.sqrt(max(cov[1, 1], 0))
+    else:
+        slope, intercept = np.polyfit(x, y, 1)
+        se_slope = se_int = float("nan")
+    yhat = slope * x + intercept
+    ss_tot = float(np.sum((y - y.mean()) ** 2))
+    r2 = 1.0 - float(np.sum((y - yhat) ** 2)) / ss_tot if ss_tot > 0 else float("nan")
+    d_nm = (k * wavelength_a / 10.0) / intercept if intercept > 0 else float("inf")
+    d_err = (k * wavelength_a / 10.0) / intercept ** 2 * se_int if intercept > 0 and np.isfinite(se_int) else float("nan")
+    out.update(D_nm=float(d_nm), strain=float(slope), D_err_nm=float(d_err), strain_err=float(se_slope),
+               intercept=float(intercept), slope=float(slope), R2=float(r2), x=x, y=y)
+    return out
+
+
+def strip_kalpha2(two_theta_deg, intensity, ratio: float = KA2_KA1_INTENSITY_RATIO,
+                  lambda1: float = LAMBDA_CU_KA1, lambda2: float = LAMBDA_CU_KA2) -> np.ndarray:
+    """Remove the Cu Kalpha2 contribution with the Rachinger (1948) method.
+
+    Each point's Kalpha2 component is `ratio` times the Kalpha1 intensity at
+    the angle where Kalpha1 diffracts from the same d-spacing,
+    2theta_1 = 2 asin(lambda1/lambda2 sin theta). Working from low to high
+    angle, the already-stripped pattern is interpolated at that angle and
+    subtracted. The result is the Kalpha1-only pattern on the input grid.
+    """
+    x = np.asarray(two_theta_deg, dtype=float)
+    y = np.asarray(intensity, dtype=float)
+    order = np.argsort(x)
+    xs, ys = x[order], y[order]
+    out = ys.copy()
+    theta = np.radians(xs / 2.0)
+    arg = np.clip(lambda1 / lambda2 * np.sin(theta), -1.0, 1.0)
+    x_ka1 = 2.0 * np.degrees(np.arcsin(arg))   # angle at which Ka1 gives the same d
+    for i in range(len(xs)):
+        xi = x_ka1[i]
+        if xi <= xs[0]:
+            continue
+        # interpolate the stripped (Ka1-only) pattern at xi using points already processed
+        j = int(np.searchsorted(xs, xi)) - 1
+        if j < 0 or j >= i:
+            continue
+        j2 = min(j + 1, i)
+        if xs[j2] == xs[j]:
+            v = out[j]
+        else:
+            t = (xi - xs[j]) / (xs[j2] - xs[j])
+            v = out[j] + t * (out[j2] - out[j])
+        out[i] = ys[i] - ratio * v
+    result = np.empty_like(out)
+    result[order] = out
+    return result
+
+
+def crystallinity_index(two_theta_deg, intensity, baseline=None, lam: float = 1e7) -> Dict[str, float]:
+    """Crystallinity index CI = A_crystalline / A_total, with the amorphous
+    contribution taken as the smooth (ALS) background under the reflections
+    (Segal-type area method). Returns CI in %, both areas and the background
+    used."""
+    x = np.asarray(two_theta_deg, dtype=float)
+    y = np.asarray(intensity, dtype=float)
+    order = np.argsort(x)
+    x, y = x[order], y[order]
+    if baseline is None:
+        baseline = _als_baseline(y, lam=lam, p=0.01)
+    baseline = np.asarray(baseline, dtype=float)
+    trap = getattr(np, "trapezoid", None) or np.trapz
+    total = float(trap(np.clip(y, 0, None), x))
+    cryst = float(trap(np.clip(y - baseline, 0, None), x))
+    ci = 100.0 * cryst / total if total > 0 else float("nan")
+    return {"CI_percent": ci, "area_crystalline": cryst, "area_total": total, "baseline": baseline}
+
+
+def d_spacing(two_theta_deg, wavelength_a: float = LAMBDA_CU):
+    tt = np.asarray(two_theta_deg, dtype=float)
+    return wavelength_a / (2.0 * np.sin(np.radians(tt / 2.0)))
+
+
+def lattice_parameter_cubic(two_theta_deg, hkl, wavelength_a: float = LAMBDA_CU) -> Dict[str, Any]:
+    """Cubic lattice parameter from indexed reflections: a = d sqrt(h^2+k^2+l^2).
+
+    Besides the plain mean, the Nelson-Riley extrapolation (Nelson & Riley
+    1945) is returned: a plotted against f(theta) = (cos^2 theta / sin theta
+    + cos^2 theta / theta)/2 and extrapolated to f = 0 (theta = 90 deg),
+    which cancels the systematic errors (specimen displacement, absorption)
+    that scale with that function.
+    """
+    tt = np.asarray(two_theta_deg, dtype=float)
+    hkl = np.asarray(hkl, dtype=float).reshape(-1, 3)
+    if len(tt) != len(hkl):
+        raise ValueError("one (h k l) triple per reflection is required")
+    d = d_spacing(tt, wavelength_a)
+    a = d * np.sqrt(np.sum(hkl ** 2, axis=1))
+    out = {"a_mean_A": float(np.mean(a)), "a_std_A": float(np.std(a, ddof=1)) if len(a) > 1 else 0.0,
+           "a_per_peak_A": a, "a_NR_A": float("nan"), "NR_R2": float("nan")}
+    if len(a) >= 3:
+        theta = np.radians(tt / 2.0)
+        f = 0.5 * (np.cos(theta) ** 2 / np.sin(theta) + np.cos(theta) ** 2 / theta)
+        slope, intercept = np.polyfit(f, a, 1)
+        yhat = slope * f + intercept
+        ss_tot = float(np.sum((a - a.mean()) ** 2))
+        out["a_NR_A"] = float(intercept)
+        out["NR_R2"] = 1.0 - float(np.sum((a - yhat) ** 2)) / ss_tot if ss_tot > 0 else float("nan")
+    return out
+
+
+def lattice_strain(d_observed, d_reference) -> float:
+    """Uniform lattice strain from a peak shift, (d - d0)/d0 (positive =
+    tensile, larger spacing, peak at lower angle)."""
+    return float((float(d_observed) - float(d_reference)) / float(d_reference))
+
+
+def texture_coefficient(intensities, reference_intensities) -> np.ndarray:
+    """Harris texture coefficient TC(hkl) = (I/I0) / ((1/N) sum I/I0); TC = 1
+    for a random powder, TC > 1 marks preferred orientation (Harris 1952)."""
+    i = np.asarray(intensities, dtype=float)
+    i0 = np.asarray(reference_intensities, dtype=float)
+    r = i / i0
+    return r / np.mean(r)

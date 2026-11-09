@@ -34,6 +34,7 @@ from spectra.core.utils import safe_sorted_xy, robust_read_csv
 
 from spectra.pipelines.run_xrd import run_xrd_pipeline
 from spectra.pipelines.run_pl import run_pl_pipeline
+from spectra.pipelines.run_xps import run_xps_pipeline
 
 from spectra.core.report import generate_ai_peak_report
 
@@ -589,6 +590,8 @@ class SpectraDashboardTab(ctk.CTkFrame):
             return run_xrd_pipeline(self.x, self.y, outdir, cfg, log_cb=self._log)
         if cfg.technique == "PL":
             return run_pl_pipeline(self.x, self.y, outdir, cfg, log_cb=self._log)
+        if cfg.technique == "XPS":
+            return run_xps_pipeline(self.x, self.y, outdir, cfg, log_cb=self._log)
         raise ValueError("Unknown technique")
 
 
@@ -791,6 +794,8 @@ class SpectraDashboardTab(ctk.CTkFrame):
 
                     if cfg.technique == "XRD":
                         proc, cand, fitted = run_xrd_pipeline(x, y, outdir, cfg, log_cb=self._log)
+                    elif cfg.technique == "XPS":
+                        proc, cand, fitted = run_xps_pipeline(x, y, outdir, cfg, log_cb=self._log)
                     else:
                         proc, cand, fitted = run_pl_pipeline(x, y, outdir, cfg, log_cb=self._log)
 

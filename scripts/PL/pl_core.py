@@ -2,6 +2,7 @@
 pl_core.py - Fixed Origin Connection & Gaussian Fit Visualization
 """
 import pandas as pd
+from typing import Any, Dict, Optional
 import numpy as np
 try:
     import google.generativeai as genai
@@ -350,3 +351,64 @@ def analyze_pl_with_gemini(api_key, model_name, context, data_summary):
         return response.text
     except Exception as e:
         return f"AI analysis failed: {e}"
+
+
+# =========================
+# Energy axis, multi-component fitting and peak metrics
+# =========================
+from scripts.common import spectral as _spectral  # noqa: E402
+
+HC_EV_NM = _spectral.HC_EV_NM
+
+
+def to_energy_axis(wavelength_nm, intensity, jacobian: bool = True):
+    """(E [eV] ascending, I(E)) with the Jacobian I(E) = I(lambda) lambda^2/hc
+    applied by default. Peak positions and widths of broad PL bands differ
+    measurably between the two representations (Mooney & Kambhampati 2013);
+    report the energy-domain values when comparing with band gaps."""
+    return _spectral.spectrum_to_energy(wavelength_nm, intensity, jacobian=jacobian)
+
+
+def fit_multi_peak(x, y, max_peaks: int = 3, shape: str = "gaussian", criterion: str = "aic"):
+    """AICc-selected sum of Gaussian/Lorentzian/pseudo-Voigt/Voigt components
+    (see scripts.common.spectral.select_n_peaks). Returns the FitResult;
+    `.table()` gives center/height/FWHM/area per component."""
+    return _spectral.select_n_peaks(x, y, max_peaks=max_peaks, shape=shape, criterion=criterion)
+
+
+def peak_metrics(x, y) -> Dict[str, float]:
+    """Model-free descriptors of the dominant band: position of the maximum,
+    centroid (first moment), numeric FWHM, integrated intensity and the
+    asymmetry (right half-width / left half-width at half maximum)."""
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    ok = np.isfinite(x) & np.isfinite(y)
+    x, y = x[ok], y[ok]
+    out = {"peak_x": float("nan"), "centroid": float("nan"), "fwhm": float("nan"),
+           "area": float("nan"), "asymmetry": float("nan"), "max": float("nan")}
+    if len(x) < 5:
+        return out
+    order = np.argsort(x)
+    x, y = x[order], y[order]
+    i = int(np.argmax(y))
+    out["peak_x"] = float(x[i])
+    out["max"] = float(y[i])
+    out["centroid"] = _spectral.centroid(x, y)
+    out["fwhm"] = _spectral.numeric_fwhm(x, y, i)
+    out["area"] = _spectral.integrate(x, np.clip(y, 0, None))
+    half = float(np.min(y)) + 0.5 * (y[i] - float(np.min(y)))
+    l = i
+    while l > 0 and y[l] > half:
+        l -= 1
+    r = i
+    while r < len(y) - 1 and y[r] > half:
+        r += 1
+    left, right = x[i] - x[l], x[r] - x[i]
+    out["asymmetry"] = float(right / left) if left > 0 else float("nan")
+    return out
+
+
+def fwhm_nm_to_mev(center_nm: float, fwhm_nm: float) -> float:
+    """Convert a wavelength-domain FWHM to energy [meV] about the same centre
+    (first-order: dE = hc dlambda / lambda^2)."""
+    return 1000.0 * HC_EV_NM * float(fwhm_nm) / float(center_nm) ** 2

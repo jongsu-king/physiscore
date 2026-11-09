@@ -277,12 +277,14 @@ def process_dark_jv_directory(directory_path: str, progress_callback=None,
 
     # --- Diode analysis per sample: ideality n, saturation J0, dark Rsh ---
     diode_rows = []
+    full_fits: Dict[str, Dict[str, Any]] = {}
     v_arr = combined_data['Voltage(V)'].to_numpy(dtype=float)
     for col in combined_data.columns:
         if col == 'Voltage(V)':
             continue
-        d = analyze_dark_diode(v_arr, combined_data[col].to_numpy(dtype=float))
-        diode_rows.append({
+        j_col = combined_data[col].to_numpy(dtype=float)
+        d = analyze_dark_diode(v_arr, j_col)
+        row = {
             "Filename": col,
             "Ideality n": round(d["n"], 3) if np.isfinite(d["n"]) else np.nan,
             "J0 (mA/cm2)": float(f'{d["J0_mA_cm2"]:.3e}') if np.isfinite(d["J0_mA_cm2"]) else np.nan,
@@ -290,7 +292,22 @@ def process_dark_jv_directory(directory_path: str, progress_callback=None,
             "n fit R2": round(d["fit_R2"], 4) if np.isfinite(d["fit_R2"]) else np.nan,
             "n fit range (V)": (f'{d["fit_Vmin"]:.2f}-{d["fit_Vmax"]:.2f}'
                                 if np.isfinite(d["fit_Vmin"]) else ""),
-        })
+        }
+        # full one-diode fit including series resistance (log-space residuals)
+        try:
+            full = fit_dark_diode(v_arr, j_col)
+        except Exception:
+            full = {"success": False}
+        if full.get("success"):
+            full_fits[col] = full
+            row.update({
+                "n (full fit)": round(full["n"], 3),
+                "J0 full fit (mA/cm2)": float(f'{full["J0_mA_cm2"]:.3e}'),
+                "Rs fit (Ohm cm2)": round(full["Rs_Ohm_cm2"], 3),
+                "Rsh fit (Ohm cm2)": round(full["Rsh_Ohm_cm2"], 1),
+                "Full fit R2 (log)": round(full["R2_log"], 5),
+            })
+        diode_rows.append(row)
     diode_df = pd.DataFrame(diode_rows)
     if not diode_df.empty and not summary_df.empty:
         summary_df = summary_df.merge(diode_df, on="Filename", how="left")
@@ -318,6 +335,7 @@ def process_dark_jv_directory(directory_path: str, progress_callback=None,
     return {
         "combined_data": combined_data,
         "summary_df": summary_df,
+        "diode_fits": full_fits,
         "total_files": len(txt_files),
         "y_min_auto": y_min_auto,
         "y_max_auto": y_max_auto
@@ -613,3 +631,120 @@ def _customize_dark_iv_graph(origin, settings: DarkJVSettings):
 
     # Refresh
     origin.Execute("doc -uw;")
+
+
+# =========================
+# Full one-diode dark fit (with Rs) and Cheung analysis
+# =========================
+def dark_diode_current(voltage, j0, n, rs, rsh, temperature_k: float = 298.15):
+    """Dark current density [mA/cm^2] in the diode convention (positive in
+    forward bias):  J = J0 [exp((V - J Rs)/(n kT/q)) - 1] + (V - J Rs)/Rsh,
+    evaluated explicitly through the Lambert-W form shared with the
+    illuminated model."""
+    from scripts.JV.jv_core import single_diode_current
+    return -single_diode_current(voltage, 0.0, j0, n, rs, rsh, temperature_k)
+
+
+def fit_dark_diode(voltage, j_abs, temperature_k: float = 298.15,
+                   v_min: float = 0.05) -> Dict[str, Any]:
+    """Fit J0, n, Rs and Rsh to the forward dark curve in log space.
+
+    The sliding-window method (analyze_dark_diode) deliberately avoids the
+    series-resistance roll-off; this fit includes it, so Rs is recovered and
+    n/J0 are no longer biased by the window choice. Residuals are taken in
+    log10|J| so every decade of the curve carries equal weight.
+    """
+    from scipy.optimize import least_squares
+
+    out = {k: float("nan") for k in ("J0_mA_cm2", "n", "Rs_Ohm_cm2", "Rsh_Ohm_cm2", "R2_log", "RMSE_log")}
+    out.update(success=False, message="", y_fit=None, voltage=None)
+    v = np.asarray(voltage, dtype=float)
+    j = np.abs(np.asarray(j_abs, dtype=float))
+    ok = np.isfinite(v) & np.isfinite(j) & (j > 0)
+    v, j = v[ok], j[ok]
+    if len(v) < 10:
+        out["message"] = "too few points"
+        return out
+    order = np.argsort(v)
+    v, j = v[order], j[order]
+    m = v >= v_min
+    vf, jf = v[m], j[m]
+    if len(vf) < 8:
+        out["message"] = "too few forward-bias points"
+        return out
+
+    seed = analyze_dark_diode(v, j, temperature_k)
+    n0 = seed["n"] if np.isfinite(seed["n"]) else 1.5
+    j00 = seed["J0_mA_cm2"] if np.isfinite(seed["J0_mA_cm2"]) else 1e-6
+    rsh0 = seed["Rsh_dark_Ohm_cm2"] if np.isfinite(seed["Rsh_dark_Ohm_cm2"]) else 1e5
+    # Rs seed: dV/dJ at the highest current (J in A/cm^2)
+    try:
+        k = max(3, len(vf) // 10)
+        sl = np.polyfit(jf[-k:] / 1000.0, vf[-k:], 1)[0]
+        rs0 = float(np.clip(sl, 1e-2, 1e3))
+    except Exception:
+        rs0 = 1.0
+    log_j = np.log10(jf)
+
+    def residual(theta):
+        j0, n, rs, rsh = 10 ** theta[0], theta[1], 10 ** theta[2], 10 ** theta[3]
+        with np.errstate(all="ignore"):
+            model = dark_diode_current(vf, j0, n, rs, rsh, temperature_k)
+        r = np.log10(np.clip(model, 1e-300, None)) - log_j
+        r[~np.isfinite(r)] = 5.0
+        return r
+
+    lo = [-25.0, 0.5, -3.0, 0.0]
+    hi = [2.0, 10.0, 4.0, 12.0]
+    theta0 = [math.log10(max(j00, 1e-25)), float(np.clip(n0, 0.5, 10)), math.log10(rs0),
+              math.log10(float(np.clip(rsh0, 1.0, 1e12)))]
+    try:
+        res = least_squares(residual, theta0, bounds=(lo, hi), method="trf", x_scale="jac", max_nfev=5000)
+    except Exception as exc:  # noqa: BLE001
+        out["message"] = str(exc)
+        return out
+    j0, n, rs, rsh = 10 ** res.x[0], res.x[1], 10 ** res.x[2], 10 ** res.x[3]
+    y_fit = dark_diode_current(v, j0, n, rs, rsh, temperature_k)
+    r = np.log10(np.clip(dark_diode_current(vf, j0, n, rs, rsh, temperature_k), 1e-300, None)) - log_j
+    ss_tot = float(np.sum((log_j - log_j.mean()) ** 2))
+    out.update(J0_mA_cm2=float(j0), n=float(n), Rs_Ohm_cm2=float(rs), Rsh_Ohm_cm2=float(rsh),
+               R2_log=1.0 - float(np.sum(r ** 2)) / ss_tot if ss_tot > 0 else float("nan"),
+               RMSE_log=float(np.sqrt(np.mean(r ** 2))), success=bool(res.success),
+               message=str(res.message), y_fit=y_fit, voltage=v)
+    return out
+
+
+def cheung_analysis(voltage, j_abs, temperature_k: float = 298.15,
+                    j_min_frac: float = 0.05) -> Dict[str, float]:
+    """Cheung & Cheung (Appl. Phys. Lett. 49, 85 (1986)) series-resistance
+    extraction:  dV/d(ln J) = Rs J + n kT/q  in the forward-bias region where
+    the diode dominates. A straight-line fit of dV/dlnJ against J gives Rs
+    (slope) and n (intercept / Vt). J in mA/cm^2 -> Rs in Ohm cm^2."""
+    out = {"Rs_Ohm_cm2": float("nan"), "n": float("nan"), "R2": float("nan"), "n_points": 0}
+    v = np.asarray(voltage, dtype=float)
+    j = np.abs(np.asarray(j_abs, dtype=float))
+    ok = np.isfinite(v) & np.isfinite(j) & (j > 0) & (v > 0)
+    v, j = v[ok], j[ok]
+    if len(v) < 8:
+        return out
+    order = np.argsort(v)
+    v, j = v[order], j[order]
+    m = j >= j_min_frac * j.max()
+    v, j = v[m], j[m]
+    if len(v) < 6:
+        return out
+    lnj = np.log(j)
+    dv_dlnj = np.gradient(v, lnj)
+    good = np.isfinite(dv_dlnj)
+    if int(np.sum(good)) < 5:
+        return out
+    x = j[good] / 1000.0                     # A/cm^2
+    y = dv_dlnj[good]
+    slope, intercept = np.polyfit(x, y, 1)
+    yhat = slope * x + intercept
+    ss_tot = float(np.sum((y - y.mean()) ** 2))
+    from scripts.JV.jv_core import thermal_voltage
+    out.update(Rs_Ohm_cm2=float(slope), n=float(intercept / thermal_voltage(temperature_k)),
+               R2=1.0 - float(np.sum((y - yhat) ** 2)) / ss_tot if ss_tot > 0 else float("nan"),
+               n_points=int(len(x)))
+    return out

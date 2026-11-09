@@ -35,7 +35,18 @@ def build_default_configs():
         pl_defect_fwhm_threshold=0.25,
     )
 
-    return xrd_cfg, pl_cfg
+    # ===== XPS =====
+    xps_cfg = PipelineConfig(
+        technique="XPS",
+        sg_window=7, sg_poly=2,
+        use_noise_based_prominence=True, noise_k=6.0,
+        min_peak_separation_x=0.6,
+        overlap_merge_dx=1.5, region_half_width=3.0, fit_pad=3.0,
+        xps_background="shirley",
+        use_gemini=False,
+    )
+
+    return xrd_cfg, pl_cfg, xps_cfg
 
 
 class App(ctk.CTk):
@@ -49,15 +60,12 @@ class App(ctk.CTk):
         st = (start_tab or "PL").upper()
         
         # Set window title based on selected tab
-        if st == "XRD":
-            self.title("Spectra Processor - XRD Analysis")
-        else:
-            self.title("Spectra Processor - PL Analysis")
+        self.title(f"Spectra Processor - {st} Analysis")
         
         self.geometry("1500x900")
         self.minsize(1250, 780)
 
-        xrd_cfg, pl_cfg = build_default_configs()
+        xrd_cfg, pl_cfg, xps_cfg = build_default_configs()
 
         tabs = ctk.CTkTabview(self)
         tabs.pack(fill="both", expand=True, padx=14, pady=14)
@@ -67,6 +75,10 @@ class App(ctk.CTk):
             t_xrd = tabs.add("XRD")
             SpectraDashboardTab(t_xrd, "XRD", xrd_cfg).pack(fill="both", expand=True)
             tabs.set("XRD")
+        elif st == "XPS":
+            t_xps = tabs.add("XPS")
+            SpectraDashboardTab(t_xps, "XPS", xps_cfg).pack(fill="both", expand=True)
+            tabs.set("XPS")
         else:  # PL
             t_pl = tabs.add("PL")
             PLAnalysisTab(t_pl, pl_cfg).pack(fill="both", expand=True)

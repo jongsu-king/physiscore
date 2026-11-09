@@ -76,150 +76,18 @@ def find_origin_path():
 
 
 # ============================================================
-# AM1.5G spectrum (EQE_core dataset)
+# Physics lives in eqe_core (GUI-free, tested); re-exported here so older
+# callers that imported these names from run_eqe keep working.
 # ============================================================
-_AM15G_CACHE = None
+try:
+    from scripts.EQE import eqe_core
+except ImportError:
+    from . import eqe_core  # type: ignore
 
-
-def get_am15g_spectrum():
-    """
-    Returns the AM1.5G standard spectrum (ASTM G173-03 Global Tilt).
-    Returns: (wavelength_nm, irradiance_W_m2_nm)
-
-    Loads the full-resolution ASTM G173-03 dataset (280-4000 nm, 0.5-5 nm steps,
-    integrated total 1000.4 W/m^2) bundled as 'astm_g173_global.csv' next to this
-    module. Falls back to a coarse 10-nm table if the CSV is missing (e.g. in a
-    frozen build without the data file).
-    """
-    global _AM15G_CACHE
-    if _AM15G_CACHE is not None:
-        return _AM15G_CACHE
-
-    csv_path = Path(__file__).resolve().parent / "astm_g173_global.csv"
-    try:
-        arr = np.genfromtxt(csv_path, delimiter=",", skip_header=1)
-        wl = arr[:, 0].astype(float)
-        irr = arr[:, 1].astype(float)
-        ok = np.isfinite(wl) & np.isfinite(irr)
-        wl, irr = wl[ok], irr[ok]
-        if len(wl) > 100:
-            _AM15G_CACHE = (wl, irr)
-            return _AM15G_CACHE
-    except Exception:
-        pass
-
-    # Fallback: coarse table (10 nm steps, 290-990 nm)
-    am15_values = np.array([
-        0.00102, 0.05094, 0.20527, 0.47139, 0.5018, 0.52798, 0.59817, 0.75507,
-        0.70077, 0.79699, 1.1141, 1.0485, 1.1232, 0.87462, 1.3499, 1.5595,
-        1.5291, 1.5077, 1.6181, 1.6224, 1.5451, 1.5481, 1.5236, 1.5446,
-        1.4825, 1.5399, 1.474, 1.4816, 1.502, 1.3709, 1.4753, 1.4686,
-        1.4739, 1.3924, 1.434, 1.3594, 1.3992, 1.4196, 1.3969, 1.1821,
-        1.2823, 1.3175, 0.9855, 1.1285, 1.2195, 1.2341, 0.26604, 1.1608,
-        1.1636, 1.091, 1.0725, 1.0559, 0.86188, 0.91601, 1.0157, 0.89372,
-        0.98816, 0.96755, 0.93957, 0.92393, 0.7426, 0.62467, 0.74414,
-        0.4321, 0.47181, 0.14726, 0.42066, 0.63461, 0.60468, 0.73227,
-        0.73532
-    ], dtype=float)
-    wl = 290 + 10 * np.arange(len(am15_values), dtype=float)
-    _AM15G_CACHE = (wl, am15_values)
-    return _AM15G_CACHE
-
-
-def _eqe_to_fraction(eqe):
-    """Convert EQE to fraction robustly. Values are treated as percent when the
-    maximum exceeds 1.5 (a real EQE fraction cannot exceed ~1 for single-junction
-    devices, while percent data is typically 20-95)."""
-    eqe = np.asarray(eqe, dtype=float)
-    return eqe / 100.0 if np.nanmax(eqe) > 1.5 else eqe
-
-
-# ============================================================
-# Your "integrand + cumulative" helper (for right axis)
-# ============================================================
-def compute_am15_integrals(wavelength_nm, eqe_percent):
-    """
-    Return:
-      am15_interp: AM1.5G irradiance interpolated to the EQE wavelength grid
-      D: Jsc integrand density [mA cm^-2 nm^-1] = e/(hc) * lambda * EQE * E_AM1.5G
-      E: cumulative trapezoid integral of D over wavelength [mA cm^-2]
-
-    Physics: Jsc = e * Int[ EQE(l) * Phi_AM1.5G(l) dl ], with photon flux
-    Phi = E(l)*l/(hc). With l in nm and E in W m^-2 nm^-1 the integrand is
-    EQE * l * E / 1239.842 in A m^-2 nm^-1; multiply by 0.1 for mA cm^-2 nm^-1.
-    """
-    am15_lam, am15_irr = get_am15g_spectrum()
-
-    wl = np.asarray(wavelength_nm, dtype=float)
-    eqe_frac = _eqe_to_fraction(eqe_percent)
-
-    # Interp AM1.5G to wl; zero outside the reference data range (no flat extrapolation)
-    am15_interp = np.interp(wl, am15_lam, am15_irr, left=0.0, right=0.0)
-
-    # hc/e = 1239.842 eV*nm
-    D = wl * eqe_frac * am15_interp / 1239.842 * 0.1  # mA cm^-2 nm^-1
-
-    # cumulative trapezoid
-    E = np.zeros_like(D, dtype=float)
-    if len(wl) >= 2:
-        order = np.argsort(wl)
-        D_s = D[order]
-        wl_s = wl[order]
-        dlam = np.diff(wl_s)
-        E_s = np.zeros_like(D_s)
-        E_s[1:] = np.cumsum(0.5 * (D_s[1:] + D_s[:-1]) * dlam)
-        E[order] = E_s
-
-    return am15_interp, D, E
-
-
-# ============================================================
-# Physical Jsc calculation (photon flux)
-# ============================================================
-def calculate_jsc(wavelength_nm, eqe_percent):
-    """
-    Jsc [mA/cm^2] = e * Int[ EQE(l) * Phi_AM1.5G(l) dl ] over the overlap of the
-    EQE data and the ASTM G173-03 reference spectrum.
-
-    Integration is performed on the union of both wavelength grids so that
-    neither the EQE resolution nor the reference-spectrum resolution is lost.
-    """
-    am15_lam, am15_irr = get_am15g_spectrum()
-
-    wavelength_nm = np.asarray(wavelength_nm, dtype=float)
-    eqe_decimal = _eqe_to_fraction(eqe_percent)
-
-    ok = np.isfinite(wavelength_nm) & np.isfinite(eqe_decimal)
-    wavelength_nm, eqe_decimal = wavelength_nm[ok], eqe_decimal[ok]
-    if len(wavelength_nm) < 2:
-        return float("nan")
-    order = np.argsort(wavelength_nm)
-    wavelength_nm, eqe_decimal = wavelength_nm[order], eqe_decimal[order]
-
-    # overlap range
-    min_w = max(np.nanmin(wavelength_nm), np.nanmin(am15_lam))
-    max_w = min(np.nanmax(wavelength_nm), np.nanmax(am15_lam))
-    if min_w >= max_w:
-        return float("nan")
-
-    # union grid: keeps full resolution of both datasets
-    grid = np.union1d(wavelength_nm, am15_lam)
-    grid = grid[(grid >= min_w) & (grid <= max_w)]
-
-    eqe_interp = np.interp(grid, wavelength_nm, eqe_decimal)
-    irr_interp = np.interp(grid, am15_lam, am15_irr)
-
-    lambda_m = grid * 1e-9
-    photon_energy = h * c / lambda_m
-    photon_flux = irr_interp / photon_energy  # photons s^-1 m^-2 nm^-1
-
-    integrand = eqe_interp * photon_flux
-    if hasattr(np, "trapezoid"):
-        jsc_A_m2 = e * np.trapezoid(integrand, x=grid)
-    else:
-        jsc_A_m2 = e * np.trapz(integrand, x=grid)
-
-    return jsc_A_m2 * 0.1  # mA/cm^2
+get_am15g_spectrum = eqe_core.get_am15g_spectrum
+compute_am15_integrals = eqe_core.compute_am15_integrals
+calculate_jsc = eqe_core.calculate_jsc
+_eqe_to_fraction = eqe_core.eqe_to_fraction
 
 
 # ============================================================

@@ -47,3 +47,5 @@ class PipelineConfig:
     xps_split_ev: float = 0.0       # 0 -> singlet fit (O1s/C1s/N1s); >0 -> doublet split [eV]
     xps_area_ratio: float = 0.5     # doublet area ratio (p: 1/2 of main, d: 2/3, f: 3/4)
     xps_lock_widths: bool = True
+    xps_background: str = "shirley"   # shirley | asls - Shirley is the XPS standard
+    xps_charge_shift_ev: float = 0.0  # added to every binding energy (C 1s referencing)
