@@ -1,0 +1,48 @@
+name: Bug report
+description: A wrong number, a crash or a window that does not behave as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Please attach the `.analysis.json` side-car of the export if there is one,
+        and a data file if you can share it (it is only used to reproduce the problem).
+  - type: input
+    id: version
+    attributes:
+      label: Physiscore version
+      description: Help → About, or `Physiscore --version`
+      placeholder: "3.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [Windows installer, Windows portable, macOS Apple silicon, macOS Intel, Linux .deb, Linux .tar.gz, From source]
+    validations:
+      required: true
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Tool
+      options: [J-V Curve, J-V Dark, Device summary, EQE, Absorbance, PL, XRD, FE-SEM, Raman, FTIR, XPS / auto-fit, Compare files, Command line, Launcher / installer / updates]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: For a wrong number, the value you expected and where it comes from (another program, a hand calculation).
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open ... 2. Process ... 3. ..."
+  - type: textarea
+    id: log
+    attributes:
+      label: Error message or console output
+      render: text

@@ -1,0 +1,21 @@
+name: Feature request
+description: A new analysis, input format or convenience
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What do you want to measure or do?
+      description: The physical quantity or workflow, the technique, and how you do it today.
+    validations:
+      required: true
+  - type: textarea
+    id: method
+    attributes:
+      label: Method or reference
+      description: The equation or paper that defines it, if there is one.
+  - type: textarea
+    id: data
+    attributes:
+      label: Example data
+      description: A file layout (or a file) the feature should read.

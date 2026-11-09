@@ -4,8 +4,8 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22267588.svg)](https://doi.org/10.5281/zenodo.22267588)
 
 **Physics-constrained analysis of thin-film photovoltaic device and material
-characterisation: ten measurement techniques, one set of conventions, every number
-traceable to an equation and a test.**
+characterisation: ten measurement techniques, one set of conventions, cross-checks between
+them, and every number traceable to an equation, a test and a side-car file.**
 
 Physiscore recomputes device and material parameters from the measured curves rather
 than copying an instrument's summary block, applies the standard physical models
@@ -26,6 +26,24 @@ quality. The algorithms are documented with equations and references in
 | **Raman / FTIR** | arPLS/ALS baselines, band detection and Lorentzian/Gaussian fitting, peak-shift tables, band library, T↔A |
 | **SEM** | watershed grain segmentation, size distribution with D10/D50/D90 and log-normal fit |
 | **XPS** | Shirley background, Voigt singlet/doublet fitting, charge referencing, atomic concentration |
+| **Device summary** | J-V + EQE (+ absorbance, PL) of one device: Jsc cross-check, band gap from three techniques, Voc vs Voc,rad and Voc,SQ with the loss breakdown, fractions of the SQ limits |
+
+Many files at once: *Compare files* in the spectroscopy tools and `physiscore batch` on the
+command line tabulate whole series; XRD patterns can be matched against reference peak
+lists; J-V curves can come from instrument text exports or from CSV/Excel files.
+
+## Documentation
+
+| Document | Content |
+|---|---|
+| [USER_GUIDE.md](docs/USER_GUIDE.md) | every window step by step, outputs, settings, troubleshooting |
+| [METHODS.md](docs/METHODS.md) | equation, procedure, defaults and reference of every reported quantity |
+| [VALIDATION.md](docs/VALIDATION.md) | each estimator against closed-form synthetic data |
+| [FILE_FORMATS.md](docs/FILE_FORMATS.md) | accepted input layouts and the files Physiscore writes |
+| [CLI.md](docs/CLI.md) | command-line reference |
+| [INSTALL.md](docs/INSTALL.md) | installers, first start, checksums, automatic updates |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | module layout, principles, adding a tool, release checks |
+| [CHANGELOG.md](CHANGELOG.md) | changes by version |
 
 ## Download
 
@@ -70,6 +88,8 @@ python physiscore_cli.py abs film.xlsx --sheet UV --mode direct          # Tauc 
 python physiscore_cli.py xrd pattern.txt --instrument-fwhm 0.06 --strip-ka2
 python physiscore_cli.py pl  spectrum.csv --max-peaks 3
 python physiscore_cli.py vib raman.csv --technique raman
+python physiscore_cli.py device --jv cell.txt --eqe cell_eqe.csv         # cross-technique summary
+python physiscore_cli.py batch abs series/ --all-columns --out gaps.xlsx  # one row per spectrum
 python physiscore_cli.py sq 1.60                                         # Shockley-Queisser limit
 python physiscore_cli.py validate                                        # regenerate the validation table
 ```
@@ -116,9 +136,9 @@ physics and is never part of an exported table. See [CONFIG.md](CONFIG.md).
 
 ```bash
 pip install pytest
-pytest -q                          # 224 tests on closed-form synthetic data
+pytest -q                          # 239 tests on closed-form synthetic data
 python tools/validation_report.py  # the table in docs/VALIDATION.md
-python tools/gui_smoke.py          # opens every window once (needs a display)
+python tools/gui_smoke.py          # every window, the launcher and a session (needs a display)
 ```
 
 Measured example files (a perovskite XRD pattern, XPS region scans) live in a local
@@ -130,7 +150,7 @@ absent.
 A software paper is in preparation; please cite the archived release in the meantime:
 
 > Kim, K., Shin, J., Lim, J., Ji, H., Lee, S.-E., & Lee, J. (2026). *Physiscore*
-> (Version 3.0.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
+> (Version 3.1.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
 
 The concept DOI always resolves to the latest archived release. Full metadata is in
 `CITATION.cff`; the methods and their references are in [docs/METHODS.md](docs/METHODS.md).

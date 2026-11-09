@@ -1,19 +1,27 @@
 # Validation against closed-form synthetic data
 
-Every row compares a quantity recovered by Physiscore 3.0.0 with the value that was
+Every row compares a quantity recovered by Physiscore 3.1.0 with the value that was
 put into an analytical model (single-diode J-V curves, error-function EQE edges,
 Tauc edges with Urbach tails, pseudo-Voigt reflections, Gaussian/Lorentzian bands,
-Shirley-type XPS backgrounds, log-normal grain sizes). The deviation column is
-therefore the extraction error alone. The table is regenerated with
+Shirley-type XPS backgrounds, log-normal grain sizes, strained cubic lattices). The
+deviation column is therefore the extraction error alone; for the cross-technique rows
+the "reference" is the independent calculation the summary must reproduce. The table is
+regenerated with
 
 ```bash
 python tools/validation_report.py          # or: python physiscore_cli.py validate
 ```
 
-and the same cases are enforced as unit tests in `tests/` (`pytest`, 224 tests).
+and the same cases are enforced as unit tests in `tests/` (`pytest`, 239 tests).
 Measured-data checks (a perovskite XRD pattern, XPS region scans) run when a local
 `rawdata/` folder is present and are skipped otherwise, because those measurements
 are unpublished.
+
+Known, documented limitations visible in the table: a single Gaussian fitted to a PL band
+with an unresolved neighbour is biased (+7 % FWHM; the multi-component fit removes most of
+it), the plain mean of a lattice parameter keeps a specimen-displacement error that the
+Nelson-Riley extrapolation removes, and the Rau band gap of an error-function edge sits
+within 1 meV of its centre.
 
 | Technique | Quantity | Reference | Recovered | Unit | Dev. (%) | Conditions |
 |---|---|---:|---:|---|---:|---|
@@ -77,5 +85,10 @@ are unpublished.
 | XPS | atomic % O for equal C and O | 50 | 50 | at.% | +0.000 | Scofield factors |
 | SEM | log-normal sigma | 0.35 | 0.348423 | - | -0.451 | 5000 grains, MLE |
 | SEM | geometric mean | 300 | 299.524 | nm | -0.159 |  |
+| Device | Jsc mismatch | 1.21803 | 1.21803 | % | +0.000 | single-diode J-V vs error-function EQE |
+| Device | dV1 + dV2 + dV3 | 0.682769 | 0.682769 | V | +0.000 | loss terms close the Voc deficit |
+| Device | band-gap spread | 30 | 30 | meV | +0.000 | EQE 1.60, Tauc 1.61, PL 1.58 eV |
+| XRD | lattice strain from reference match | 0.003 | 0.00299999 | - | -0.000 | 7 reflections, a = 1.003 a0 |
+| XRD | reference coverage | 1 | 1 | - | +0.000 |  |
 
-_Generated 2026-11-09 with Physiscore 3.0.0, numpy 2.4.6, scipy 1.17.1._
+_Generated 2026-11-09 with Physiscore 3.1.0, numpy 2.4.6, scipy 1.17.1._

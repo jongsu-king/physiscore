@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: User guide
+    url: https://github.com/jongsu-king/physiscore/blob/main/docs/USER_GUIDE.md
+    about: How each window works, file formats and troubleshooting
+  - name: Methods
+    url: https://github.com/jongsu-king/physiscore/blob/main/docs/METHODS.md
+    about: Equations, defaults and references of every reported quantity

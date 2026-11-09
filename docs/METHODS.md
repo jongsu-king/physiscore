@@ -4,7 +4,7 @@ This document states, for every quantity Physiscore reports, the equation that i
 evaluated, the numerical procedure, its defaults, and the primary reference. It is
 written so that the methods section of a paper can cite it (or copy from it) and so
 that a reviewer can check a number against the code. File references are to the
-3.0.0 source tree; all functions are GUI-free and importable.
+3.1.0 source tree; all functions are GUI-free and importable.
 
 Conventions: J in mA cm⁻², V in V, R in Ω cm², E in eV, T = 298.15 K unless stated.
 Constants: q = 1.602176634×10⁻¹⁹ C, k = 1.380649×10⁻²³ J K⁻¹, hc = 1239.84198 eV nm.
@@ -196,7 +196,53 @@ with Scofield cross sections relative to C 1s (Scofield, J. Electron Spectrosc. 
 - Publication figures: white background, black axes, inward ticks on all four sides,
   600 dpi raster or SVG/PDF vector.
 
-## 11. Validation
+## 11. Cross-technique device summary (`scripts/common/device_summary.py`)
+
+For one device, the per-technique results are combined:
+
+- **Jsc mismatch** = (J_sc,JV − J_sc,EQE)/J_sc,EQE × 100 %, with J_sc,EQE the AM1.5G
+  integral of §3. A warning is raised above 5 % (adjustable): beyond that the usual causes
+  are the solar simulator's spectral mismatch factor, the lamp calibration or the device
+  area (Snaith, Energy Environ. Sci. 5, 9296 (2012); Zimmermann et al., Nat. Energy 1,
+  16114 (2016)).
+- **Band gap from three techniques**: the derivative-distribution gap of the EQE (§3, the
+  reference value), the Tauc gap of the absorber film (§4) and the PL peak energy on the
+  Jacobian-corrected energy axis (§6). The spread (max − min) is reported and a warning
+  raised above 60 meV; the Stokes shift is E_g,EQE − E_PL.
+- **Detailed balance at the reference gap**: SQ limits (§3) and the ratios J_sc/J_sc,SQ,
+  FF/FF_SQ, PCE/PCE_SQ; the V_oc deficit E_g/q − V_oc = ΔV₁ + ΔV₂ + ΔV₃ with
+  ΔV₁ = E_g/q − V_oc,SQ, ΔV₂ = V_oc,SQ − V_oc,rad (radiative loss from the non-step edge)
+  and ΔV₃ = V_oc,rad − V_oc (non-radiative), and EQE_EL = exp(−qΔV₃/kT). A V_oc above
+  V_oc,SQ is flagged as an inconsistent gap or temperature.
+- The J-V sweep used can be the forward, the reverse or both directions (§1).
+
+## 12. XRD reference matching (`scripts/XRD/xrd_core.py`)
+
+`load_reference_peaks` reads a reference list (2θ or d, optional hkl and relative
+intensity; d is converted with Bragg's law for Cu Kα). `match_reference` pairs each fitted
+reflection with the nearest reference line within a tolerance (0.15° by default), one to
+one and closest pairs first. Reported per pair: Δ2θ, d_obs, d_ref and the lattice strain
+(d_obs − d_ref)/d_ref; overall: the coverage (matched reference lines with I_rel ≥ 5 %
+divided by their number), the fraction of observed reflections that were assigned, the
+mean shift and strain, and the unassigned reflections, which point to a second phase.
+
+## 13. Generic I–V files and summaries from the curve (`scripts/common/iv_io.py`)
+
+Voltage and current columns of CSV/TSV/DAT/Excel files are recognised by their headers
+(current density in mA cm⁻², current in mA or A divided by the device area). Without a
+recognisable header, column 1 is voltage and column 2 current density. The sign is
+normalised to a negative photocurrent at short circuit. When an instrument file has no
+summary block, its V_oc, J_sc, FF and PCE are taken from the curve (§1) and labelled
+*curve* in the summary table.
+
+## 14. Provenance (`scripts/common/provenance.py`)
+
+Each Excel export writes `<name>.analysis.json`: program version, ISO time stamp with time
+zone, Python version and platform, absolute input paths, all analysis parameters and the
+main results (NaN written as null). Folder scans skip files that have such a side-car, so
+an export is never analysed as data.
+
+## 15. Validation
 
 `docs/VALIDATION.md` tabulates each estimator against closed-form inputs; the same cases
 are unit tests (`pytest`). Known limitations stated there: ALS cannot follow a strongly
