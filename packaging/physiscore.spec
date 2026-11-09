@@ -6,7 +6,7 @@ import re
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files
 
 ROOT = Path(SPECPATH).resolve().parent
 VERSION = re.search(r'APP_VERSION = "([^"]+)"', (ROOT / "Physiscore_Launcher.py").read_text(encoding="utf-8")).group(1)
@@ -24,8 +24,23 @@ for src, dst in [
         datas.append((str(ROOT / src), dst))
 datas += collect_data_files("customtkinter")
 
+def package_modules(*packages):
+    """Every module of the analysis packages, found on disk: the launcher imports
+    the tools by name at run time, so PyInstaller cannot see them by itself."""
+    names = []
+    for pkg in packages:
+        for path in sorted((ROOT / pkg).rglob("*.py")):
+            rel = path.relative_to(ROOT).with_suffix("")
+            parts = list(rel.parts)
+            if parts[-1] == "__init__":
+                parts = parts[:-1]
+            if "__pycache__" not in parts:
+                names.append(".".join(parts))
+    return names
+
+
 hiddenimports = (
-    collect_submodules("scripts") + collect_submodules("spectra")
+    package_modules("scripts", "spectra")
     + ["selfupdate", "PIL._tkinter_finder", "matplotlib.backends.backend_tkagg",
        "pybaselines", "lmfit", "pydantic", "openpyxl", "xlrd"]
 )
