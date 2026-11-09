@@ -1,3 +1,8 @@
+> **3.0.0 (2026-11-09)** — the analysis cores, interface, command line and documents were
+> upgraded as a whole; see `docs/release-notes/3.0.0.md`, `docs/METHODS.md` (equations and
+> references for every quantity) and `docs/VALIDATION.md`. The notes below are the 2026-07
+> history and are kept for reference.
+
 # Physiscore 논문급 업그레이드 노트
 
 ## 10차 — UI 통일 + JV_Analysis.exe 편의 기능 완성 (2026-07-07)
