@@ -14,6 +14,8 @@ import threading
 import subprocess
 import importlib
 
+import tkinter as tk
+
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from PIL import Image
@@ -25,7 +27,7 @@ if BASE_DIR not in sys.path:
 from scripts.common import app_config  # noqa: E402  (needs BASE_DIR on sys.path)
 
 CONFIG_FILE = app_config.config_path()
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.1.0"
 
 # ------------------------------------------------------------
 # JV Analysis exe design tokens (measured from run_jv.py)
@@ -76,6 +78,10 @@ TOOLS = [
     ("Raman",          "Spectroscopic",  "Raman.png",     "scripts.Raman.run_raman",     None),
     ("FTIR",           "Spectroscopic",  "FTIR.png",      "scripts.FTIR.run_ftir",       None),
 ]
+
+# built-in module used when the external exe is not there (always on macOS/Linux)
+BUILTIN_FALLBACK = {"exe:JV_Analysis.exe": "scripts.JV.run_jv"}
+
 
 # candidate paths for the upgraded external exe (sibling folder first)
 def find_external_exe(filename):
@@ -221,9 +227,33 @@ class LauncherApp(ctk.CTk):
         self._build_statusbar()
         self.refresh_cards()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self._setup_updates()
 
         # load modules in the background (show start screen immediately)
         threading.Thread(target=self._preload_modules, daemon=True).start()
+
+    # ---------------- updates ----------------
+    def _setup_updates(self):
+        self.update_menu.add_command(
+            label="Installation and updates (web)",
+            command=lambda: __import__("webbrowser").open(
+                "https://github.com/jongsu-king/physiscore/blob/main/docs/INSTALL.md"))
+        self.update_menu.add_separator()
+        try:
+            import selfupdate
+            self.updater = selfupdate.Updater(make_update_app(selfupdate))
+            selfupdate.attach_tk(self, self.updater, self.update_menu, lang="en",
+                                 status=lambda text: text and self.lbl_ready.configure(text=text))
+        except Exception as e:  # updates must never stop the analysis suite
+            print(f"[Physiscore] update support unavailable: {e}")
+
+    def _show_update_menu(self):
+        x = self.winfo_pointerx()
+        y = self.winfo_pointery()
+        try:
+            self.update_menu.tk_popup(x, y)
+        finally:
+            self.update_menu.grab_release()
 
     # ---------------- config ----------------
     def load_config(self):
@@ -277,6 +307,14 @@ class LauncherApp(ctk.CTk):
                       font=(FONT_UI, 12), corner_radius=R_PILL,
                       command=self.open_settings).pack(side="right", padx=16, pady=10)
 
+        # Updates (check now / automatic-update mode) - a small drop-down menu
+        self.update_menu = tk.Menu(self, tearoff=False)
+        ctk.CTkButton(bar, text="⟳  Updates", width=104, height=34,
+                      fg_color=BG_SUB, hover_color=BG_HOVER, text_color=TXT,
+                      border_width=1, border_color=BORDER_HI,
+                      font=(FONT_UI, 12), corner_radius=R_PILL,
+                      command=self._show_update_menu).pack(side="right", padx=(0, 4), pady=10)
+
         # search
         self.search_var = ctk.StringVar()
         ent = ctk.CTkEntry(bar, width=210, height=34, fg_color=BG_SUB,
@@ -317,9 +355,18 @@ class LauncherApp(ctk.CTk):
             self.modules[mod_path] = "loading"
         for _, _, _, mod_path, _ in TOOLS:
             if mod_path.startswith("exe:"):
-                # external exe: check file existence instead of importing
-                exe = find_external_exe(mod_path[4:])
-                self.modules[mod_path] = exe  # path(str) or None
+                # external exe: check file existence instead of importing; without it
+                # (or off Windows) fall back to the built-in module of the same tool
+                exe = find_external_exe(mod_path[4:]) if sys.platform == "win32" else None
+                fallback = BUILTIN_FALLBACK.get(mod_path)
+                if exe or not fallback:
+                    self.modules[mod_path] = exe  # path(str) or None
+                else:
+                    try:
+                        self.modules[mod_path] = importlib.import_module(fallback)
+                    except Exception as e:
+                        print(f"[Physiscore] {fallback} import failed: {e}")
+                        self.modules[mod_path] = None
             else:
                 try:
                     self.modules[mod_path] = importlib.import_module(mod_path)
@@ -337,7 +384,7 @@ class LauncherApp(ctk.CTk):
             return
         mod = self.modules.get(mod_path)
         badge, btn = card["badge"], card["btn"]
-        is_exe = mod_path.startswith("exe:")
+        is_exe = mod_path.startswith("exe:") and isinstance(mod, str)
         if mod == "loading":
             badge.configure(text="LOADING", fg_color=BG_SUB, text_color=TXT_SUB)
             btn.configure(state="disabled", fg_color=BG_SUB, text_color=TXT_SUB)
@@ -432,7 +479,7 @@ class LauncherApp(ctk.CTk):
         mod = self.modules.get(mod_path)
 
         # (1) run the external upgraded exe directly (e.g. JV_Analysis.exe)
-        if mod_path.startswith("exe:"):
+        if mod_path.startswith("exe:") and not hasattr(mod, "AnalysisWindow"):
             exe = mod if isinstance(mod, str) else find_external_exe(mod_path[4:])
             if not exe or not os.path.isfile(exe):
                 messagebox.showerror(
@@ -526,7 +573,54 @@ class LauncherApp(ctk.CTk):
         self.destroy()
 
 
+def make_update_app(selfupdate):
+    return selfupdate.App(repo="jongsu-king/physiscore", name="Physiscore",
+                          version=APP_VERSION, env_prefix="PHYSISCORE")
+
+
+def selftest(out=None) -> int:
+    """Headless check used by the installer builds: import every analysis core and
+    compute J-V parameters of a synthetic diode curve."""
+    import numpy as np
+    result = {"version": APP_VERSION, "frozen": bool(getattr(sys, "frozen", False)), "imports": {}}
+    for mod in ("scripts.JV.jv_core", "scripts.Dark_JV.dark_jv_core", "scripts.PL.pl_core",
+                "scripts.XRD.xrd_core", "scripts.EQE.run_eqe", "scripts.SEM.run_sem",
+                "scripts.Abs.run_abs", "scripts.Raman.run_raman", "scripts.FTIR.run_ftir",
+                "spectra.app"):
+        try:
+            importlib.import_module(mod)
+            result["imports"][mod] = "ok"
+        except Exception as e:  # noqa: BLE001
+            result["imports"][mod] = f"failed: {e!r}"
+    try:
+        from scripts.JV.jv_core import compute_jv_parameters
+        v = np.linspace(-0.2, 1.1, 261)
+        j = -20.0 + 1e-9 * (np.exp(v / 0.0257 / 1.5) - 1.0)
+        p = compute_jv_parameters(v, j, pin_mw_cm2=100.0)
+        result["jv"] = {k: float(p[k]) for k in ("Voc", "Jsc", "FF", "PCE")}
+    except Exception as e:  # noqa: BLE001
+        result["jv"] = f"failed: {e!r}"
+    ok = all(v == "ok" for v in result["imports"].values()) and isinstance(result["jv"], dict) and result["jv"]["PCE"] > 0
+    result["ok"] = ok
+    text = json.dumps(result, indent=2)
+    if out:
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(text)
+    else:
+        print(text)
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
+    if "--version" in sys.argv:
+        print(f"Physiscore {APP_VERSION}")
+        sys.exit(0)
+    if "--selftest" in sys.argv:
+        _out = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else None
+        sys.exit(selftest(_out))
+    if "--update" in sys.argv:
+        import selfupdate
+        sys.exit(selfupdate.cli(selfupdate.Updater(make_update_app(selfupdate))))
     if "--spectra" in sys.argv:
         _i = sys.argv.index("--spectra")
         _tab = sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "PL"

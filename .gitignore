@@ -56,3 +56,6 @@ JV_output/
 ._*
 .Spotlight-V100
 .Trashes
+
+# Generated at build time
+packaging/icons/

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import threading
@@ -49,23 +50,46 @@ def project_root() -> str:
                                         "..", ".."))
 
 
+def user_config_dir() -> str:
+    """Per-user settings folder of an installed (frozen) copy."""
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Roaming")
+    elif sys.platform == "darwin":
+        base = os.path.join(os.path.expanduser("~"), "Library", "Application Support")
+    else:
+        base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, "Physiscore")
+
+
 def config_path() -> str:
     """Absolute path of the config file to read and write.
 
-    ``PHYSISCORE_CONFIG`` overrides everything, which is what tests use. For a
-    frozen build the file next to the executable wins; if only the bundled copy
-    exists (first run after install) that one is read instead.
+    ``PHYSISCORE_CONFIG`` overrides everything, which is what tests use. Source
+    runs use the repository root. A frozen build (installer, disk image, .deb)
+    uses the per-user folder from :func:`user_config_dir`, because the program
+    folder is replaced on every update and is read-only inside a macOS .app or
+    under /opt. On the first start, a config left next to the executable by an
+    older version (or the bundled copy) is copied there once.
     """
     override = os.environ.get("PHYSISCORE_CONFIG")
     if override:
         return os.path.abspath(override)
 
     primary = os.path.join(project_root(), CONFIG_FILENAME)
-    if getattr(sys, "frozen", False) and not os.path.exists(primary):
+    if not getattr(sys, "frozen", False):
+        return primary
+    user = os.path.join(user_config_dir(), CONFIG_FILENAME)
+    if not os.path.exists(user):
         bundled = os.path.join(getattr(sys, "_MEIPASS", ""), CONFIG_FILENAME)
-        if os.path.exists(bundled):
-            return bundled
-    return primary
+        for legacy in (primary, bundled):
+            if legacy and os.path.exists(legacy):
+                try:
+                    os.makedirs(os.path.dirname(user), exist_ok=True)
+                    shutil.copy2(legacy, user)
+                except OSError:
+                    return legacy
+                break
+    return user
 
 
 def _stamp(path: str):

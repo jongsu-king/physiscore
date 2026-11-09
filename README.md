@@ -30,7 +30,25 @@ reproducible across labs, and silently hide problems in the underlying sweep. Ph
 recomputes every quantity from the measured points, keeps the derivation explicit, and
 exports both its own values and the instrument's for cross-validation.
 
-## Installation
+## Download
+
+Ready-to-run programs - no Python needed - are on the
+[latest release](https://github.com/jongsu-king/physiscore/releases/latest):
+
+| System | File |
+|---|---|
+| Windows 10/11 (64-bit) | `Physiscore-<version>-windows-x64-setup.exe` (installer) or `…-windows-x64-portable.zip` |
+| macOS, Apple silicon | `Physiscore-<version>-macos-arm64.dmg` |
+| macOS, Intel | `Physiscore-<version>-macos-x86_64.dmg` |
+| Ubuntu / Debian | `physiscore_<version>_amd64.deb` |
+| Other Linux | `Physiscore-<version>-linux-x86_64.tar.gz` (run `install.sh`) |
+
+Step-by-step instructions, first-start prompts of unsigned builds, checksums and
+uninstalling: **[docs/INSTALL.md](docs/INSTALL.md)**. Installed copies update themselves
+(⟳ Updates in the toolbar: download and install automatically, only notify, or off) -
+see [Automatic updates](docs/INSTALL.md#automatic-updates).
+
+## Installation from source
 
 Requires Python 3.10 or newer.
 
@@ -80,6 +98,11 @@ hold machine-specific paths and an optional API key:
 ```bash
 cp physisfera_config.example.json physisfera_config.json
 ```
+
+An installed copy (installer, disk image, `.deb`) keeps `physisfera_config.json` in your
+user settings folder instead - `%APPDATA%\Physiscore`, `~/Library/Application Support/Physiscore`
+or `~/.config/Physiscore` - so that updates do not touch it; a file left next to the
+program by an older version is copied there on the first start.
 
 `cell_area_cm2` (default `0.04`) sets the device area used for current-density
 conversion; it is re-read for every analysis, so a correction applies to the next
