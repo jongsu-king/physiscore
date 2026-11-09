@@ -41,6 +41,9 @@ release dates. Detailed release notes are in `docs/release-notes/`.
 
 ### Tests
 - 239 unit tests (15 new); 13 GUI smoke checks.
+- The updater's end-to-end tests wait for the background helper to finish its
+  cleanup instead of checking the folder the instant the new copy appears (the check
+  failed on the slower Intel macOS runner).
 
 ## [3.0.0] - 2026-11-09
 

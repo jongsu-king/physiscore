@@ -35,6 +35,17 @@ def _find_selfupdate() -> None:
 
 _find_selfupdate()
 
+
+def _wait_until(condition, tries: int = 150, delay: float = 0.2) -> bool:
+    """Poll condition() until it is true. The update helper runs in the background and
+    finishes its cleanup (old copy, staging folder, log line) a moment after the new
+    files are in place; slow CI runners make that moment visible."""
+    for _ in range(tries):
+        if condition():
+            return True
+        time.sleep(delay)
+    return bool(condition())
+
 import selfupdate as su  # noqa: E402
 
 
@@ -274,9 +285,11 @@ class EndToEndTests(unittest.TestCase):
             time.sleep(0.2)
         self.assertEqual(installed(), "1.1.0")
         self.assertEqual(subprocess.run([str(exe)], capture_output=True, text=True).stdout.strip(), "1.1.0")
+        log = app.folder() / "update.log"
+        _wait_until(lambda: log.exists() and "updated" in log.read_text())
         self.assertFalse((exe.parent.parent / "Demo.old-update").exists())
         self.assertFalse((exe.parent.parent / ".Demo.update").exists())
-        self.assertIn("updated", (app.folder() / "update.log").read_text())
+        self.assertIn("updated", log.read_text())
 
     @unittest.skipUnless(sys.platform == "darwin", "needs hdiutil")
     def test_mac_dmg_swap(self):
@@ -318,7 +331,9 @@ class EndToEndTests(unittest.TestCase):
                 break
             time.sleep(0.2)
         self.assertEqual(installed(), "1.1.0")
-        self.assertEqual(sorted(p.name for p in (self.tmp / "Applications").iterdir()), ["Demo.app"])
+        applications = self.tmp / "Applications"
+        _wait_until(lambda: sorted(p.name for p in applications.iterdir()) == ["Demo.app"])
+        self.assertEqual(sorted(p.name for p in applications.iterdir()), ["Demo.app"])
 
     def test_zip_portable_stage(self):
         root = self.tmp / "apps" / "Demo"
