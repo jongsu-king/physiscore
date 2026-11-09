@@ -325,7 +325,7 @@ class EQEWindow(ctk.CTkToplevel):
             2, 2,
             width_ratios=[1.0, 1.2],     # right (lnEQE) slightly wider
             height_ratios=[1.0, 1.0],    # top/bottom equal
-            wspace=0.28, hspace=0.32
+            wspace=0.42, hspace=0.58        # room for the twin Jsc axis label and the titles below the x labels
         )
 
         # Top-left: EQE (large)
@@ -693,7 +693,7 @@ class EQEWindow(ctk.CTkToplevel):
         )
 
         # Layout: avoid tight_layout issues in Tk embedding
-        self.fig.subplots_adjust(left=0.06, right=0.96, top=0.92, bottom=0.10, wspace=0.28)
+        self.fig.subplots_adjust(left=0.07, right=0.97, top=0.93, bottom=0.09, wspace=0.42, hspace=0.58)
         self.canvas.draw()
 
     def _apply_view(self):

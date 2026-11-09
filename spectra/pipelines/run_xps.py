@@ -43,7 +43,35 @@ def run_xps_pipeline(x, y, outdir, cfg: PipelineConfig, log_cb=None):
         roi = None
 
     fitted_tables = []
-    for _, r in cand.iterrows():
+    if float(cfg.xps_split_ev) <= 0 and not cand.empty:
+        # Singlet lines: candidates whose windows overlap are fitted together as
+        # one cluster (all components at once, window = cluster +- fit_pad).
+        # Fitting one Voigt per candidate window failed next to large peaks: a
+        # window edge cut through a neighbour that had no component, and the
+        # small peak's amplitude went to 0 (Pb 4f with a metallic shoulder).
+        sel = cand.sort_values("x")
+        if roi is not None:
+            sel = sel[(sel["x"] >= roi[0]) & (sel["x"] <= roi[1])]
+        clusters, current = [], []
+        for _, rr in sel.iterrows():
+            if current and float(rr["x"]) - float(current[-1]["x"]) > 2.0 * cfg.fit_pad:
+                clusters.append(current)
+                current = []
+            current.append(rr)
+        if current:
+            clusters.append(current)
+        for members in clusters:
+            region = (float(members[0]["x"]) - cfg.fit_pad, float(members[-1]["x"]) + cfg.fit_pad)
+            if roi is not None:
+                region = (max(region[0], roi[0]), min(region[1], roi[1]))
+            init = [(float(m["x"]), float(m["height"]), float(max(m["fwhm_x"], 1e-6))) for m in members]
+            res = fit_voigts(x, y_corr, region, init)
+            if res is not None and res[0] is not None and not res[0].empty:
+                fitted_tables.append(res[0])
+        cand_loop = cand.iloc[0:0]          # nothing left for the per-candidate loop
+    else:
+        cand_loop = cand
+    for _, r in cand_loop.iterrows():
         cx = float(r["x"])
         if roi is not None and not (roi[0] <= cx <= roi[1]):
             continue
@@ -63,12 +91,8 @@ def run_xps_pipeline(x, y, outdir, cfg: PipelineConfig, log_cb=None):
                 lock_widths=cfg.xps_lock_widths,
             )
         else:
-            # singlet (s-orbital lines like O1s / C1s / N1s): a doublet with
-            # split=0 would just stack two identical peaks - fit one Voigt
-            res = fit_voigts(
-                x, y_corr, region,
-                [(cx, float(r["height"]), float(max(r["fwhm_x"], 1e-6)))],
-            )
+            # (singlet candidates are fitted by cluster above)
+            res = fit_voigts(x, y_corr, region, [(cx, float(r["height"]), float(max(r["fwhm_x"], 1e-6)))])
         if res is None:
             continue
         ft = res[0]

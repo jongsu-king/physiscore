@@ -88,6 +88,7 @@ pytest -q tests                                   # unit tests
 python Physiscore_Launcher.py --selftest          # imports + reference physics
 python tools/gui_smoke.py                         # every window, the launcher, a session
 python tools/validation_report.py > /dev/null     # validation table still builds
+python tools/screenshots.py                       # (macOS) docs/images; needs pyobjc-framework-Quartz
 pyinstaller --noconfirm packaging/physiscore.spec # frozen build
 dist/Physiscore.app/Contents/MacOS/Physiscore --selftest   # (macOS) frozen self-test
 ```

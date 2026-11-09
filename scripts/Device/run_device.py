@@ -148,7 +148,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         self._draw_empty()
 
     def _build_right(self):
-        right = ctk.CTkFrame(self, width=420, fg_color=_pal.BG_PANEL, corner_radius=0)
+        right = ctk.CTkFrame(self, width=500, fg_color=_pal.BG_PANEL, corner_radius=0)
         right.grid(row=0, column=2, sticky="nsew")
         right.grid_rowconfigure(1, weight=1)
         right.grid_propagate(False)
@@ -162,8 +162,8 @@ class AnalysisWindow(ctk.CTkToplevel):
         right.grid_columnconfigure(0, weight=1)
         _theme.style_treeview(rowheight=22)
         self.tree = ttk.Treeview(frame, columns=("q", "v", "u", "o"), show="headings")
-        for c, t, w, a in (("q", "Quantity", 190, "w"), ("v", "Value", 80, "e"), ("u", "Unit", 55, "w"),
-                           ("o", "Origin", 90, "w")):
+        for c, t, w, a in (("q", "Quantity", 186, "w"), ("v", "Value", 80, "e"), ("u", "Unit", 64, "w"),
+                           ("o", "Origin", 108, "w")):
             self.tree.heading(c, text=t)
             self.tree.column(c, width=w, anchor=a, stretch=c == "q")
         ys = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)

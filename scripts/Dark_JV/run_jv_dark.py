@@ -2,6 +2,7 @@
 import os
 import sys
 import json
+import math
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -54,6 +55,16 @@ except Exception:
 # =========================
 # Main GUI
 # =========================
+def _shunt_text(value, unit: str = " Ω") -> str:
+    """Instrument shunt resistance for display; files without the instrument's
+    summary block carry the placeholder "non", which is shown as such."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return "not in file"
+    return f"{v:.2f}{unit}" if math.isfinite(v) else "not in file"
+
+
 class DarkAnalysisWindow(ctk.CTkToplevel):
     def __init__(self, parent, origin_path="", api_key=""):
         super().__init__(parent)
@@ -486,7 +497,7 @@ class DarkAnalysisWindow(ctk.CTkToplevel):
                 sample = self.selected_samples[0]
                 self.selected_sample = sample['name']
                 self.lbl_selected_sample.configure(text=f"[{sample['name']}]")
-                self.lbl_stats_rshunt.configure(text=f"{sample['rshunt']} Ω")
+                self.lbl_stats_rshunt.configure(text=_shunt_text(sample['rshunt']))
             elif len(self.selected_samples) > 1:
                 # Multiple selection - show average
                 self.selected_sample = None
@@ -522,7 +533,7 @@ class DarkAnalysisWindow(ctk.CTkToplevel):
             _theme.fill_kv(self.detail_tree, [("Select one sample", "")])
             return
         r = row.iloc[0]
-        items = [("Rshunt, instrument (Ω)", r.get("RShunt (ohms)")),
+        items = [("Rshunt, instrument (Ω)", _shunt_text(r.get("RShunt (ohms)"), "")),
                  ("Ideality n (window fit)", r.get("Ideality n"), ".3f"),
                  ("J0 (window fit, mA/cm²)", r.get("J0 (mA/cm2)"), ".3e"),
                  ("Window (V)", r.get("n fit range (V)")),
@@ -716,8 +727,12 @@ class DarkAnalysisWindow(ctk.CTkToplevel):
 
         # Auto-set y-axis range based on data
         if 'y_min_auto' in self.processed_data and 'y_max_auto' in self.processed_data:
-            self.y_min.set(self.processed_data['y_min_auto'])
-            self.y_max.set(self.processed_data['y_max_auto'])
+            lo, hi = float(self.processed_data['y_min_auto']), float(self.processed_data['y_max_auto'])
+            if lo > 0 and hi > lo:
+                # whole decades: a log axis reads best from 10^a to 10^b
+                lo, hi = 10.0 ** math.floor(math.log10(lo)), 10.0 ** math.ceil(math.log10(hi))
+            self.y_min.set(lo)
+            self.y_max.set(hi)
             self.log(f"Auto-set Y range: {self.processed_data['y_min_auto']:.2e} ~ {self.processed_data['y_max_auto']:.2e}")
 
         # Reset selection
@@ -744,7 +759,7 @@ class DarkAnalysisWindow(ctk.CTkToplevel):
         try:
             avg_rshunt = pd.to_numeric(self.processed_data['summary_df']['RShunt (ohms)'],
                                         errors='coerce').mean()
-            self.lbl_stats_rshunt.configure(text=f"{avg_rshunt:.2f} Ω")
+            self.lbl_stats_rshunt.configure(text=_shunt_text(avg_rshunt))
         except (KeyError, ValueError, TypeError):
             self.lbl_stats_rshunt.configure(text="- Ω")
 
@@ -788,7 +803,7 @@ class DarkAnalysisWindow(ctk.CTkToplevel):
         for _, row in summary_df.iterrows():
             self.tree.insert("", "end", values=(
                 row['Filename'],
-                row['RShunt (ohms)'],
+                _shunt_text(row['RShunt (ohms)'], ""),
                 _fmt(row, 'Ideality n', '.2f'),
                 _fmt(row, 'J0 (mA/cm2)', '.2e'),
             ))

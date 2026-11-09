@@ -103,7 +103,7 @@ class LoadingPopup(ctk.CTkToplevel):
         self.geometry(f"+{x}+{y}")
         self.frame = ctk.CTkFrame(self, fg_color=_pal.BG_HOVER, border_width=2, border_color=_pal.ACCENT)
         self.frame.pack(fill="both", expand=True)
-        ctk.CTkLabel(self.frame, text="Working...", font=_pal.font(12, "bold"), text_color="white").pack(pady=(25, 10))
+        ctk.CTkLabel(self.frame, text="Working...", font=_pal.font(12, "bold"), text_color=_pal.TXT).pack(pady=(25, 10))
         self.bar = ctk.CTkProgressBar(self.frame, width=220, mode="indeterminate", progress_color=_pal.ACCENT)
         self.bar.pack(pady=10)
         self.bar.start()
@@ -150,7 +150,7 @@ class PeakListPopup(ctk.CTkToplevel):
         
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("Treeview", background=_pal.BG_SUB, foreground="white", fieldbackground=_pal.BG_SUB, borderwidth=0)
+        style.configure("Treeview", background=_pal.BG_SUB, foreground=_pal.TXT, fieldbackground=_pal.BG_SUB, borderwidth=0)
         style.map('Treeview', background=[('selected', _pal.ACCENT)])
         style.configure("Treeview.Heading", background=_pal.PLOT_SPINE, foreground="white", relief="flat")
 
@@ -345,7 +345,7 @@ class AnalysisWindow(ctk.CTkToplevel):
     def add_card_label(self, text):
         f = ctk.CTkFrame(self.left_scroll, fg_color=_pal.BG_CARD, corner_radius=_pal.R_PILL)
         f.pack(fill="x", padx=5, pady=(10, 5))
-        ctk.CTkLabel(f, text=text, font=_pal.font(13, "bold"), text_color="white").pack(anchor="w", padx=10, pady=5)
+        ctk.CTkLabel(f, text=text, font=_pal.font(13, "bold"), text_color=_pal.TXT).pack(anchor="w", padx=10, pady=5)
 
     def create_center_panel(self):
         self.center_frame = ctk.CTkFrame(self.paned_window, corner_radius=0, fg_color=_pal.BG_WINDOW)
@@ -404,11 +404,11 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.right_frame = ctk.CTkFrame(self.paned_window, width=350, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.paned_window.add(self.right_frame, minsize=300)
         
-        ctk.CTkLabel(self.right_frame, text="Peak Detail (Target Layer)", text_color="white", font=_pal.font(12, "bold")).pack(pady=10)
-        self.lbl_peak_pos = ctk.CTkLabel(self.right_frame, text="-", text_color="white")
+        ctk.CTkLabel(self.right_frame, text="Peak Detail (Target Layer)", text_color=_pal.TXT, font=_pal.font(12, "bold")).pack(pady=10)
+        self.lbl_peak_pos = ctk.CTkLabel(self.right_frame, text="-", text_color=_pal.TXT)
         self.lbl_peak_pos.pack(pady=5)
         
-        self.txt_peak_desc = ctk.CTkTextbox(self.right_frame, font=_pal.font(12), fg_color=_pal.BG_SUB, text_color="white")
+        self.txt_peak_desc = ctk.CTkTextbox(self.right_frame, font=_pal.font(12), fg_color=_pal.BG_SUB, text_color=_pal.TXT)
         self.txt_peak_desc.pack(fill="both", expand=True, padx=10, pady=10)
 
     # ==========================================

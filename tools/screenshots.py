@@ -1,8 +1,16 @@
-"""Capture documentation screenshots of the main window and a few tools with
-synthetic data loaded (macOS: uses `screencapture`, which needs screen-recording
-permission for the terminal; elsewhere it tries Pillow's ImageGrab).
+"""Documentation screenshots: every tool window with synthetic example data loaded.
 
-    python tools/screenshots.py [outdir]
+    python tools/screenshots.py [outdir] [name ...]
+
+Each window runs in its own process (several customtkinter windows created and
+destroyed in one process can corrupt the Tcl heap on some builds). On macOS the
+window alone is captured with `screencapture -l <window id>` (window id from
+Quartz, `pip install pyobjc-framework-Quartz`), so other windows or system
+dialogs on the screen never end up in the picture; this needs screen-recording
+permission for the terminal. Elsewhere the window region is grabbed with Pillow.
+
+All data are synthetic (analytical models with noise) and labelled as such in the
+documentation.
 """
 import os
 import subprocess
@@ -18,28 +26,86 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 os.environ.setdefault("PHYSISCORE_NO_UPDATE", "1")
 
-import customtkinter as ctk  # noqa: E402
+NAMES = ("launcher", "jv", "device", "dark", "eqe", "abs", "pl", "xrd", "sem",
+         "raman", "ftir", "xps", "compare")
+HC = 1239.84198
+TOOL_SIZE = "1440x900+30+40"
 
 
-def grab(win, path):
-    win.update_idletasks()
-    win.update()
-    time.sleep(0.6)
-    x, y = win.winfo_rootx(), win.winfo_rooty()
-    w, h = win.winfo_width(), win.winfo_height()
+# --------------------------------------------------------------------------- helpers
+def pump(widget, seconds=0.5, until=None):
+    t_end = time.time() + seconds
+    while time.time() < t_end:
+        widget.update()
+        if until is not None and until():
+            for _ in range(15):
+                widget.update()
+                time.sleep(0.02)
+            return True
+        time.sleep(0.02)
+    return until() if until is not None else True
+
+
+def quiet_dialogs(*modules):
+    """Replace message boxes with prints and file dialogs with fixed answers."""
+    from tkinter import messagebox
+    for fn in ("showwarning", "showerror", "showinfo"):
+        setattr(messagebox, fn, lambda title="", message="", **k: print(f"[dialog] {title}: {message}"))
+    messagebox.askyesno = lambda *a, **k: False
+
+
+def answer_file_dialog(module, path):
+    module.filedialog.askopenfilename = lambda *a, **k: path
+
+
+def _window_id(win):
+    import Quartz
+    title, pid = win.title(), os.getpid()
+    best = None
+    for w in Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionAll, Quartz.kCGNullWindowID):
+        if int(w.get("kCGWindowOwnerPID", -1)) != pid:
+            continue
+        if not bool(w.get("kCGWindowIsOnscreen", False)):
+            continue
+        b = w.get("kCGWindowBounds", {})
+        score = (str(w.get("kCGWindowName") or "") == title, float(b["Width"]) * float(b["Height"]))
+        if best is None or score > best[0]:
+            best = (score, int(w["kCGWindowNumber"]))
+    return None if best is None else best[1]
+
+
+def grab(win, path, width=1600):
+    try:
+        win.lift()
+        win.attributes("-topmost", True)
+    except Exception:
+        pass
+    pump(win, 1.2)
     if sys.platform == "darwin":
-        # include the title bar (about 28 px) above the client area
-        subprocess.run(["screencapture", "-x", "-R", f"{x},{y - 28},{w},{h + 28}", path], check=False)
+        wid = _window_id(win)
+        if wid is None:
+            import Quartz
+            mine = [(w.get("kCGWindowName"), w.get("kCGWindowIsOnscreen"), w.get("kCGWindowLayer"))
+                     for w in Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionAll, Quartz.kCGNullWindowID)
+                     if int(w.get("kCGWindowOwnerPID", -1)) == os.getpid()]
+            print("FAIL no window id for", win.title(), "| windows of this process:", mine)
+            return False
+        subprocess.run(["screencapture", "-x", "-o", f"-l{wid}", path], check=False)
+        if os.path.exists(path):
+            subprocess.run(["sips", "--resampleWidth", str(width), path], capture_output=True)
     else:
         from PIL import ImageGrab
-        ImageGrab.grab(bbox=(x, y, x + w, y + h)).save(path)
-    ok = os.path.exists(path) and os.path.getsize(path) > 10000
+        x, y = win.winfo_rootx(), win.winfo_rooty()
+        ImageGrab.grab(bbox=(x, y, x + win.winfo_width(), y + win.winfo_height())).save(path)
+    ok = os.path.exists(path) and os.path.getsize(path) > 20000
     print(("ok   " if ok else "FAIL ") + path)
     return ok
 
 
-def synthetic_jv_folder(tmp):
+# --------------------------------------------------------------------------- synthetic data
+def write_jv_folder(folder):
     from conftest import single_diode_jv
+    os.makedirs(folder, exist_ok=True)
     v = np.round(np.arange(-0.2, 1.1001, 0.01), 4)
     sets = {"Reference": dict(jph=22.0, j0=1e-9, n=1.5, rs=2.0, rsh=2000.0),
             "Passivated": dict(jph=22.4, j0=2e-10, n=1.4, rs=1.6, rsh=5000.0)}
@@ -53,115 +119,405 @@ def synthetic_jv_folder(tmp):
             j_r = single_diode_jv(v, **{**p, "j0": p["j0"] / 2})
             vv = np.concatenate([v, v[::-1]])
             jj = np.concatenate([j, j_r[::-1]])
-            rows = "\n".join(f"{a:.4f}\t{-b * 0.04 / 1000:.9f}" for a, b in zip(vv, jj))
-            with open(os.path.join(tmp, f"{name} {k}.txt"), "w", encoding="utf-8") as fh:
-                fh.write("Voc V\tx\tJsc mA/cm2\tx\tx\tx\tFill Factor\tEfficiency\n0.9\t0\t22\t0\t0\t0\t77\t15\n")
+            # the source-meter reads the photocurrent as positive; Physiscore multiplies by -1000/area
+            rows = "\n".join(f"{a:.4f}\t{b * 0.04 / 1000:.9f}" for a, b in zip(vv, jj))
+            with open(os.path.join(folder, f"{name} {k}.txt"), "w", encoding="utf-8") as fh:
                 fh.write("Vmeas\tImeas\n" + rows + "\n")
+    return folder
 
 
-def main_launcher(outdir):
+def write_dark_folder(folder):
+    from conftest import thermal_voltage
+    os.makedirs(folder, exist_ok=True)
+    v = np.round(np.arange(-0.3, 1.0001, 0.01), 4)
+    rng = np.random.default_rng(3)
+    for name, (j0, n, rsh) in {"Reference": (2e-9, 1.85, 4e4), "Passivated": (3e-10, 1.6, 1.5e5)}.items():
+        for k in range(1, 4):
+            vt = n * thermal_voltage()
+            j = j0 * (1 + rng.normal(0, 0.1)) * np.expm1(v / vt) + 1000.0 * v / rsh
+            j = j / (1 + 0.002 * np.maximum(j, 0))        # mild series-resistance roll-off
+            i = -j * 0.04 / 1000 * (1 + rng.normal(0, 0.01, len(v)))   # instrument sign
+            rows = "\n".join(f"{a:.4f}\t{b:.6e}" for a, b in zip(v, i))
+            with open(os.path.join(folder, f"{name} {k}.txt"), "w", encoding="utf-8") as fh:
+                fh.write("Vmeas\tImeas\n" + rows + "\n")
+    return folder
+
+
+def eqe_curve(wl, eg=1.60, peak=88.0, sigma=0.03):
+    from scipy.special import erf
+    e = HC / wl
+    return peak * 0.5 * (1 + erf((e - eg) / (sigma * np.sqrt(2)))) * (1 - 0.3 * np.exp(-((wl - 350) / 60) ** 2))
+
+
+def write_eqe(path, eg=1.60):
+    wl = np.arange(300.0, 1000.0, 2.0)
+    pd.DataFrame({"Wavelength (nm)": wl, "EQE (%)": eqe_curve(wl, eg)}).to_csv(path, index=False)
+    return path
+
+
+def absorbance_curve(wl, eg, eu=0.018, a0=7.0, rng=None):
+    """Direct-gap film: (A hv)^2 linear in hv just above Eg and flattening higher
+    up, an Urbach tail of width eu below it (soft-plus join), a small offset."""
+    e = HC / wl
+    de = e - eg
+    core = np.sqrt((eu / 2) * np.logaddexp(0.0, 2 * de / eu))     # sqrt(de) above, exp(de/eu) below
+    a = a0 * core / e / np.sqrt(1 + np.clip(de, 0, None) / 1.0) + 0.02
+    if rng is not None:
+        a = a + rng.normal(0, 0.002, len(wl))
+    return a
+
+
+def write_abs_xlsx(path):
+    wl = np.arange(300.0, 900.0, 1.0)
+    rng = np.random.default_rng(5)
+    pd.DataFrame({"Wavelength (nm)": wl,
+                  "Film A (as cast)": absorbance_curve(wl, 1.60, rng=rng),
+                  "Film B (annealed)": absorbance_curve(wl, 1.58, eu=0.016, rng=rng)}
+                 ).to_excel(path, index=False, sheet_name="UV-Vis")
+    return path
+
+
+def pl_band(wl, e0, fwhm_ev, amp):
+    e = HC / wl
+    s = fwhm_ev / 2.35482
+    return amp * np.exp(-((e - e0) ** 2) / (2 * s * s)) * (HC / wl ** 2) * 1000 / 2
+
+
+def write_pl(path):
+    wl = np.arange(650.0, 900.0, 0.5)
+    rng = np.random.default_rng(7)
+    base = 20 + 0.02 * (wl - 650)
+    cols = {"Wavelength (nm)": wl,
+            "Perovskite film": base + pl_band(wl, 1.585, 0.085, 1000) + rng.normal(0, 4, len(wl)),
+            "Film + passivation": base + pl_band(wl, 1.588, 0.080, 1650) + rng.normal(0, 4, len(wl)),
+            "Film + PCBM": base + pl_band(wl, 1.584, 0.090, 170) + rng.normal(0, 4, len(wl))}
+    pd.DataFrame(cols).to_csv(path, index=False)
+    return path
+
+
+def xrd_pattern():
+    from conftest import pseudo_voigt
+    x = np.round(np.arange(10.0, 45.0, 0.02), 4)
+    y = (300 * np.exp(-(x - 10) / 25) + 40
+         + pseudo_voigt(x, 2000, 14.08, 0.12, 0.5) + pseudo_voigt(x, 260, 19.98, 0.13, 0.5)
+         + pseudo_voigt(x, 380, 24.50, 0.14, 0.5) + pseudo_voigt(x, 900, 28.40, 0.15, 0.5)
+         + pseudo_voigt(x, 400, 31.86, 0.18, 0.5) + pseudo_voigt(x, 300, 40.60, 0.20, 0.5)
+         + pseudo_voigt(x, 520, 12.70, 0.10, 0.4)                        # PbI2 (001), a second phase
+         + np.random.default_rng(1).normal(0, 4, len(x)))
+    return x, y
+
+
+def write_xrd_reference(path):
+    pd.DataFrame({"2theta": [14.10, 19.97, 24.51, 28.43, 31.86, 40.62],
+                  "h": [1, 1, 1, 2, 2, 2], "k": [0, 1, 1, 0, 1, 2], "l": [0, 0, 1, 0, 0, 0],
+                  "I": [100, 15, 20, 60, 25, 18]}).to_csv(path, index=False)
+    return path
+
+
+def write_sem_image(path):
+    import cv2
+    from scipy.spatial import cKDTree
+    rng = np.random.default_rng(11)
+    h, w, bar = 704, 1024, 64
+    pts = rng.uniform([0, 0], [w, h], size=(140, 2))
+    yy, xx = np.mgrid[0:h, 0:w]
+    _, lab = cKDTree(pts).query(np.c_[xx.ravel(), yy.ravel()])
+    lab = lab.reshape(h, w)
+    shade = rng.uniform(150, 215, len(pts))
+    img = shade[lab]
+    edge = np.zeros((h, w), bool)
+    edge[:, 1:] |= lab[:, 1:] != lab[:, :-1]
+    edge[1:, :] |= lab[1:, :] != lab[:-1, :]
+    edge = cv2.dilate(edge.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+    img[edge] = 45
+    img = cv2.GaussianBlur(img.astype(np.float32), (0, 0), 1.2) + rng.normal(0, 6, (h, w))
+    full = np.zeros((h + bar, w), np.float32)
+    full[:h] = img
+    full = np.clip(full, 0, 255).astype(np.uint8)
+    cv2.putText(full, "SYNTHETIC EXAMPLE   5.0 kV   x50,000   WD 4.1 mm", (16, h + 40),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, 255, 1, cv2.LINE_AA)
+    cv2.rectangle(full, (820, h + 26), (920, h + 32), 255, -1)
+    cv2.putText(full, "200 nm", (835, h + 54), cv2.FONT_HERSHEY_SIMPLEX, 0.55, 255, 1, cv2.LINE_AA)
+    cv2.imwrite(path, full)
+    return path
+
+
+def lorentz(x, c, fwhm, amp):
+    return amp * (fwhm / 2) ** 2 / ((x - c) ** 2 + (fwhm / 2) ** 2)
+
+
+def write_raman(path):
+    x = np.arange(100.0, 800.0, 1.0)
+    rng = np.random.default_rng(13)
+    bands = [(144, 9, 1000), (197, 10, 90), (399, 16, 210), (516, 15, 190), (639, 18, 260)]
+    a = sum(lorentz(x, c, f, h) for c, f, h in bands)
+    b = sum(lorentz(x, c + 2.5, f * 1.15, h * 0.55) for c, f, h in bands)
+    bg = 120 + 0.25 * (x - 100) + 60 * np.exp(-(x - 100) / 300)
+    pd.DataFrame({"Raman shift (cm-1)": x,
+                  "TiO2 layer": a + bg + rng.normal(0, 5, len(x)),
+                  "TiO2 + perovskite": b + bg * 1.3 + rng.normal(0, 5, len(x))}).to_csv(path, index=False)
+    return path
+
+
+def write_ftir(path):
+    x = np.arange(4000.0, 600.0, -2.0)
+    rng = np.random.default_rng(17)
+
+    def g(c, w, a):
+        return a * np.exp(-((x - c) ** 2) / (2 * (w / 2.355) ** 2))
+    a1 = g(3170, 120, 0.25) + g(2920, 30, 0.12) + g(2850, 25, 0.08) + g(1710, 30, 0.35) + g(1470, 25, 0.22) \
+        + g(1250, 40, 0.18) + g(1090, 50, 0.30) + g(910, 25, 0.12)
+    a2 = g(3170, 120, 0.20) + g(2920, 30, 0.10) + g(2850, 25, 0.07) + g(1714, 30, 0.20) + g(1470, 25, 0.20) \
+        + g(1250, 40, 0.10) + g(1090, 50, 0.32) + g(910, 25, 0.12)
+    t1 = 100 * 10 ** (-(a1 + 0.02)) + rng.normal(0, 0.15, len(x))
+    t2 = 100 * 10 ** (-(a2 + 0.03)) + rng.normal(0, 0.15, len(x))
+    pd.DataFrame({"Wavenumber (cm-1)": x, "Sample A": t1, "Sample B": t2}).to_csv(path, index=False)
+    return path
+
+
+def write_xps(path):
+    be = np.arange(132.0, 150.0, 0.05)
+    rng = np.random.default_rng(19)
+
+    def gl(c, fwhm, area, m=0.3):
+        s = fwhm / 2.355
+        gauss = np.exp(-((be - c) ** 2) / (2 * s * s)) / (s * np.sqrt(2 * np.pi))
+        lor = (fwhm / 2) / np.pi / ((be - c) ** 2 + (fwhm / 2) ** 2)
+        return area * ((1 - m) * gauss + m * lor)
+    peaks = gl(138.60, 0.95, 4000) + gl(143.47, 0.95, 3000) + gl(136.85, 0.8, 380) + gl(141.72, 0.8, 285)
+    step = 900 + 0.12 * np.cumsum(peaks[::-1])[::-1] * 0.05     # Shirley-like step towards high BE
+    y = rng.poisson(np.clip(peaks + step, 1, None)).astype(float)
+    pd.DataFrame({"Binding Energy (eV)": be, "Counts": y}).to_csv(path, index=False)
+    return path
+
+
+def write_device_inputs(tmp):
+    from conftest import single_diode_jv
+    v = np.round(np.arange(-0.1, 1.2001, 0.01), 4)
+    j = single_diode_jv(v, jph=21.9, j0=4e-12, n=1.45, rs=2.2, rsh=3000.0)
+    jv = os.path.join(tmp, "device_A_JV.txt")
+    with open(jv, "w", encoding="utf-8") as fh:
+        fh.write("Vmeas\tImeas\n" + "\n".join(f"{a:.4f}\t{b * 0.04 / 1000:.9f}" for a, b in zip(v, j)) + "\n")
+    eqe = write_eqe(os.path.join(tmp, "device_A_EQE.csv"), 1.60)
+    ab = write_abs_xlsx(os.path.join(tmp, "film_A_abs.xlsx"))
+    pl = write_pl(os.path.join(tmp, "film_A_PL.csv"))
+    return {"jv": jv, "eqe": eqe, "abs": ab, "pl": pl}
+
+
+# --------------------------------------------------------------------------- windows
+def shot_launcher(outdir, tmp):
     import Physiscore_Launcher as L
     app = L.LauncherApp()
-    app.geometry("1180x740+40+60")
-    for _ in range(40):
-        app.update()
-    time.sleep(1.0)
+    app.geometry("1180x900+30+40")
+    pump(app, 20, until=lambda: all(c["status"].cget("text").startswith("Ready") for c in app.cards.values()))
     ok = grab(app, os.path.join(outdir, "launcher.png"))
     app.on_closing()
     return ok
 
 
-def capture_tool(name, outdir, tmp):
-    """One tool per process (destroying customtkinter windows in a loop can
-    corrupt the Tcl heap on some builds)."""
+def shot_tool(name, outdir, tmp):
+    import customtkinter as ctk
+    quiet_dialogs()
     root = ctk.CTk()
     root.withdraw()
+    out = os.path.join(outdir, f"{name}.png")
     ok = False
+
     if name == "jv":
-        synthetic_jv_folder(tmp)
         from scripts.JV import run_jv
         win = run_jv.AnalysisWindow(root, "", "")
-        win.geometry("1500x920+40+60")
-        win.directory_path.set(tmp)
+        win.geometry(TOOL_SIZE)
+        win.directory_path.set(write_jv_folder(os.path.join(tmp, "jv")))
         win.start_processing()
-        for _ in range(400):
-            root.update()
-            time.sleep(0.02)
-            if win.processed_data is not None and win.lbl_status.cget("text").startswith("Complete"):
-                break
-        for _ in range(10):
-            root.update()
+        pump(root, 40, until=lambda: win.processed_data is not None and bool(win.tree.get_children()))
         kids = win.tree.get_children()
         if kids:
             win.tree.selection_set(kids[0])
             win._on_tree_select(None)
-            for _ in range(10):
-                root.update()
-        ok = win.processed_data is not None and bool(kids)
-        print("jv processed:", ok, "| rows:", len(kids))
-        ok = grab(win, os.path.join(outdir, "jv.png")) and ok
-        win.destroy()
+        ok = grab(win, out) and bool(kids)
+
+    elif name == "dark":
+        from scripts.Dark_JV import run_jv_dark
+        win = run_jv_dark.DarkAnalysisWindow(root, "", "")
+        win.geometry(TOOL_SIZE)
+        win.directory_path.set(write_dark_folder(os.path.join(tmp, "dark")))
+        win.start_processing()
+        pump(root, 40, until=lambda: bool(win.tree.get_children()))
+        kids = win.tree.get_children()
+        if kids:
+            win.tree.selection_set(kids[0])
+            win._on_tree_select(None)
+        ok = grab(win, out) and bool(kids)
+
     elif name == "eqe":
-        from scipy.special import erf
         from pathlib import Path
-        wl = np.arange(300.0, 1100.0, 1.0)
-        e = 1239.84198 / wl
-        eqe = 88 * 0.5 * (1 + erf((e - 1.60) / (0.03 * np.sqrt(2)))) * (1 - 0.3 * np.exp(-((wl - 350) / 60) ** 2))
-        eqe_path = os.path.join(tmp, "device_A_EQE.csv")
-        pd.DataFrame({"Wavelength (nm)": wl, "EQE (%)": eqe}).to_csv(eqe_path, index=False)
         from scripts.EQE import run_eqe
         win = run_eqe.AnalysisWindow(root, "", "")
-        win.geometry("1500x920+40+60")
-        win.target_file = Path(eqe_path)
+        win.geometry(TOOL_SIZE)
+        win.target_file = Path(write_eqe(os.path.join(tmp, "device_A_EQE.csv")))
+        win.entry_file.insert(0, str(win.target_file))
         win.entry_voc.insert(0, "1.12")
         win._load_and_plot()
         win._auto_fit_all()
-        for _ in range(10):
-            root.update()
-        ok = grab(win, os.path.join(outdir, "eqe.png")) and win.eqe_summary is not None
-        win.destroy()
+        pump(root, 2)
+        ok = grab(win, out) and win.eqe_summary is not None
+
+    elif name == "abs":
+        from pathlib import Path
+        from scripts.Abs import run_abs
+        path = write_abs_xlsx(os.path.join(tmp, "films_abs.xlsx"))
+        win = run_abs.AnalysisWindow(root, "", "")
+        win.geometry(TOOL_SIZE)
+        win.entry_file.insert(0, path)
+        win.target_file = Path(path)
+        win.sheet_menu.configure(values=["UV-Vis"])
+        win.selected_sheet.set("UV-Vis")
+        win.load_data_from_ui()
+        pump(root, 1)
+        win.entry_expected_eg.insert(0, "1.6")
+        win.auto_fit_expected()
+        pump(root, 2)
+        ok = grab(win, out) and bool(win.fit_result)
+
+    elif name == "pl":
+        from scripts.PL import run_pl
+        win = run_pl.PLAnalysisWindow(root, "", "")
+        win.geometry(TOOL_SIZE)
+        win.file_path_var.set(write_pl(os.path.join(tmp, "films_PL.csv")))
+        win.load_data()
+        pump(root, 1)
+        win.var_ref_col.set("Perovskite film")
+        win.var_filter_width.set(5)      # Savitzky-Golay window (points)
+        win.var_rigidity.set(8)          # ALS log10(lambda); 8 suits 0.5 nm sampling of a broad band
+        win.var_protection.set(0.01)     # ALS asymmetry p
+        win.run_analysis()
+        pump(root, 3)
+        ok = grab(win, out)
+
     elif name == "xrd":
-        from conftest import pseudo_voigt
-        x = np.round(np.arange(10.0, 45.0, 0.02), 4)
-        y = (300 * np.exp(-(x - 10) / 25) + 40 + pseudo_voigt(x, 2000, 14.1, 0.12, 0.5)
-             + pseudo_voigt(x, 900, 28.4, 0.15, 0.5) + pseudo_voigt(x, 400, 31.9, 0.18, 0.5)
-             + pseudo_voigt(x, 300, 40.6, 0.2, 0.5) + np.random.default_rng(1).normal(0, 4, len(x)))
         from scripts.XRD import run_xrd
         win = run_xrd.AnalysisWindow(root, "", "")
-        win.geometry("1500x920+40+60")
+        win.geometry(TOOL_SIZE)
         tab = win.tab
+        x, y = xrd_pattern()
         tab.x_data, tab.y_data = x, y
         tab.ax_prev.clear()
         tab.ax_prev.plot(x, y, color="gray", alpha=0.6, label="Raw")
         tab.canvas_prev.draw()
         tab.btn_run.configure(state="normal")
         tab.run_analysis()
-        for _ in range(10):
-            root.update()
-        ok = grab(win, os.path.join(outdir, "xrd.png")) and len(tab.current_peaks_df) >= 3
-        win.destroy()
+        pump(root, 2)
+        answer_file_dialog(run_xrd, write_xrd_reference(os.path.join(tmp, "MAPbI3_cubic_reference.csv")))
+        tab.load_reference()
+        pump(root, 2)
+        ok = grab(win, out) and tab.current_peaks_df is not None and len(tab.current_peaks_df) >= 3
+
+    elif name == "sem":
+        from scripts.SEM import run_sem
+        win = run_sem.AnalysisWindow(root, "", "")
+        win.geometry(TOOL_SIZE)
+        answer_file_dialog(run_sem, write_sem_image(os.path.join(tmp, "film_A_SEM.png")))
+        win.load_image()
+        pump(root, 1)
+        win.nm_per_px = 2.0
+        win.lbl_scale_info.configure(text="Scale: 2.0000 nm/px (scale bar 200 nm = 100 px)")
+        win.run_auto_segment()
+        pump(root, 60, until=lambda: len(win.records) >= 20)
+        pump(root, 2)
+        ok = grab(win, out) and len(win.records) > 0
+        print("sem grains:", len(win.records))
+
+    elif name in ("raman", "ftir"):
+        mod_name = "scripts.Raman.run_raman" if name == "raman" else "scripts.FTIR.run_ftir"
+        import importlib
+        mod = importlib.import_module(mod_name)
+        path = write_raman(os.path.join(tmp, "raman.csv")) if name == "raman" else write_ftir(os.path.join(tmp, "ftir.csv"))
+        win = mod.AnalysisWindow(root, "", "")
+        win.geometry(TOOL_SIZE)
+        answer_file_dialog(mod, path)
+        win.load_data()
+        pump(root, 1)
+        if len(win.layers) > 1:
+            win.toggle_layer_visibility(1)
+        pump(root, 2)
+        ok = grab(win, out) and len(win.layers) >= 2
+
+    elif name == "device":
+        from scripts.Device import run_device
+        win = run_device.AnalysisWindow(root, "", "")
+        win.geometry(TOOL_SIZE)
+        for k, p in write_device_inputs(tmp).items():
+            win.paths[k].set(p)
+        win.compute()
+        pump(root, 30, until=lambda: getattr(win, "summary", None) is not None)
+        pump(root, 2)
+        ok = grab(win, out)
+
+    elif name == "compare":
+        from scripts.common.compare_window import CompareWindow
+        files = [write_eqe(os.path.join(tmp, f"series_Br{int(round((eg - 1.55) * 200)):02d}_EQE.csv"), eg)
+                 for eg in (1.55, 1.60, 1.65, 1.70)]
+        win = CompareWindow(root, "eqe", files=files)
+        win.geometry("1440x860+30+40")
+        pump(root, 30, until=lambda: len(win.items) >= len(files))
+        pump(root, 2)
+        ok = grab(win, out) and len(win.items) >= len(files)
+
+    elif name == "xps":
+        from spectra.app import App
+        from spectra.gui.tab_dashboard import SpectraDashboardTab
+        root.destroy()
+        app = App("XPS")
+        app.geometry(TOOL_SIZE)
+
+        def find(w):
+            if isinstance(w, SpectraDashboardTab):
+                return w
+            for c in w.winfo_children():
+                r = find(c)
+                if r is not None:
+                    return r
+            return None
+        pump(app, 1)
+        tab = find(app)
+        path = write_xps(os.path.join(tmp, "film_A_Pb4f.csv"))
+        tab.file_path = path
+        tab.ent_path.insert(0, path)
+        tab._load_file(path)
+        tab._refresh_buttons()
+        tab.run_clicked()
+        pump(app, 60, until=lambda: tab.fitted is not None)
+        ok = grab(app, out) and tab.fitted is not None
+        app.destroy()
+        return ok
+
     try:
+        win.destroy()
         root.destroy()
     except Exception:
         pass
     return ok
 
 
-def main(outdir):
+def main(outdir, names):
     os.makedirs(outdir, exist_ok=True)
-    results = []
     tmp = tempfile.mkdtemp(prefix="physiscore_shots_")
-    for name in ("launcher", "jv", "eqe", "xrd"):
+    failed = []
+    for name in names:
         r = subprocess.run([sys.executable, os.path.abspath(__file__), "--one", name, outdir, tmp])
-        results.append(r.returncode == 0)
-    return all(results)
+        if r.returncode != 0:
+            failed.append(name)
+    print("failed:", failed if failed else "none")
+    return not failed
 
 
 if __name__ == "__main__":
     if "--one" in sys.argv:
         i = sys.argv.index("--one")
         name, outdir, tmp = sys.argv[i + 1], sys.argv[i + 2], sys.argv[i + 3]
-        ok = main_launcher(outdir) if name == "launcher" else capture_tool(name, outdir, tmp)
+        ok = shot_launcher(outdir, tmp) if name == "launcher" else shot_tool(name, outdir, tmp)
         sys.exit(0 if ok else 1)
-    out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "docs", "images")
-    sys.exit(0 if main(out) else 1)
+    args = sys.argv[1:]
+    out = args[0] if args and args[0] not in NAMES else os.path.join(ROOT, "docs", "images")
+    sel = [a for a in args if a in NAMES] or list(NAMES)
+    sys.exit(0 if main(out, sel) else 1)

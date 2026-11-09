@@ -142,7 +142,7 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         self.grid_columnconfigure(0, minsize=self.left_width)
         self.grid_columnconfigure(1, minsize=self.resizer_width)
         self.grid_columnconfigure(2, weight=1)
-        self.grid_columnconfigure(3, minsize=200)
+        self.grid_columnconfigure(3, minsize=520)   # results panel: fixed width, scrolls sideways
 
         # === Left Control Panel ===
         self.left_panel = ctk.CTkFrame(self, width=280, corner_radius=0, fg_color=self.panel_bg)
@@ -216,7 +216,7 @@ class PLAnalysisWindow(ctk.CTkToplevel):
                      text_color=self.text_primary).pack(pady=(16, 2), padx=16, anchor="w")
         ctk.CTkLabel(roles_card,
                      text="Select columns, assign roles -> Apply.\nRepeated measurements of the same role are averaged automatically.",
-                     text_color=self.text_secondary, font=_pal.font(11),
+                     text_color=self.text_secondary, font=_pal.font(11), wraplength=220,
                      justify="left").pack(anchor="w", padx=16)
 
         tree_wrap = ctk.CTkFrame(roles_card, fg_color="transparent")
@@ -346,9 +346,13 @@ class PLAnalysisWindow(ctk.CTkToplevel):
             print(f"plot interactions skip: {_pe}")
 
         # === Right Results Panel ===
-        self.right_panel = ctk.CTkFrame(self, width=200, corner_radius=0, fg_color=self.panel_bg)
+        # Fixed width: the results table has ten columns and used to claim their full
+        # width, which pushed the plot out of the window on a 1440-pixel screen.
+        self.right_panel = ctk.CTkFrame(self, width=520, corner_radius=0, fg_color=self.panel_bg)
         self.right_panel.grid(row=0, column=3, sticky="nsew")
-        self.right_panel.grid_rowconfigure(1, weight=1)
+        self.right_panel.grid_propagate(False)
+        self.right_panel.grid_rowconfigure(0, weight=1)
+        self.right_panel.grid_columnconfigure(0, weight=1)
 
         results_card = ctk.CTkFrame(self.right_panel, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         results_card.grid(row=0, column=0, sticky="nsew", padx=12, pady=(16, 8))
@@ -360,6 +364,9 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         tree_frame.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         self.results_tree = ttk.Treeview(tree_frame, columns=(), show="headings", height=14)
+        xs = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.results_tree.xview)
+        self.results_tree.configure(xscrollcommand=xs.set)
+        xs.pack(side="bottom", fill="x")
         self.results_tree.pack(fill="both", expand=True)
         self._init_results_table()
 
@@ -427,8 +434,8 @@ class PLAnalysisWindow(ctk.CTkToplevel):
             background=self.card_bg,
             foreground=self.text_primary,
             fieldbackground=self.card_bg,
-            font=_pal.font(12),
-            rowheight=28,
+            font=_pal.font(11),
+            rowheight=24,
         )
         style.configure(
             "Treeview.Heading",
@@ -442,7 +449,7 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         self.results_tree.configure(columns=cols)
         for col in cols:
             self.results_tree.heading(col, text=col)
-            self.results_tree.column(col, width=130, anchor="center")
+            self.results_tree.column(col, width=150 if col == "Sample" else 100, anchor="center", stretch=False)
         self.results_tree.insert("", "end", values=["-"] * len(cols))
 
     def log(self, msg):
@@ -776,8 +783,8 @@ class PLAnalysisWindow(ctk.CTkToplevel):
             background=self.card_bg,
             foreground=self.text_primary,
             fieldbackground=self.card_bg,
-            font=_pal.font(12),
-            rowheight=28,
+            font=_pal.font(11),
+            rowheight=24,
         )
         style.configure(
             "Treeview.Heading",
@@ -791,7 +798,7 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         self.results_tree.configure(columns=cols)
         for col in cols:
             self.results_tree.heading(col, text=col)
-            self.results_tree.column(col, width=140, anchor="center")
+            self.results_tree.column(col, width=150 if col == "Sample" else 100, anchor="center", stretch=False)
 
         # Clear and insert rows
         for row_id in self.results_tree.get_children():

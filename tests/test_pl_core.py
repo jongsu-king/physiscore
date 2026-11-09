@@ -182,3 +182,19 @@ def test_quenching_against_zero_reference_is_safe():
     ref = np.zeros_like(WAVELENGTH)
     eta, _, _ = calculate_quenching_efficiency(ref, ref)
     assert eta == 0.0
+
+
+@pytest.mark.parametrize("seed", range(20))
+def test_weak_noisy_band_keeps_its_width(seed):
+    """A weak band (peak/noise = 15) must not have its fit window cut at noise
+    dips beside the maximum. Up to 3.1.1 the valley search used a fixed 2 %
+    prominence and returned FWHMs 2-4x too small for some noise realisations."""
+    from scipy.signal import savgol_filter
+    x = np.arange(650.0, 900.0, 0.5)
+    rng = np.random.default_rng(seed)
+    y = gaussian(x, 60.0, 780.0, 44.0) + rng.normal(0, 4.0, len(x))
+    y = np.clip(savgol_filter(y, 5, 2), 0, None)     # what process_spectrum hands over
+    fit = fit_peak_gaussian(x, y)
+    assert fit["success"]
+    assert fit["fwhm"] == pytest.approx(44.0, rel=0.12)
+    assert fit["center"] == pytest.approx(780.0, abs=2.0)

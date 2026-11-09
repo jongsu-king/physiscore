@@ -28,6 +28,10 @@ Contents
 
 ## 1. Starting the program
 
+![launcher](images/launcher.png)
+
+*The main window. Each card names what the tool derives; *Ready* appears once its code has loaded. Synthetic example data.*
+
 | How | Command |
 |---|---|
 | Installed copy | Start **Physiscore** from the Start menu, Launchpad/Applications, or the Linux menu |
@@ -81,6 +85,10 @@ to it, the input paths, the program version and date, and a methods note. Open i
 Markdown viewer, paste it into a lab notebook, or convert it with pandoc.
 
 ## 3. J-V Curve
+
+![jv](images/jv.png)
+
+*Eight example cells in two conditions. Left: folder and axis range. Centre: the selected device with its one-diode fit. Right: statistics of the selection, the best device per condition and the device analysis. Synthetic example data.*
 
 Illuminated current-voltage curves of many cells, grouped by condition.
 
@@ -145,6 +153,10 @@ OriginPro (Windows, Origin path in Settings).
 
 ## 4. J-V Dark
 
+![dark](images/dark.png)
+
+*|J| on a log axis with the full one-diode fit (dashed). Files without the instrument summary block show the shunt resistance as *not in file*. Synthetic example data.*
+
 Dark current-voltage curves, plotted as |J| on a log axis (or J linear, or I in mA).
 
 - **Open / Add folder / Recent / Process** as in J-V; writes `<folder>_Dark.xlsx`.
@@ -159,6 +171,10 @@ value of record when the curve bends over at high bias (series resistance); the 
 values are an independent check of Rs.
 
 ## 5. Device summary
+
+![device](images/device.png)
+
+*One device: J-V with the fit and the maximum-power point, EQE with the integrated Jsc, the band gap from three techniques and the voltage-loss ladder Eg/q, Voc,SQ, Voc,rad, Voc. Synthetic example data.*
 
 Joins the J-V, EQE, absorbance and PL of one device and checks them against each other.
 
@@ -192,6 +208,10 @@ Exports: Excel (Summary, AllValues, Checks, Inputs), Report, Figure, side-car.
 
 ## 6. EQE
 
+![eqe](images/eqe.png)
+
+*EQE against wavelength and energy, ln EQE with the Urbach window, dEQE/dE with the Rau band gap; below, the detailed-balance table for a measured Voc of 1.12 V. Synthetic example data.*
+
 1. **Open file** - Excel (choose the sheet) or CSV; column 1 wavelength in nm, column 2
    EQE in % or as a fraction (detected automatically).
 2. **Load and plot** - four plots: EQE with the cumulative AM1.5G-integrated Jsc on the
@@ -211,6 +231,10 @@ Urbach_Data, DetailedBalance) and its side-car; Report; Origin.
 
 ## 7. Absorbance
 
+![abs](images/abs.png)
+
+*Absorbance spectrum and Tauc plot with the automatically chosen linear region (dashed lines) and its fit. Synthetic example data.*
+
 1. **Open Excel** - choose the sheet and, if the sheet holds several samples, the
    **Column**. Column 1 must be the wavelength in nm.
 2. **Load and plot** - absorption spectrum and Tauc plot.
@@ -228,6 +252,10 @@ and side-car; Report; Origin.
 
 ## 8. PL
 
+![pl](images/pl.png)
+
+*Three example films with the reference film plotted; the table lists peak position, FWHM, area and the quenching efficiency against the reference. Synthetic example data.*
+
 1. **Open** - Excel or CSV with one wavelength column and one or more sample columns
    (the sheet whose name contains "pl" is chosen automatically).
 2. *Mode* 1 Layer or 2 Layer, and *Sample* / *Reference* columns. **Sample Roles**:
@@ -235,7 +263,10 @@ and side-car; Report; Origin.
    Roles* - repeated measurements of one role are averaged and the averages become the
    reference (Pristine) and the sample (Bi-layer).
 3. **Parameters** (live preview): *Filter width* (Savitzky-Golay window), *Baseline
-   rigidity* (log10 λ of the ALS baseline), *Peak protection* (ALS asymmetry), *X axis*
+   rigidity* (log10 λ of the ALS baseline; the stiffness needed grows with the number of
+   points under a band - for a ~40 nm wide band sampled every 0.5 nm use 8, a value of 6
+   lets the baseline bend under the band and narrows the FWHM by ~10 %), *Peak
+   protection* (ALS asymmetry), *X axis*
    (wavelength, or energy with the Jacobian applied), *Peak model* (single Gaussian, or
    up to three Gaussian / Voigt components chosen by AICc).
 4. **Run analysis** - for every column: peak position (nm and eV), FWHM (nm and meV),
@@ -245,6 +276,10 @@ and side-car; Report; Origin.
 Outputs: Excel (PL_Results, Processed spectra) with side-car; Report; Origin; Compare files.
 
 ## 9. XRD
+
+![xrd](images/xrd.png)
+
+*Fitted pattern with the reference peak list drawn as hkl ticks; the peak at 12.7° has no reference line (a second phase). Synthetic example data.*
 
 1. **Open** - a two-column pattern (2θ in degrees, intensity); text, CSV or Excel. A
    metadata header is skipped.
@@ -274,6 +309,10 @@ Crystallinity) with side-car; Report; Origin; Compare files (stacked patterns).
 
 ## 10. FE-SEM
 
+![sem](images/sem.png)
+
+*Automatic segmentation of a synthetic grain image (outlined grains), statistics and the size list. Synthetic example data.*
+
 1. **Open Image** (TIF/PNG/JPG/BMP).
 2. **Calibrate** - drag along the scale bar and enter its length in nm, or *Auto
    Calibrate (Scale Bar)*.
@@ -290,6 +329,14 @@ Outputs: Excel (Grains, Statistics) with side-car; Report; Origin histogram with
 log-normal fit.
 
 ## 11. Raman and FTIR
+
+![raman](images/raman.png)
+
+*Two layers overlaid after the arPLS baseline, with the detected bands of the target layer. Synthetic example data.*
+
+![ftir](images/ftir.png)
+
+*FTIR in transmittance: bands are shown as their depth below the baseline (ΔT); tick *Transmittance -> absorbance* to work in absorbance.*
 
 1. **Open** - one wavenumber column and up to ten spectrum columns; each column becomes a
    *layer* named after its header.
@@ -313,6 +360,10 @@ Outputs: Excel, Report (band tables, library suggestions, shift table), Origin, 
 
 ## 12. XPS and the auto-fit workspaces
 
+![xps](images/xps.png)
+
+*Pb 4f region with a metallic shoulder: Shirley baseline (top) and the four fitted components on the corrected spectrum (bottom); the binding energy decreases to the right. Synthetic example data.*
+
 **Auto-fit workspace** (PL, XRD, XPS) - a parameter-driven pipeline: Savitzky-Golay
 smoothing, background, noise-adaptive peak detection and Voigt fitting; *Before / After*
 shows the processing steps; *Batch Folder* runs the same parameters over every file of a
@@ -325,6 +376,10 @@ ratio** (0 for s levels; typical values are listed in the panel), **Region of in
 concentrations with Scofield factors (or the factors of your instrument).
 
 ## 13. Comparing many files
+
+![compare](images/compare.png)
+
+*Four EQE spectra of a composition series analysed side by side. Synthetic example data.*
 
 **Compare files** (EQE, Absorbance, PL, XRD, Raman, FTIR) opens a window in which you
 add files or a whole folder (optionally every column of each file). Each spectrum is

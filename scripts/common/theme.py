@@ -179,3 +179,51 @@ def fill_kv(tree, items):
         else:
             txt = str(val)
         tree.insert("", "end", values=(key, txt))
+
+
+# ---------------------------------------------------------------------------
+# Segmented buttons: white text on the selected (accent) segment, the normal
+# text colour on the others. customtkinter gives every segment one text colour,
+# which left either the selected or the unselected labels unreadable in the
+# light theme. Applied to every CTkSegmentedButton created after this module is
+# imported (all tool windows import it).
+# ---------------------------------------------------------------------------
+def contrast_segmented(seg, selected_text: str = "#FFFFFF", text: str = None):
+    text = text or _pal.TXT
+
+    def recolor():
+        current = seg.get()
+        for value, button in getattr(seg, "_buttons_dict", {}).items():
+            try:
+                button.configure(text_color=selected_text if value == current else text)
+            except Exception:
+                pass
+
+    original = getattr(seg, "_select_button_by_value", None)
+    if original is not None and not getattr(seg, "_contrast_patched", False):
+        def select_and_recolor(value):
+            original(value)
+            recolor()
+        seg._select_button_by_value = select_and_recolor
+        seg._contrast_patched = True
+    recolor()
+    return seg
+
+
+def _install_segmented_contrast():
+    cls = ctk.CTkSegmentedButton
+    if getattr(cls, "_physiscore_contrast", False):
+        return
+    original_init = cls.__init__
+
+    def __init__(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        try:
+            contrast_segmented(self)
+        except Exception:
+            pass
+    cls.__init__ = __init__
+    cls._physiscore_contrast = True
+
+
+_install_segmented_contrast()

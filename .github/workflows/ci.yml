@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: python -m pip install --upgrade pip pytest && python -m pip install -r requirements.txt
+      - run: python -m pip install --upgrade pip pytest pyflakes && python -m pip install -r requirements.txt
       - run: python -m pytest -q tests
       - run: python Physiscore_Launcher.py --selftest
       - run: python physiscore_cli.py sq 1.34

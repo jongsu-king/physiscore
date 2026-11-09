@@ -961,6 +961,27 @@ class SpectraDashboardTab(ctk.CTkFrame):
         ax.set_title("Load data to preview plot", color=COL_MUT)
         self.canvas.draw()
 
+    def _axis_labels(self):
+        """(x label, y label, reverse x) for this workspace's technique. XPS is
+        drawn with the binding energy decreasing to the right, as is customary."""
+        tech = str(self.name).upper()
+        if tech == "XPS":
+            return "Binding energy (eV)", "Intensity (counts)", True
+        if tech == "XRD":
+            return "2θ (°)", "Intensity (counts)", False
+        if tech == "PL":
+            return "Wavelength (nm)", "PL intensity (counts)", False
+        return "x", "Intensity", False
+
+    def _label_axes(self, ax, x=True, y=True):
+        xl, yl, rev = self._axis_labels()
+        if x:
+            ax.set_xlabel(xl, color=COL_MUT)
+        if y:
+            ax.set_ylabel(yl, color=COL_MUT)
+        if rev and not ax.xaxis_inverted():
+            ax.invert_xaxis()
+
     def _plot_raw(self):
         if self.x is None or self.y is None:
             self._plot_empty()
@@ -970,8 +991,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
         self._style_axis(ax)
         ax.plot(self.x, self.y, linewidth=1.1)
         ax.set_title(f"{self.name} - Raw", color=COL_TXT)
-        ax.set_xlabel("x", color=COL_MUT)
-        ax.set_ylabel("intensity", color=COL_MUT)
+        self._label_axes(ax)
         self.fig.tight_layout(pad=1.2)
         self.canvas.draw()
 
@@ -1001,6 +1021,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
             ax1.plot(x, y_s,   linewidth=1.00, label="smooth")
             ax1.plot(x, bl,    linewidth=1.00, label="baseline")
             ax1.set_title(f"{self.name} - BEFORE", color=COL_TXT)
+            self._label_axes(ax1, x=False)
             ax1.legend(framealpha=0.85)
 
             ax2.plot(x, y_c, linewidth=1.05, label="corrected")
@@ -1010,7 +1031,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
                 ax2.scatter(self.fitted["center"], self.fitted["height"], s=35, marker="x", label="fitted")
 
             ax2.set_title(f"{self.name} - AFTER", color=COL_TXT)
-            ax2.set_xlabel("x", color=COL_MUT)
+            self._label_axes(ax2)
             ax2.legend(framealpha=0.85)
 
         else:
@@ -1035,8 +1056,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
                     ax.scatter(self.fitted["center"], self.fitted["height"], s=35, marker="x", label="fitted")
                 ax.set_title(f"{self.name} - Corrected + Fit", color=COL_TXT)
 
-            ax.set_xlabel("x", color=COL_MUT)
-            ax.set_ylabel("intensity", color=COL_MUT)
+            self._label_axes(ax)
             ax.legend(framealpha=0.85)
 
         self.fig.tight_layout(pad=1.2)

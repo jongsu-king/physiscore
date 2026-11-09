@@ -32,6 +32,24 @@ Many files at once: *Compare files* in the spectroscopy tools and `physiscore ba
 command line tabulate whole series; XRD patterns can be matched against reference peak
 lists; J-V curves can come from instrument text exports or from CSV/Excel files.
 
+## Screenshots
+
+All screenshots show synthetic example data (analytical models with noise), produced by
+`python tools/screenshots.py`; the user guide explains every window.
+
+| | |
+|---|---|
+| ![Main window](docs/images/launcher.png) | ![Device summary](docs/images/device.png) |
+| Main window: eleven tools, each with its status | Device summary: J-V, EQE, absorbance and PL of one device, Jsc cross-check, band gaps, voltage-loss ladder |
+| ![J-V curve](docs/images/jv.png) | ![EQE](docs/images/eqe.png) |
+| J-V: curve-derived parameters, one-diode fit, best device per condition | EQE: AM1.5G Jsc, Rau band gap, Urbach tail, detailed balance |
+| ![XRD](docs/images/xrd.png) | ![XPS](docs/images/xps.png) |
+| XRD: pseudo-Voigt fit, reference peak list with hkl ticks, unassigned peak | XPS auto-fit: Shirley background, four Pb 4f components |
+
+More: [dark J-V](docs/images/dark.png), [absorbance](docs/images/abs.png),
+[PL](docs/images/pl.png), [FE-SEM](docs/images/sem.png), [Raman](docs/images/raman.png),
+[FTIR](docs/images/ftir.png), [comparing files](docs/images/compare.png).
+
 ## Documentation
 
 | Document | Content |
@@ -136,7 +154,7 @@ physics and is never part of an exported table. See [CONFIG.md](CONFIG.md).
 
 ```bash
 pip install pytest
-pytest -q                          # 239 tests on closed-form synthetic data
+pytest -q                          # 263 tests on closed-form synthetic data
 python tools/validation_report.py  # the table in docs/VALIDATION.md
 python tools/gui_smoke.py          # every window, the launcher and a session (needs a display)
 ```
@@ -150,7 +168,7 @@ absent.
 A software paper is in preparation; please cite the archived release in the meantime:
 
 > Kim, K., Shin, J., Lim, J., Ji, H., Lee, S.-E., & Lee, J. (2026). *Physiscore*
-> (Version 3.1.1) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
+> (Version 3.1.2) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
 
 The concept DOI always resolves to the latest archived release. Full metadata is in
 `CITATION.cff`; the methods and their references are in [docs/METHODS.md](docs/METHODS.md).

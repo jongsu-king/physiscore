@@ -261,11 +261,33 @@ def fit_peak_gaussian(x, y):
         while i_hi10 < len(y) - 1 and y[i_hi10] > 0.1 * amp_guess:
             i_hi10 += 1
 
-        # Local minima of prominence >= 2% of the peak height mark the valleys
-        # between the main peak and any neighbouring band. Cutting there is
-        # what keeps a defect band out of the fit; the 10% rule alone cannot,
-        # because such a band holds the signal above 10% indefinitely.
-        valleys, _ = find_peaks(-y, prominence=0.02 * amp_guess)
+        # Local minima mark the valleys between the main peak and a neighbouring
+        # band (defect emission, a second phase). Cutting there is what keeps
+        # such a band out of the fit; the 10% rule alone cannot, because the
+        # band holds the signal above 10% indefinitely.
+        #
+        # A valley must be deeper than 2% of the peak height AND than 6 noise
+        # standard deviations. The noise is the robust spread of the signal
+        # around a copy smoothed over half the band width, taken where the
+        # signal exceeds 10% of the maximum: that is the size of the wiggles a
+        # valley has to stand out from (a first-difference estimate undercounts
+        # it on already-smoothed data, and the zero-clipped background
+        # undercounts it too). Up to 3.1.1 only the 2% rule applied: on a weak
+        # band, noise dips next to the maximum were taken as valleys and the
+        # FWHM came out 2-4x too small.
+        step_pts = abs(float(np.median(np.diff(x)))) if len(x) > 1 else 1.0
+        n_smooth = int(0.5 * fwhm_est / step_pts) if fwhm_est > 0 else 0
+        n_smooth = min(n_smooth, (len(y) - 1) // 2 * 2 - 1)
+        if n_smooth % 2 == 0:
+            n_smooth -= 1
+        in_band = y > 0.1 * amp_guess
+        if n_smooth >= 5 and int(np.sum(in_band)) >= 10:
+            resid = (y - savgol_filter(y, n_smooth, 2))[in_band]
+            noise = 1.4826 * float(np.median(np.abs(resid - np.median(resid))))
+        else:
+            from scripts.common.spectral import robust_noise_sigma
+            noise = robust_noise_sigma(y)
+        valleys, _ = find_peaks(-y, prominence=max(0.02 * amp_guess, 6.0 * noise))
         left = valleys[valleys < peak_idx]
         right = valleys[valleys > peak_idx]
         valley_lo = len(left) > 0 and left[-1] > i_lo10

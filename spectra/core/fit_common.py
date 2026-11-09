@@ -54,15 +54,22 @@ def fit_voigts(
     params["b_c"].set(value=float(np.median(yr)))
 
     span = x1 - x0
+    step = float(np.median(np.abs(np.diff(xr)))) if len(xr) > 1 else 0.0
     for i, (c, h, fwhm) in enumerate(init_peaks):
         fwhm = max(float(fwhm), 1e-6)
         sigma = max(fwhm / 2.3548, 1e-6)
         gamma = max(fwhm / 2.0, 1e-6)
         amp = float(max(h, 1e-6) * fwhm)
 
-        params[f"p{i}_center"].set(value=float(c), min=x0, max=x1)
-        params[f"p{i}_sigma"].set(value=float(sigma), min=1e-6, max=span)
-        params[f"p{i}_gamma"].set(value=float(gamma), min=1e-6, max=span)
+        # Each component stays near the peak it was seeded from (+-1 FWHM, at
+        # least 3 grid steps) and cannot grow wider than 3x its initial FWHM.
+        # With the centre free over the whole window, the component of a small
+        # peak next to a large one migrated onto the large peak (seen on Pb 4f
+        # with a metallic shoulder: two components on 4f5/2, none on the shoulder).
+        reach = max(fwhm, 3.0 * step)
+        params[f"p{i}_center"].set(value=float(c), min=max(x0, float(c) - reach), max=min(x1, float(c) + reach))
+        params[f"p{i}_sigma"].set(value=float(sigma), min=1e-6, max=min(span, 3.0 * fwhm))
+        params[f"p{i}_gamma"].set(value=float(gamma), min=1e-6, max=min(span, 3.0 * fwhm))
         params[f"p{i}_amplitude"].set(value=float(amp), min=0.0)
 
     try:

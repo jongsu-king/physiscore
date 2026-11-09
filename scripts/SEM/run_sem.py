@@ -34,6 +34,7 @@ from scripts.common import report as _report
 
 # Import core logic from sem_core.py
 try:
+    from . import sem_core
     from .sem_core import (
         Settings,
         read_image_bgr,
@@ -50,6 +51,7 @@ try:
         batch_auto_measure_from_seeds,
     )
 except ImportError:
+    import sem_core
     from sem_core import (
         Settings,
         read_image_bgr,
@@ -513,21 +515,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                      text_color=self.text_primary).grid(row=0, column=0, pady=(16, 8), padx=16, sticky="w")
 
         # Table style
-        style = ttk.Style()
-        style.theme_use("clam")
-        style.configure("Treeview",
-                        background=_pal.BG_CARD,
-                        foreground="white",
-                        fieldbackground=_pal.BG_CARD,
-                        borderwidth=0,
-                        rowheight=30,
-                        font=_pal.font(11))
-        style.configure("Treeview.Heading",
-                        background=_pal.BG_SUB,
-                        foreground="white",
-                        borderwidth=0,
-                        font=_pal.font(11, "bold"))
-        style.map("Treeview", background=[("selected", _pal.ACCENT)])
+        _theme.style_treeview(rowheight=26)   # shared light/dark table style
 
         tree_frame = ctk.CTkFrame(results_card, fg_color="transparent")
         tree_frame.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
@@ -1015,7 +1003,7 @@ class AnalysisWindow(ctk.CTkToplevel):
             chat_frame,
             height=10,
             bg=_pal.BG_CARD,
-            fg="white",
+            fg=_pal.TXT,
             wrap="word",
             highlightthickness=0,
             spacing1=4,

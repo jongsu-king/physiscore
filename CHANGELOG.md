@@ -3,6 +3,25 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
+## [3.1.2] - 2026-11-10
+
+### Fixed
+- PL single-band fit: noise dips beside a weak band were taken as valleys to a neighbour,
+  which narrowed the fit window and the FWHM (2-4x too small at peak/noise 15-40). A valley
+  must now exceed 2 % of the peak and 6 noise standard deviations measured inside the band.
+- XPS auto-fit: overlapping singlet candidates are fitted together and every component is
+  bounded near its seed, so a small peak beside a large one keeps its own component.
+- FE-SEM: statistics, histogram, Excel export and report failed after segmentation
+  (missing module import); invisible table headers.
+- Light theme: white-on-white titles in Raman/FTIR, segmented-button text, FE-SEM headers.
+- PL window layout at 1440 px; EQE subplot overlaps; Device summary table columns; dark
+  J-V "non" placeholder and y range; FTIR and auto-fit axis labels; XPS energy axis reversed.
+
+### Added
+- Screenshots of every window in the README and the user guide (`docs/images/`,
+  `tools/screenshots.py`).
+- Tests for the fixes and a static undefined-name check (pyflakes) in CI; 263 tests.
+
 ## [3.1.1] - 2026-11-09
 
 First published build of the 3.1.0 features; the program is unchanged from 3.1.0.

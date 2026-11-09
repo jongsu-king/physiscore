@@ -4,7 +4,7 @@ This document states, for every quantity Physiscore reports, the equation that i
 evaluated, the numerical procedure, its defaults, and the primary reference. It is
 written so that the methods section of a paper can cite it (or copy from it) and so
 that a reviewer can check a number against the code. File references are to the
-3.1.1 source tree; all functions are GUI-free and importable.
+3.1.2 source tree; all functions are GUI-free and importable.
 
 Conventions: J in mA cm⁻², V in V, R in Ω cm², E in eV, T = 298.15 K unless stated.
 Constants: q = 1.602176634×10⁻¹⁹ C, k = 1.380649×10⁻²³ J K⁻¹, hc = 1239.84198 eV nm.
@@ -148,8 +148,13 @@ std and the Nelson–Riley extrapolation of a against ½(cos²θ/sin θ + cos²�
 default so that the integrated intensity is conserved and broad bands are not shifted
 (Mooney & Kambhampati, J. Phys. Chem. Lett. 4, 3316 (2013)).
 
-**Fitting** — `fit_peak_gaussian` (single band, window bounded by the valleys to
-neighbouring bands) and `fit_multi_peak`: bounded least-squares sums of Gaussian,
+**Fitting** — `fit_peak_gaussian` (single band) and `fit_multi_peak`. The single-band
+window runs out to 10 % of the maximum and is cut earlier at the valley to a neighbouring
+band; a valley counts only if it is deeper than 2 % of the peak height and than 6 noise
+standard deviations, the noise being the median-absolute-deviation spread of the signal
+around a copy smoothed over half the band width, taken where the signal exceeds 10 % of the
+maximum (3.1.2; before, noise dips beside a weak band were taken as valleys and the FWHM came
+out too small). `fit_multi_peak`: bounded least-squares sums of Gaussian,
 Lorentzian, pseudo-Voigt or Voigt components, the number of components chosen by the
 corrected Akaike criterion AICc = n ln(RSS/n) + 2k + 2k(k+1)/(n−k−1) (Akaike 1974;
 Burnham & Anderson 2002). Voigt FWHM from the Olivero–Longbothum approximation.
@@ -181,7 +186,11 @@ Shirley background (iterative, Shirley, Phys. Rev. B 5, 4709 (1972); Proctor &
 Sherwood 1982) or AsLS; charge referencing by shifting C 1s to 284.8 eV (a convention,
 see Greczynski & Hultman, Prog. Mater. Sci. 107, 100591 (2020)); singlet Voigt fits for
 s levels and constrained spin–orbit doublets (fixed split, area ratio 1:2, 2:3, 3:4;
-widths shared) for p, d, f levels (lmfit); atomic concentrations c_i = (A_i/S_i)/Σ(A_j/S_j)
+widths shared) for p, d, f levels (lmfit). In the auto-fit workspace, singlet candidates
+closer than twice the fit window are fitted together as one cluster (3.1.2), and every
+component's centre is bounded to its seed ± max(FWHM, 3 grid steps) and its width to three
+times the seed FWHM, so that a small peak beside a large one keeps its own component;
+atomic concentrations c_i = (A_i/S_i)/Σ(A_j/S_j)
 with Scofield cross sections relative to C 1s (Scofield, J. Electron Spectrosc. 8, 129
 (1976)) or user-supplied instrument factors.
 

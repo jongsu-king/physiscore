@@ -64,3 +64,36 @@ def test_doublet_parameters_and_energy_conversion():
     generic_d = xps.doublet_parameters("Zr3d")
     assert generic_d["ratio"] == pytest.approx(2 / 3) and np.isnan(generic_d["split"])
     assert xps.kinetic_to_binding(1200.0, 1486.6, 4.5) == pytest.approx(282.1)
+
+
+def test_autofit_keeps_a_small_peak_next_to_a_large_one(tmp_path):
+    """Pb 4f with a metallic shoulder: four singlet components, fitted by cluster.
+    Up to 3.1.1 each candidate got its own window with one Voigt: the small peaks'
+    components either migrated onto the large ones or dropped to zero amplitude."""
+    import numpy as np
+    from spectra.app import build_default_configs
+    from spectra.pipelines.run_xps import run_xps_pipeline
+
+    be = np.arange(132.0, 150.0, 0.05)
+    rng = np.random.default_rng(19)
+
+    def gl(c, fwhm, area, m=0.3):
+        s = fwhm / 2.355
+        gauss = np.exp(-((be - c) ** 2) / (2 * s * s)) / (s * np.sqrt(2 * np.pi))
+        lor = (fwhm / 2) / np.pi / ((be - c) ** 2 + (fwhm / 2) ** 2)
+        return area * ((1 - m) * gauss + m * lor)
+    peaks = gl(138.60, 0.95, 4000) + gl(143.47, 0.95, 3000) + gl(136.85, 0.8, 380) + gl(141.72, 0.8, 285)
+    step = 900 + 0.12 * np.cumsum(peaks[::-1])[::-1] * 0.05
+    y = rng.poisson(np.clip(peaks + step, 1, None)).astype(float)
+
+    _, _, cfg = build_default_configs()
+    _, _, fitted = run_xps_pipeline(be, y, str(tmp_path), cfg, log_cb=lambda m: None)
+    assert len(fitted) == 4
+    centers = np.sort(fitted["center"].to_numpy())
+    assert np.all(np.abs(centers - np.array([136.85, 138.60, 141.72, 143.47])) < 0.5)
+    assert (fitted["height"] > 100).all()
+
+    def area_at(c):
+        return float(fitted.iloc[(fitted["center"] - c).abs().argmin()]["area_amplitude"])
+    assert area_at(143.47) / area_at(138.60) == pytest.approx(0.75, rel=0.05)
+    assert area_at(136.85) / area_at(138.60) == pytest.approx(0.095, rel=0.35)
