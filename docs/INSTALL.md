@@ -95,16 +95,20 @@ python Physiscore_Launcher.py
 
 Update a source checkout with `git pull` and `pip install -r requirements.txt`.
 
+The command line (`python physiscore_cli.py --help`) runs every analysis without the
+GUI; an installed program offers `Physiscore --tool "J-V Curve"`, `--spectra XRD|PL|XPS`,
+`--selftest`, `--update` and `--version`.
+
 ## Automatic updates
 
-The installed program keeps itself up to date. **⟳ Updates → Automatic updates** (toolbar) has three
+The installed program keeps itself up to date. **Tools → Updates → Automatic updates** has three
 settings:
 
 | Setting | What happens |
 |---|---|
 | **Download and install automatically** (default) | Once a day, a few seconds after start-up, the program asks GitHub for the latest release. If it is newer, the file for your system is downloaded in the background and checked against the release's `SHA256SUMS.txt`. You are then asked whether to restart now; otherwise the update is installed when you close the program. |
 | **Only tell me about new versions** | The same daily check, but nothing is downloaded until you agree. |
-| **Off** | No automatic check. **⟳ Updates → Check for updates…** still works. |
+| **Off** | No automatic check. **Tools → Updates → Check for updates…** still works. |
 
 **What is installed, per platform**
 

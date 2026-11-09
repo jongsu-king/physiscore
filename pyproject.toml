@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "physiscore"
-version = "2.1.0"
+version = "3.0.0"
 description = "Integrated, physics-constrained analysis suite for thin-film photovoltaic device and material characterization"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -51,6 +51,9 @@ origin = ["pywin32>=306; sys_platform == 'win32'"]
 build = ["pyinstaller>=6.6"]
 test = ["pytest>=8.0"]
 
+[project.scripts]
+physiscore = "physiscore_cli:main"
+
 [project.urls]
 Repository = "https://github.com/jongsu-king/physiscore"
 Homepage = "https://sites.google.com/view/h-mol"
@@ -67,8 +70,12 @@ Homepage = "https://sites.google.com/view/h-mol"
 where = ["."]
 include = ["scripts*", "spectra*"]
 
+[tool.setuptools]
+py-modules = ["physiscore_cli", "selfupdate", "Physiscore_Launcher"]
+
 [tool.setuptools.package-data]
 "scripts.EQE" = ["*.csv"]   # bundled ASTM G173-03 AM1.5G reference spectrum
+"scripts.common" = ["*.json"]   # Raman/FTIR band library
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

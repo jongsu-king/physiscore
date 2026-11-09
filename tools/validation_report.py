@@ -19,10 +19,18 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 from conftest import (dark_diode_jv, gaussian, pseudo_voigt,  # noqa: E402
                       single_diode_jv, single_diode_reference)
-from scripts.Dark_JV.dark_jv_core import analyze_dark_diode  # noqa: E402
-from scripts.JV.jv_core import compute_jv_parameters  # noqa: E402
-from scripts.PL.pl_core import fit_peak_gaussian, process_spectrum  # noqa: E402
-from scripts.XRD.xrd_core import LAMBDA_CU, detect_peaks_and_fit  # noqa: E402
+from scripts.Dark_JV.dark_jv_core import (analyze_dark_diode, cheung_analysis,  # noqa: E402
+                                          dark_diode_current, fit_dark_diode)
+from scripts.JV.jv_core import (analyze_scan_hysteresis, compute_jv_parameters,  # noqa: E402
+                                fit_single_diode, hysteresis_index)
+from scripts.PL.pl_core import fit_multi_peak, fit_peak_gaussian, process_spectrum, to_energy_axis  # noqa: E402
+from scripts.XRD.xrd_core import (LAMBDA_CU, LAMBDA_CU_KA1, LAMBDA_CU_KA2, detect_peaks_and_fit,  # noqa: E402
+                                  lattice_parameter_cubic, strip_kalpha2, williamson_hall)
+from scripts.EQE import eqe_core  # noqa: E402
+from scripts.Abs import abs_core  # noqa: E402
+from scripts.common import spectral, vibrational  # noqa: E402
+from scripts.SEM.sem_core import size_statistics  # noqa: E402
+from spectra.core import xps  # noqa: E402
 
 rows = []
 
@@ -110,6 +118,141 @@ def photoluminescence():
            "residual bias: single-Gaussian model")
 
 
+def diode_fit():
+    params = dict(jph=22.0, j0=1e-9, n=1.5, rs=2.0, rsh=2000.0)
+    v = np.round(np.arange(-0.20, 1.1001, 0.01), 4)
+    fit = fit_single_diode(v, single_diode_jv(v, **params))
+    note = "one-diode fit (Lambert-W), 10 mV steps"
+    record("J-V (light)", "Jph, diode fit", params["jph"], fit["Jph"], "mA/cm2", note)
+    record("J-V (light)", "n, diode fit", params["n"], fit["n"], "-", note)
+    record("J-V (light)", "log10 J0, diode fit", -9.0, float(np.log10(fit["J0"])), "log10(mA/cm2)", note)
+    record("J-V (light)", "Rs, diode fit", params["rs"], fit["Rs"], "Ohm cm2", note)
+    record("J-V (light)", "Rsh, diode fit", params["rsh"], fit["Rsh"], "Ohm cm2", note)
+    # hysteresis
+    j_f = single_diode_jv(v, **params)
+    j_r = single_diode_jv(v, jph=22.0, j0=3e-10, n=1.5, rs=1.5, rsh=4000.0)
+    h = analyze_scan_hysteresis(np.concatenate([v, v[::-1]]), np.concatenate([j_f, j_r[::-1]]))
+    pf, pr = compute_jv_parameters(v, j_f), compute_jv_parameters(v, j_r)
+    record("J-V (light)", "hysteresis index", hysteresis_index(pr["PCE"], pf["PCE"]), h["HI"], "%",
+           "forward + reverse sweep split automatically")
+    # dark full fit and Cheung
+    vd = np.round(np.arange(0.0, 1.2001, 0.005), 4)
+    jd = dark_diode_current(vd, 2e-9, 1.8, 5.0, 5e4)
+    full = fit_dark_diode(vd, jd)
+    record("J-V (dark)", "n, full fit with Rs", 1.8, full["n"], "-", "log-space residuals")
+    record("J-V (dark)", "Rs, full fit", 5.0, full["Rs_Ohm_cm2"], "Ohm cm2", "")
+    record("J-V (dark)", "Rsh, full fit", 5.0e4, full["Rsh_Ohm_cm2"], "Ohm cm2", "")
+    ch = cheung_analysis(vd, dark_diode_current(vd, 2e-9, 1.8, 5.0, 1e9))
+    record("J-V (dark)", "Rs, Cheung dV/dlnJ", 5.0, ch["Rs_Ohm_cm2"], "Ohm cm2", "J > 5% of maximum")
+    record("J-V (dark)", "n, Cheung intercept", 1.8, ch["n"], "-", "")
+
+
+def eqe():
+    from scipy.special import erf
+    wl = np.arange(300.0, 1100.0 + 1e-9, 1.0)
+    e = eqe_core.HC_EV_NM / wl
+    eg, sigma = 1.60, 0.03
+    q = 0.9 * 0.5 * (1 + erf((e - eg) / (sigma * np.sqrt(2))))
+    r = eqe_core.bandgap_rau(e, q)
+    record("EQE", "Eg from dEQE/dE distribution", eg, r["Eg"], "eV", "error-function edge, sigma 30 meV")
+    record("EQE", "edge width sigma", 0.59 * sigma, r["sigma"], "eV", "std over the half-maximum window")
+    eu = 0.020
+    q2 = np.where(e < eg, 0.9 * np.exp((e - eg) / eu), 0.9)
+    lo, hi = eqe_core.auto_urbach_window(e, q2)
+    record("EQE", "Urbach energy", 20.0, eqe_core.urbach_energy(e, q2, lo, hi)["Eu_meV"], "meV", "exponential tail, auto window")
+    step = (e >= eg).astype(float)
+    rad = eqe_core.radiative_limit(e, step, 300.0, extend_tail=False)
+    sq = eqe_core.shockley_queisser(eg, 300.0)
+    record("EQE", "Voc,rad of a step absorber", sq["Voc_SQ"], rad["Voc_rad_V"], "V", "must equal Voc,SQ")
+    record("EQE", "SQ efficiency at 1.34 eV", 33.7, eqe_core.shockley_queisser(1.34, 300.0)["PCE_SQ"], "%",
+           "literature 33.7% (Ruhle 2016)")
+    record("EQE", "SQ Jsc at 1.34 eV", 35.4, eqe_core.shockley_queisser(1.34, 300.0)["Jsc_SQ"], "mA/cm2", "")
+    wl_i, irr = eqe_core.get_am15g_spectrum()
+    record("EQE", "AM1.5G integral", 1000.4, float(np.trapz(irr, wl_i) if not hasattr(np, "trapezoid") else np.trapezoid(irr, wl_i)),
+           "W/m2", "ASTM G173-03 table")
+
+
+def absorbance():
+    wl = np.arange(350.0, 1000.0 + 1e-9, 1.0)
+    e = abs_core.HC_EV_NM / wl
+    eg, eps, eu = 1.60, 0.002, 0.02
+    a = np.where(e >= eg, 1.2 * np.sqrt(np.clip(e - eg + eps, 0, None)) / e,
+                 1.2 * np.sqrt(eps) / eg * np.exp((e - eg) / eu)) + 0.02
+    r = abs_core.analyze_absorbance(wl, a, "direct")
+    record("Abs", "Eg, automatic Tauc region", eg - eps, r["Eg_Tauc_eV"], "eV", "direct edge with Urbach tail")
+    record("Abs", "Eg, derivative", eg, r["Eg_derivative_eV"], "eV", "max dA/dE")
+    a2 = np.where(e >= eg, 1.2 * np.sqrt(np.clip(e - eg + eps, 0, None)) / e, 1.2 * np.sqrt(eps) / eg * np.exp((e - eg) / 0.025))
+    record("Abs", "Urbach energy", 25.0, abs_core.urbach_from_absorbance(wl, a2, eg - 0.2, eg - 0.03)["Eu_meV"], "meV", "ln A vs E")
+
+
+def xrd_extra():
+    d_nm, eps = 40.0, 2.0e-3
+    tt = np.array([14.1, 20.0, 24.5, 28.4, 31.9, 35.0, 40.6, 43.2])
+    th = np.radians(tt / 2)
+    beta = (0.9 * LAMBDA_CU / 10 / d_nm) / np.cos(th) + 4 * eps * np.tan(th)
+    wh = williamson_hall(tt, np.degrees(beta))
+    record("XRD", "Williamson-Hall D", d_nm, wh["D_nm"], "nm", "8 reflections")
+    record("XRD", "Williamson-Hall strain", eps, wh["strain"], "-", "")
+    a0 = 6.28
+    hkl = [(1, 0, 0), (1, 1, 0), (1, 1, 1), (2, 0, 0), (2, 1, 0), (2, 1, 1), (2, 2, 0)]
+    d = a0 / np.sqrt(np.sum(np.asarray(hkl, float) ** 2, axis=1))
+    two_theta = 2 * np.degrees(np.arcsin(LAMBDA_CU / (2 * d)))
+    shifted = two_theta + 0.08 * np.cos(np.radians(two_theta / 2))
+    lp = lattice_parameter_cubic(shifted, hkl)
+    record("XRD", "cubic a, Nelson-Riley (displaced specimen)", a0, lp["a_NR_A"], "A", "0.08 cos(theta) deg displacement error")
+    record("XRD", "cubic a, plain mean (same data)", a0, lp["a_mean_A"], "A", "for comparison")
+    x = np.round(np.arange(60.0, 70.0 + 1e-9, 0.01), 4)
+    c1 = 65.0
+    dd = LAMBDA_CU_KA1 / (2 * np.sin(np.radians(c1 / 2)))
+    c2 = 2 * np.degrees(np.arcsin(LAMBDA_CU_KA2 / (2 * dd)))
+    y = pseudo_voigt(x, 1000.0, c1, 0.08, 0.5) + pseudo_voigt(x, 500.0, c2, 0.08, 0.5) + 20.0
+    st = strip_kalpha2(x, y)
+    flat = (x > 61.0) & (x < 63.5)
+    bg = float(np.median(st[flat]))
+    i2 = int(np.argmin(np.abs(x - c2)))
+    record("XRD", "Kalpha2 residual after stripping", 0.0, float(st[i2] - bg) / 500.0 * 100.0, "% of satellite", "Rachinger")
+
+
+def spectroscopy():
+    x = np.linspace(0.0, 100.0, 1001)
+    y = spectral.gaussian(x, 10.0, 48.0, 6.0) + spectral.gaussian(x, 6.0, 55.0, 5.0)
+    res = spectral.fit_peaks(x, y, [47.0, 56.0])
+    pk = sorted(res.peaks, key=lambda p: p.center)
+    record("Spectral", "overlapping Gaussian centre 1", 48.0, pk[0].center, "x", "two components fitted together")
+    record("Spectral", "overlapping Gaussian FWHM 2", 5.0, pk[1].fwhm, "x", "")
+    rng = np.random.default_rng(2)
+    doublet = spectral.gaussian(x, 10.0, 45.0, 6.0) + spectral.gaussian(x, 5.0, 58.0, 6.0) + rng.normal(0, 0.05, len(x))
+    record("Spectral", "components chosen by AICc", 2, len(spectral.select_n_peaks(x, doublet, max_peaks=4).peaks), "-", "noisy doublet")
+    wl = np.linspace(600.0, 900.0, 3001)
+    yy = spectral.gaussian(wl, 1000.0, 750.0, 40.0)
+    e, ye = spectral.spectrum_to_energy(wl, yy)
+    record("PL", "integrated intensity after nm->eV (Jacobian)", spectral.integrate(wl, yy), spectral.integrate(e, ye), "a.u.", "area conserved")
+    wl2 = np.round(np.arange(600.0, 900.0 + 1e-9, 0.5), 4)
+    y2 = gaussian(wl2, 1000.0, 750.0, 40.0) + gaussian(wl2, 300.0, 820.0, 80.0) + np.random.default_rng(0).normal(0, 3.0, len(wl2))
+    m = fit_multi_peak(wl2, y2, max_peaks=3)
+    main = min(m.peaks, key=lambda p: abs(p.center - 750))
+    record("PL", "FWHM, multi-component fit with defect band", 40.0, main.fwhm, "nm", "AICc, 2 components")
+    xr = np.arange(100.0, 2000.0 + 1e-9, 1.0)
+    raman = 30.0 + 40.0 * np.exp(-((xr - 1200.0) / 900.0) ** 2) + spectral.lorentzian(xr, 100.0, 520.5, 6.0)
+    prep = vibrational.preprocess(xr, raman, baseline="arpls", lam=1e5)
+    i = int(np.argmin(np.abs(xr - 520.5)))
+    record("Raman", "band height after arPLS baseline", 100.0, float(prep["corrected"][i]), "a.u.", "fluorescence background")
+    fits = vibrational.fit_bands(xr, prep["corrected"], [520.5], shape="lorentzian")
+    record("Raman", "Lorentzian FWHM", 6.0, float(fits.iloc[0]["fwhm"]), "cm-1", "")
+    be = np.linspace(280.0, 295.0, 301)
+    peak = spectral.gaussian(be, 1000.0, 285.0, 1.4)
+    cum = np.cumsum(peak) * (be[1] - be[0])
+    bg = 100.0 + 300.0 * cum / cum[-1]
+    b = xps.shirley_background(be, bg + peak)
+    record("XPS", "Shirley background error (max)", 0.0, float(np.max(np.abs(b - bg))) / 300.0 * 100.0, "% of step", "")
+    c = xps.atomic_concentration({"C1s": 1000.0, "O1s": 2930.0})
+    record("XPS", "atomic % O for equal C and O", 50.0, c["O1s"], "at.%", "Scofield factors")
+    d = np.random.default_rng(0).lognormal(np.log(300.0), 0.35, 5000)
+    st = size_statistics(d)
+    record("SEM", "log-normal sigma", 0.35, st["lognorm_sigma"], "-", "5000 grains, MLE")
+    record("SEM", "geometric mean", 300.0, st["geo_mean"], "nm", "")
+
+
 def as_markdown():
     head = ("| Technique | Quantity | Reference | Recovered | Unit | Dev. (%) | Conditions |\n"
             "|---|---|---:|---:|---|---:|---|\n")
@@ -136,9 +279,14 @@ def main():
     args = ap.parse_args()
 
     illuminated_jv()
+    diode_fit()
     dark_jv()
+    eqe()
+    absorbance()
     xrd()
+    xrd_extra()
     photoluminescence()
+    spectroscopy()
 
     sys.stdout.write(as_csv() if args.csv else as_markdown())
 

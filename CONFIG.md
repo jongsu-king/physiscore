@@ -13,7 +13,8 @@ cp physisfera_config.example.json physisfera_config.json
 |---|---|---|
 | `cell_area_cm2` | Device area used to convert measured current to current density. **Set this before analysing any J–V data** — it scales Jsc and therefore PCE linearly. | `0.04` |
 | `origin_path` | Path to `Origin.exe` for optional plot export. Empty disables Origin export. | `""` |
-| `gemini_api_key` | Optional. Enables the AI commentary panels only. | `""` |
+| `gemini_api_key` | Optional. Enables the "Interpretation" commentary panels only. | `""` |
+| `theme` | `light` or `dark` appearance of every window; applies after a restart. `PHYSISCORE_THEME` overrides it for one run. | `light` |
 | `name_presets` | Sample-name presets shared by every tool's rename menu. Written by the application. | `[]` |
 
 The file is read when an analysis runs, not when the application starts, so a
@@ -34,7 +35,7 @@ The per-tool files (`scripts/JV/jv_config.json`, `scripts/Dark_JV/dark_jv_config
 sample-name presets — and are written by the application. They are not required to
 exist; each tool recreates its own with defaults.
 
-## The AI features are optional
+## The interpretation (Gemini) features are optional
 
 With `gemini_api_key` empty, every numerical result, plot and export is byte-for-byte
 identical. Nothing in the physics path calls the model — it only produces

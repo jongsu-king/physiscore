@@ -16,6 +16,7 @@ icon = str(ICONS / ("app.ico" if sys.platform == "win32" else "app.icns")) if IC
 datas = [(str(ROOT / "logo"), "logo")]
 for src, dst in [
     ("scripts/EQE/astm_g173_global.csv", "scripts/EQE"),
+    ("scripts/common/band_library.json", "scripts/common"),
     ("scripts/JV/jv_config.json", "scripts/JV"),
     ("scripts/Dark_JV/dark_jv_config.json", "scripts/Dark_JV"),
     ("scripts/SEM/sem_config.json", "scripts/SEM"),
@@ -41,8 +42,8 @@ def package_modules(*packages):
 
 hiddenimports = (
     package_modules("scripts", "spectra")
-    + ["selfupdate", "PIL._tkinter_finder", "matplotlib.backends.backend_tkagg",
-       "pybaselines", "lmfit", "pydantic", "openpyxl", "xlrd"]
+    + ["selfupdate", "physiscore_cli", "PIL._tkinter_finder", "matplotlib.backends.backend_tkagg",
+       "pybaselines", "lmfit", "pydantic", "openpyxl", "xlrd", "cycler"]
 )
 if sys.platform == "win32":
     hiddenimports += ["win32com", "win32com.client"]
