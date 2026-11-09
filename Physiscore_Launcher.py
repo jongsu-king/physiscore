@@ -602,7 +602,11 @@ def selftest(out=None) -> int:
         result["jv"] = f"failed: {e!r}"
     ok = all(v == "ok" for v in result["imports"].values()) and isinstance(result["jv"], dict) and result["jv"]["PCE"] > 0
     result["ok"] = ok
+    result["executable"] = sys.executable
+    result["config"] = app_config.config_path()
     text = json.dumps(result, indent=2)
+    if not ok:
+        print(text, file=sys.stderr)
     if out:
         with open(out, "w", encoding="utf-8") as f:
             f.write(text)

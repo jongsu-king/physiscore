@@ -87,7 +87,11 @@ jobs:
           HOME=/tmp/home /tmp/t/$SLUG/install.sh
           /tmp/home/.local/bin/physiscore --selftest --out dist/selftest-linux-tar.json
 
+      - name: Self-test reports
+        if: always()
+        run: for f in dist/selftest-*.json; do echo "== $f"; cat "$f"; echo; done || true
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: build-${{ matrix.os }}
           if-no-files-found: error
