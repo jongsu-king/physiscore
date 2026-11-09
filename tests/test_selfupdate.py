@@ -279,9 +279,8 @@ class EndToEndTests(unittest.TestCase):
             except OSError:
                 return None
 
-        apps = exe.parent.parent
-        for _ in range(100):  # the helper swaps first, then removes its staging folder
-            if installed() == "1.1.0" and not (apps / ".Demo.update").exists():
+        for _ in range(100):
+            if installed() == "1.1.0":
                 break
             time.sleep(0.2)
         self.assertEqual(installed(), "1.1.0")
@@ -327,19 +326,14 @@ class EndToEndTests(unittest.TestCase):
             except OSError:
                 return None
 
-        apps = self.tmp / "Applications"
-        for _ in range(100):  # the helper swaps first, then removes its staging folder
-            if installed() == "1.1.0" and sorted(p.name for p in apps.iterdir()) == ["Demo.app"]:
+        for _ in range(100):
+            if installed() == "1.1.0":
                 break
             time.sleep(0.2)
         self.assertEqual(installed(), "1.1.0")
-<<<<<<< Updated upstream
         applications = self.tmp / "Applications"
         _wait_until(lambda: sorted(p.name for p in applications.iterdir()) == ["Demo.app"])
         self.assertEqual(sorted(p.name for p in applications.iterdir()), ["Demo.app"])
-=======
-        self.assertEqual(sorted(p.name for p in apps.iterdir()), ["Demo.app"])
->>>>>>> Stashed changes
 
     def test_zip_portable_stage(self):
         root = self.tmp / "apps" / "Demo"
