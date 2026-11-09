@@ -92,3 +92,29 @@ def test_xrd_pl_vib_commands(tmp_path, capsys):
 def test_sem_stats_command(capsys):
     r = run(capsys, ["sem-stats", "100", "120", "140", "--json"])
     assert r["n"] == 3 and r["std"] == pytest.approx(20.0)
+
+
+def test_device_and_batch_commands(tmp_path, capsys):
+    from scipy.special import erf
+    v = np.round(np.arange(-0.2, 1.1001, 0.01), 4)
+    j = single_diode_jv(v)
+    jv_f = tmp_path / "cell.csv"
+    pd.DataFrame({"Voltage (V)": v, "J (mA/cm2)": -j}).to_csv(jv_f, index=False)
+    wl = np.arange(300.0, 1100.0, 1.0)
+    e = 1239.84198 / wl
+    for i, eg in enumerate((1.55, 1.60)):
+        pd.DataFrame({"nm": wl, "EQE": 85 * 0.5 * (1 + erf((e - eg) / (0.03 * np.sqrt(2))))}).to_csv(
+            tmp_path / f"eqe_{i}.csv", index=False)
+    out = tmp_path / "dev.xlsx"
+    r = run(capsys, ["device", "--jv", str(jv_f), "--eqe", str(tmp_path / "eqe_1.csv"), "--out", str(out), "--json"])
+    assert r["EQE_Eg"] == pytest.approx(1.60, abs=0.01)
+    assert r["dV1_SQ"] + r["dV2_rad"] + r["dV3_nonrad"] == pytest.approx(r["Voc_deficit"], abs=1e-9)
+    assert out.exists() and (tmp_path / "dev.analysis.json").exists()
+
+    table = tmp_path / "batch.csv"
+    r2 = run(capsys, ["batch", "eqe", str(tmp_path), "--out", str(table), "--json"])
+    rows = r2["rows"]
+    eg = sorted(round(x["Eg Rau (eV)"], 2) for x in rows if x.get("Eg Rau (eV)") is not None)
+    assert eg == [1.55, 1.6]                         # cell.csv is analysed too but has no EQE edge
+    assert "dev.xlsx" not in {x["File"] for x in rows}   # exports with a side-car are never re-read
+    assert table.exists() and (tmp_path / "batch.analysis.json").exists()

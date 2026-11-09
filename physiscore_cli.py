@@ -11,6 +11,8 @@ for scripted and reproducible batch processing.
     python physiscore_cli.py vib  FILE --technique raman|ftir [--baseline arpls] [--lam 1e5] [--json]
     python physiscore_cli.py sem-stats FILE_OR_VALUES... [--json]
     python physiscore_cli.py sq   EG_EV [--temperature 300]
+    python physiscore_cli.py device --jv FILE --eqe FILE [--abs FILE] [--pl FILE] [--sweep reverse] [--out x.xlsx] [--json]
+    python physiscore_cli.py batch eqe|abs|pl|xrd|raman|ftir FOLDER_OR_FILES... [--all-columns] [--out summary.xlsx] [--json]
     python physiscore_cli.py validate [--csv]
 
 Every command prints a human-readable summary; `--json` prints the full
@@ -65,24 +67,9 @@ def _emit(result: Dict[str, Any], as_json: bool, summary_lines=None) -> None:
 
 def _read_xy(path: str, sheet=None, column=None):
     """First column = x, `column` (or the first numeric column after it) = y."""
-    ext = os.path.splitext(path)[1].lower()
-    if ext in (".xlsx", ".xls"):
-        df = pd.read_excel(path, sheet_name=sheet or 0)
-    else:
-        from spectra.core.utils import robust_read_csv
-        df = robust_read_csv(path)
-    df.columns = [str(c) for c in df.columns]
-    x = pd.to_numeric(df.iloc[:, 0], errors="coerce").to_numpy(float)
-    if column is None:
-        for c in df.columns[1:]:
-            if pd.to_numeric(df[c], errors="coerce").notna().sum() > 3:
-                column = c
-                break
-    if column is None:
-        raise SystemExit("no numeric y column found")
-    y = pd.to_numeric(df[column], errors="coerce").to_numpy(float)
-    ok = np.isfinite(x) & np.isfinite(y)
-    return x[ok], y[ok], column, df
+    from scripts.common.batch import read_xy, read_table
+    x, y, col = read_xy(path, sheet, column)
+    return x, y, col, None
 
 
 def _fmt(v, fmt=".4g"):
@@ -242,6 +229,88 @@ def cmd_sq(a):
                        f"FF {_fmt(sq['FF_SQ'], '.3f')}   PCE {_fmt(sq['PCE_SQ'], '.2f')} %"])
 
 
+def cmd_device(a):
+    from scripts.common import device_summary as ds
+    from scripts.common import batch
+    from scripts.common.iv_io import GENERIC_EXTENSIONS, read_generic_iv
+    from scripts.common.provenance import write_sidecar
+    from scripts.common import app_config
+    from scripts.JV import jv_core
+    area = app_config.cell_area_cm2(a.area)
+    jv = fit = None
+    inputs = []
+    if a.jv:
+        if a.jv.lower().endswith(GENERIC_EXTENSIONS):
+            v, j, _ = read_generic_iv(a.jv, area)
+        else:
+            v, j = jv_core.read_jv_curve(a.jv, area_cm2=area)
+        if a.sweep != "combined":
+            seg = next((sg for sg in jv_core.split_scan_directions(v, j) if sg["direction"] == a.sweep), None)
+            if seg is not None:
+                v, j = seg["v"], seg["j"]
+        jv = jv_core.compute_jv_parameters(v, j, pin_mw_cm2=a.irradiance)
+        fit = jv_core.fit_single_diode(v, j, temperature_k=298.15, pin_mw_cm2=a.irradiance)
+        inputs.append(a.jv)
+    ex = ey = None
+    if a.eqe:
+        ex, ey, _ = batch.read_xy(a.eqe)
+        inputs.append(a.eqe)
+    eg_abs = pl_ev = None
+    if a.abs:
+        x, y, _ = batch.read_xy(a.abs)
+        eg_abs = batch.analyse_abs(x, y, mode=a.mode)["Eg Tauc (eV)"]
+        inputs.append(a.abs)
+    if a.pl:
+        x, y, _ = batch.read_xy(a.pl)
+        pl_ev = batch.analyse_pl(x, y)["Peak (eV)"]
+        inputs.append(a.pl)
+    s = ds.summarize_device(jv, ex, ey, eg_abs_ev=eg_abs, pl_peak_ev=pl_ev, temperature_k=a.temperature, diode_fit=fit)
+    tbl = ds.summary_table(s)
+    if a.out:
+        with pd.ExcelWriter(a.out, engine="openpyxl") as w:
+            tbl.to_excel(w, sheet_name="Summary", index=False)
+            pd.DataFrame({"Warning": s["warnings"] or ["none"]}).to_excel(w, sheet_name="Checks", index=False)
+        write_sidecar(a.out, "Device summary", inputs=inputs,
+                      parameters={"area_cm2": area, "irradiance_mW_cm2": a.irradiance, "temperature_K": a.temperature,
+                                  "sweep": a.sweep, "transition": a.mode},
+                      results={k: v for k, v in s.items() if not isinstance(v, (list, dict))})
+    lines = ["Device summary", "", tbl.to_string(index=False), ""]
+    lines += ["Warnings:"] + [f"  - {w}" for w in s["warnings"]] if s["warnings"] else ["No inconsistency above the warning thresholds."]
+    if a.out:
+        lines.append(f"Excel -> {a.out}")
+    _emit(s, a.json, lines)
+
+
+def cmd_batch(a):
+    from scripts.common import batch
+    from scripts.common.provenance import write_sidecar
+    files = []
+    for item in a.paths:
+        files += batch.list_data_files(item) if os.path.isdir(item) else [item]
+    if not files:
+        raise SystemExit("no data files found")
+    opts = {}
+    if a.technique == "eqe":
+        opts = {"temperature_k": a.temperature}
+    elif a.technique == "abs":
+        opts = {"mode": a.mode}
+    elif a.technique == "xrd":
+        opts = {"instrumental_fwhm_deg": a.instrument_fwhm, "k": a.k}
+    df = batch.run_batch(a.technique, files, sheet=a.sheet, column=a.column, all_columns=a.all_columns, **opts)
+    out = a.out
+    if out:
+        if out.lower().endswith(".csv"):
+            df.to_csv(out, index=False)
+        else:
+            df.to_excel(out, index=False)
+        write_sidecar(out, f"batch {a.technique}", inputs=files, parameters=opts, results={"rows": len(df)})
+    with pd.option_context("display.max_columns", 30, "display.width", 200):
+        lines = [f"batch {a.technique}: {len(files)} file(s), {len(df)} spectra", "", df.to_string(index=False)]
+    if out:
+        lines.append(f"\n-> {out}")
+    _emit({"rows": df}, a.json, lines)
+
+
 def cmd_validate(a):
     import subprocess
     cmd = [sys.executable, os.path.join(ROOT, "tools", "validation_report.py")] + (["--csv"] if a.csv else [])
@@ -292,6 +361,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("sq", help="Shockley-Queisser limit for a band gap"); p.add_argument("eg", type=float)
     p.add_argument("--temperature", type=float, default=300.0); common(p); p.set_defaults(func=cmd_sq)
+
+    p = sub.add_parser("device", help="cross-technique summary of one device (J-V + EQE [+ Abs, PL])")
+    p.add_argument("--jv"); p.add_argument("--eqe"); p.add_argument("--abs"); p.add_argument("--pl")
+    p.add_argument("--sweep", default="reverse", choices=["combined", "forward", "reverse"])
+    p.add_argument("--mode", default="direct", choices=["direct", "indirect"], help="Tauc transition for --abs")
+    p.add_argument("--area", type=float, default=None); p.add_argument("--irradiance", type=float, default=100.0)
+    p.add_argument("--temperature", type=float, default=300.0); p.add_argument("--out", help="Excel path")
+    common(p); p.set_defaults(func=cmd_device)
+
+    p = sub.add_parser("batch", help="analyse every file of a folder (or the listed files) and tabulate")
+    p.add_argument("technique", choices=["eqe", "abs", "pl", "xrd", "raman", "ftir"]); p.add_argument("paths", nargs="+")
+    p.add_argument("--sheet"); p.add_argument("--column"); p.add_argument("--all-columns", action="store_true",
+                                                                        help="analyse every numeric column of each file")
+    p.add_argument("--mode", default="direct", choices=["direct", "indirect"]); p.add_argument("--temperature", type=float, default=300.0)
+    p.add_argument("--instrument-fwhm", type=float, default=0.0); p.add_argument("--k", type=float, default=0.9)
+    p.add_argument("--out", help="CSV or Excel path for the table"); common(p); p.set_defaults(func=cmd_batch)
 
     p = sub.add_parser("validate", help="regenerate the validation table"); p.add_argument("--csv", action="store_true"); p.set_defaults(func=cmd_validate)
     return ap

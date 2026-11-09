@@ -513,3 +513,118 @@ def texture_coefficient(intensities, reference_intensities) -> np.ndarray:
     i0 = np.asarray(reference_intensities, dtype=float)
     r = i / i0
     return r / np.mean(r)
+
+
+# =========================
+# Reference patterns and multi-pattern comparison
+# =========================
+def load_reference_peaks(path: str, wavelength_a: float = LAMBDA_CU) -> pd.DataFrame:
+    """Read a reference peak list (CSV / TXT / XLSX) with columns such as
+    `2theta` (or `d`), optional `hkl` (or h, k, l) and optional `I`
+    (relative intensity). Column names are matched loosely and case-
+    insensitively; a d-spacing column is converted to 2theta for the given
+    wavelength. Returns columns: 2Theta, d, hkl, I_rel (NaN when absent)."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext in (".xlsx", ".xls"):
+        df = pd.read_excel(path)
+    else:
+        df = pd.read_csv(path, sep=None, engine="python")
+    df.columns = [str(c).strip() for c in df.columns]
+    low = {c.lower().replace(" ", "").replace("_", ""): c for c in df.columns}
+
+    def pick(*names):
+        for n in names:
+            for key, col in low.items():
+                if key == n or key.startswith(n):
+                    return col
+        return None
+
+    c_tt = pick("2theta", "2θ", "twotheta", "2th", "angle")
+    c_d = pick("dspacing", "d(a)", "d(å)", "d")
+    c_i = pick("irel", "intensity", "i(%)", "int", "i")
+    c_hkl = pick("hkl")
+    if c_tt is not None:
+        tt = pd.to_numeric(df[c_tt], errors="coerce").to_numpy(float)
+        d = d_spacing(tt, wavelength_a)
+    elif c_d is not None:
+        d = pd.to_numeric(df[c_d], errors="coerce").to_numpy(float)
+        with np.errstate(invalid="ignore"):
+            tt = 2.0 * np.degrees(np.arcsin(np.clip(wavelength_a / (2.0 * d), -1, 1)))
+    else:
+        raise ValueError("reference list needs a 2theta or d column")
+    if c_hkl is not None:
+        hkl = df[c_hkl].astype(str).str.replace(r"[()\s,]", "", regex=True).tolist()
+    elif all(pick(k) for k in ("h", "k", "l")):
+        hkl = [f"{int(h)}{int(k)}{int(l)}" for h, k, l in zip(df[pick("h")], df[pick("k")], df[pick("l")])]
+    else:
+        hkl = [""] * len(df)
+    i_rel = pd.to_numeric(df[c_i], errors="coerce").to_numpy(float) if c_i is not None else np.full(len(df), np.nan)
+    if np.nanmax(i_rel) > 0 if np.any(np.isfinite(i_rel)) else False:
+        i_rel = 100.0 * i_rel / np.nanmax(i_rel)
+    out = pd.DataFrame({"2Theta": tt, "d": d, "hkl": hkl, "I_rel": i_rel})
+    return out[np.isfinite(out["2Theta"])].sort_values("2Theta").reset_index(drop=True)
+
+
+def match_reference(peaks_df: pd.DataFrame, reference: pd.DataFrame, tolerance_deg: float = 0.15,
+                    min_ref_intensity: float = 5.0) -> Dict[str, Any]:
+    """Pair observed reflections with a reference peak list.
+
+    Each observed peak is matched to the nearest reference line within
+    `tolerance_deg` (one-to-one, closest pairs first). Returns a table of
+    matches with hkl, delta 2theta, the lattice strain (d - d0)/d0, and the
+    coverage statistics: the fraction of reference lines (with I_rel >=
+    `min_ref_intensity`) that were found, and the fraction of observed peaks
+    that belong to the reference (unassigned peaks indicate another phase).
+    """
+    obs = peaks_df.sort_values("2Theta").reset_index(drop=True) if peaks_df is not None else pd.DataFrame()
+    ref = reference.sort_values("2Theta").reset_index(drop=True)
+    pairs = []
+    for i, tt in enumerate(obs["2Theta"].to_numpy(float) if len(obs) else []):
+        for j, rt in enumerate(ref["2Theta"].to_numpy(float)):
+            dd = abs(tt - rt)
+            if dd <= tolerance_deg:
+                pairs.append((dd, i, j))
+    pairs.sort()
+    used_i, used_j, rows = set(), set(), []
+    for dd, i, j in pairs:
+        if i in used_i or j in used_j:
+            continue
+        used_i.add(i)
+        used_j.add(j)
+        o, r = obs.iloc[i], ref.iloc[j]
+        d_obs = float(o["d_spacing"]) if "d_spacing" in obs.columns else float(d_spacing(o["2Theta"]))
+        rows.append({"2Theta_obs": float(o["2Theta"]), "2Theta_ref": float(r["2Theta"]),
+                     "delta_2Theta": float(o["2Theta"] - r["2Theta"]), "hkl": r["hkl"],
+                     "d_obs": d_obs, "d_ref": float(r["d"]), "strain": lattice_strain(d_obs, float(r["d"])),
+                     "I_obs": float(o["Intensity"]) if "Intensity" in obs.columns else np.nan,
+                     "I_ref": float(r["I_rel"]) if np.isfinite(r["I_rel"]) else np.nan,
+                     "FWHM": float(o["FWHM"]) if "FWHM" in obs.columns else np.nan})
+    matches = pd.DataFrame(rows, columns=["2Theta_obs", "2Theta_ref", "delta_2Theta", "hkl", "d_obs", "d_ref",
+                                          "strain", "I_obs", "I_ref", "FWHM"]).sort_values("2Theta_obs").reset_index(drop=True)
+    strong = ref[(ref["I_rel"] >= min_ref_intensity) | ~np.isfinite(ref["I_rel"])]
+    n_strong = int(len(strong))
+    n_found = int(sum(1 for j in used_j if j in strong.index))
+    unassigned = obs[~obs.index.isin(used_i)] if len(obs) else obs
+    return {"matches": matches,
+            "coverage": (n_found / n_strong) if n_strong else float("nan"),
+            "n_reference_lines": n_strong, "n_matched": n_found,
+            "assigned_fraction": (len(used_i) / len(obs)) if len(obs) else float("nan"),
+            "unassigned": unassigned.reset_index(drop=True),
+            "mean_shift_deg": float(matches["delta_2Theta"].mean()) if len(matches) else float("nan"),
+            "mean_strain": float(matches["strain"].mean()) if len(matches) else float("nan")}
+
+
+def normalize_patterns(patterns, mode: str = "max"):
+    """Scale several (x, y) patterns for a stacked overlay: 'max' divides by
+    each maximum, 'area' by each integral, 'none' leaves them."""
+    out = []
+    for x, y in patterns:
+        y = np.asarray(y, dtype=float)
+        if mode == "max" and np.nanmax(y) > 0:
+            y = y / np.nanmax(y)
+        elif mode == "area":
+            trap = getattr(np, "trapezoid", None) or np.trapz
+            a = trap(np.clip(y, 0, None), x)
+            y = y / a if a > 0 else y
+        out.append((np.asarray(x, dtype=float), y))
+    return out

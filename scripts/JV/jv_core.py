@@ -17,6 +17,7 @@ from scripts.common.naming import (base_name as _base_name,
                                    cell_number as _cell_number,
                                    display_name_from_path, natural_sort_key)
 from scripts.common.origin import WIN32COM_AVAILABLE, connect_to_origin
+from scripts.common.iv_io import GENERIC_EXTENSIONS, is_result_workbook, read_generic_iv
 from scripts.common import palette as _pal
 
 # =========================
@@ -155,6 +156,8 @@ def parse_jv_file(file_path: str,
     it from the configuration at call time.
     Returns: (summary_data, voltage_data_list)
     """
+    if file_path.lower().endswith(GENERIC_EXTENSIONS):
+        return _parse_generic_jv(file_path, display_name_from_path(file_path), cell_area_cm2(area_cm2))
     try:
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -235,19 +238,40 @@ def parse_jv_file(file_path: str,
                     except (ValueError, IndexError):
                         pass
 
-    # Fallback: files exported without the instrument summary block still carry
-    # a valid J-V curve. Previously such folders aborted with "No valid data
-    # found"; register the sample so the curve-derived analysis can proceed.
+    if summary_data is not None:
+        summary_data["Summary source"] = "instrument"
+    # Files exported without the instrument summary block still carry a valid
+    # J-V curve: the summary values are computed from that curve, so the
+    # statistics, box charts and best-device selection include the device.
     if summary_data is None and voltage_data:
-        summary_data = {
-            "Filename": display_name,
-            "Voc V": "non",
-            "Jsc mA/cm2": "non",
-            "Fill Factor": "non",
-            "PCE (%)": "non",
-        }
+        summary_data = _summary_from_curve(display_name, voltage_data)
 
     return summary_data, voltage_data
+
+
+def _summary_from_curve(display_name: str, voltage_data: List[Dict]) -> Dict[str, Any]:
+    v = np.array([r["Voltage(V)"] for r in voltage_data], dtype=float)
+    j = np.array([r["Current"] for r in voltage_data], dtype=float)
+    p = compute_jv_parameters(v, j)
+
+    def fmt(val, spec):
+        return format(val, spec) if np.isfinite(val) else "non"
+
+    return {"Filename": display_name, "Voc V": fmt(p["Voc"], ".3g"), "Jsc mA/cm2": fmt(p["Jsc"], ".2f"),
+            "Fill Factor": fmt(p["FF"], ".2f"), "PCE (%)": fmt(p["PCE"], ".2f"), "Summary source": "curve"}
+
+
+def _parse_generic_jv(file_path: str, display_name: str, area: float) -> Tuple[Optional[Dict], List[Dict]]:
+    """CSV/TSV/DAT/XLSX curve (see scripts.common.iv_io); summary from the curve."""
+    try:
+        v, j, _how = read_generic_iv(file_path, area)
+    except Exception:
+        return None, []
+    voltage_data = [{"Voltage(V)": round(float(vv), 4), "Sample": display_name, "Current": float(jj)}
+                    for vv, jj in zip(v, j) if -3 <= vv <= 3]
+    if not voltage_data:
+        return None, []
+    return _summary_from_curve(display_name, voltage_data), voltage_data
 
 
 def process_jv_directory(directory_path: str, progress_callback=None,
@@ -273,7 +297,11 @@ def process_jv_directory(directory_path: str, progress_callback=None,
     for d in dirs:
         try:
             for f in sorted(os.listdir(d)):
-                if f.lower().endswith(".txt"):
+                low = f.lower()
+                if f.startswith((".", "~$")):
+                    continue
+                if low.endswith(".txt") or (low.endswith(GENERIC_EXTENSIONS)
+                                            and not is_result_workbook(os.path.join(d, f))):
                     file_pairs.append((d, f))
         except Exception:
             continue
@@ -489,6 +517,7 @@ def process_jv_directory(directory_path: str, progress_callback=None,
         "hysteresis_df": hysteresis_df,
         "diode_fits": diode_fits,
         "cell_area_cm2": area,
+        "input_dirs": [os.path.abspath(d) for d in dirs],
         "total_files": len(txt_files)
     }
 
@@ -499,20 +528,29 @@ def save_to_excel(data: Dict[str, Any], excel_path: str) -> str:
     Returns the path actually written ('' on failure). If the target file is
     locked (typically: the user still has it open in Excel - previously the
     save FAILED SILENTLY and the file kept stale data), a timestamped
-    '<name>_HHMMSS.xlsx' is written next to it instead.
+    '<name>_HHMMSS.xlsx' is written next to it instead. A reproducibility
+    side-car '<name>.analysis.json' is written next to the workbook.
     """
     try:
-        return _save_to_excel_impl(data, excel_path)
+        saved = _save_to_excel_impl(data, excel_path)
     except PermissionError:
         alt = f"{os.path.splitext(excel_path)[0]}_{time.strftime('%H%M%S')}.xlsx"
         try:
-            return _save_to_excel_impl(data, alt)
+            saved = _save_to_excel_impl(data, alt)
         except Exception as e:
             print(f"Excel save error (fallback): {e}")
             return ""
     except Exception as e:
         print(f"Excel save error: {e}")
         return ""
+    if saved:
+        from scripts.common.provenance import write_sidecar
+        write_sidecar(saved, "J-V (light)", inputs=data.get("input_dirs"),
+                      parameters={"cell_area_cm2": data.get("cell_area_cm2"), "irradiance_mW_cm2": STANDARD_IRRADIANCE_MW_CM2,
+                                  "diode_fit": bool(data.get("diode_fits")), "temperature_K": 298.15},
+                      results={"statistics": data.get("statistics_df"), "hysteresis": data.get("hysteresis_df"),
+                               "total_files": data.get("total_files")})
+    return saved
 
 
 def _save_to_excel_impl(data: Dict[str, Any], excel_path: str) -> str:

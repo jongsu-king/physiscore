@@ -14,6 +14,7 @@ import openpyxl
 from scripts.common import app_config
 from scripts.common.naming import display_name_from_path, natural_sort_key
 from scripts.common.origin import WIN32COM_AVAILABLE, connect_to_origin
+from scripts.common.iv_io import GENERIC_EXTENSIONS, is_result_workbook, read_generic_iv
 from scripts.common import palette as _pal
 
 # =========================
@@ -129,6 +130,15 @@ def parse_dark_jv_file(file_path: str,
     it from the configuration at call time.
     Returns: (summary_data, voltage_data_list)
     """
+    if file_path.lower().endswith(GENERIC_EXTENSIONS):
+        name = display_name_from_path(file_path)
+        try:
+            v, j, _how = read_generic_iv(file_path, cell_area_cm2(area_cm2))
+        except Exception:
+            return None, []
+        rows = [{"Voltage(V)": round(float(vv), 4), "Sample": name, "Current": abs(float(jj))}
+                for vv, jj in zip(v, j) if -3 <= vv <= 3]
+        return ({"Filename": name, "RShunt (ohms)": "non"} if rows else None), rows
     try:
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -222,7 +232,11 @@ def process_dark_jv_directory(directory_path: str, progress_callback=None,
     for d in dirs:
         try:
             for f in sorted(os.listdir(d)):
-                if f.lower().endswith(".txt"):
+                low = f.lower()
+                if f.startswith((".", "~$")):
+                    continue
+                if low.endswith(".txt") or (low.endswith(GENERIC_EXTENSIONS)
+                                            and not is_result_workbook(os.path.join(d, f))):
                     file_pairs.append((d, f))
         except Exception:
             continue
@@ -337,6 +351,8 @@ def process_dark_jv_directory(directory_path: str, progress_callback=None,
         "combined_data": combined_data,
         "summary_df": summary_df,
         "diode_fits": full_fits,
+        "cell_area_cm2": area,
+        "input_dirs": [os.path.abspath(d) for d in dirs],
         "total_files": len(txt_files),
         "y_min_auto": y_min_auto,
         "y_max_auto": y_max_auto
@@ -354,6 +370,11 @@ def save_to_excel(data: Dict[str, Any], excel_path: str) -> str:
         with pd.ExcelWriter(path, engine="openpyxl", mode="w") as writer:
             data["combined_data"].to_excel(writer, sheet_name="CombinedData", index=False)
             data["summary_df"].to_excel(writer, sheet_name="SummaryTable", index=False)
+        from scripts.common.provenance import write_sidecar
+        write_sidecar(path, "J-V (dark)", inputs=data.get("input_dirs"),
+                      parameters={"cell_area_cm2": data.get("cell_area_cm2"), "temperature_K": 298.15,
+                                  "window_V": 0.25, "window_start_V": 0.15},
+                      results={"summary": data.get("summary_df")})
         return path
 
     try:

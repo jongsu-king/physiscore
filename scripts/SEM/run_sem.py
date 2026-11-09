@@ -631,7 +631,8 @@ class AnalysisWindow(ctk.CTkToplevel):
                 self.bell()
 
     def load_image(self):
-        path = filedialog.askopenfilename()
+        path = filedialog.askopenfilename(title="Open SEM image",
+                                          filetypes=[("Images", "*.tif *.tiff *.png *.jpg *.jpeg *.bmp"), ("All files", "*.*")])
         if not path:
             return
         try:
@@ -1640,6 +1641,9 @@ class AnalysisWindow(ctk.CTkToplevel):
             with pd.ExcelWriter(p, engine="openpyxl") as w:
                 grains.to_excel(w, sheet_name="Grains", index=False)
                 st.to_excel(w, sheet_name="Statistics", index=False)
+            from scripts.common.provenance import write_sidecar
+            write_sidecar(p, "SEM grain size", inputs=[getattr(self, "img_path", "")],
+                          parameters={"nm_per_px": getattr(self, "nm_per_px", None)}, results=stats)
             messagebox.showinfo("Export", "Saved grains and statistics.")
 
     def export_report(self):

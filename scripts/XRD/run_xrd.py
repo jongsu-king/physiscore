@@ -229,8 +229,11 @@ class XRDAnalysisTab(ctk.CTkFrame):
         self.var_ka2 = tk.BooleanVar(value=False)
         ctk.CTkCheckBox(opt, text="Strip Cu Kα2 (Rachinger)", variable=self.var_ka2, font=_pal.font(10),
                         text_color=COL_TXT, checkbox_width=16, checkbox_height=16).grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        ctk.CTkLabel(opt, text="Reference tolerance (°)", font=_pal.font(10), text_color=COL_MUT).grid(row=3, column=0, sticky="w")
+        self.ent_tol = _theme.entry(opt, width=70, height=24); self.ent_tol.insert(0, "0.15")
+        self.ent_tol.grid(row=3, column=1, sticky="e", pady=2)
         self.lbl_ci = ctk.CTkLabel(opt, text="Crystallinity index: -", font=_pal.font(10), text_color=COL_MUT, anchor="w")
-        self.lbl_ci.grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self.lbl_ci.grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
         self.wh_result = None
 
         # 2. Peak List Card (JV Style)
@@ -377,6 +380,7 @@ class XRDAnalysisTab(ctk.CTkFrame):
         try:
             self.log(f"Loading: {os.path.basename(file_path)}")
             self.x_data, self.y_data = xrd_core.load_data(file_path)
+            self.file_path = file_path
             
             # --- Left Plot: Preview ---
             self.ax_prev.clear()
@@ -454,7 +458,9 @@ class XRDAnalysisTab(ctk.CTkFrame):
             
             self.btn_ai.configure(state="normal")
             self.btn_origin.configure(state="normal")
-            self.log(f"Optimization Complete. Found {len(self.current_peaks_df)} peaks.")
+            self.log(f"Fitting complete: {len(self.current_peaks_df)} reflections.")
+            if getattr(self, "reference", None) is not None:
+                self.match_reference()
             
         except Exception as e:
             self.log(f"Analysis Error: {e}")
@@ -600,6 +606,134 @@ class XRDAnalysisTab(ctk.CTkFrame):
                 f"{eta:.2f}" if pd.notna(eta) else "-",
                 f"{r2:.3f}" if pd.notna(r2) else "-"))
 
+    def export_excel(self):
+        """Peaks, Williamson-Hall, reference match and the pattern with its fit, in one workbook."""
+        if self.current_peaks_df is None or self.current_peaks_df.empty:
+            messagebox.showwarning("Excel", "Run the fitting first.")
+            return
+        path = filedialog.asksaveasfilename(defaultextension=".xlsx", initialfile="XRD_result.xlsx",
+                                            filetypes=[("Excel", "*.xlsx")])
+        if not path:
+            return
+        inst, k = self._analysis_options()
+        y_used = getattr(self, "y_used", self.y_data)
+        with pd.ExcelWriter(path, engine="openpyxl") as w:
+            self.current_peaks_df.to_excel(w, sheet_name="Peaks", index=False)
+            pd.DataFrame({"2Theta": self.x_data, "Intensity": self.y_data, "Intensity used": y_used,
+                          "Fit (background + peaks)": self.y_fit_total}).to_excel(w, sheet_name="Pattern", index=False)
+            if getattr(self, "wh_result", None):
+                wh = self.wh_result
+                pd.DataFrame([{k2: v for k2, v in wh.items() if k2 not in ("x", "y")}]).to_excel(w, sheet_name="WilliamsonHall", index=False)
+            if getattr(self, "reference_match", None):
+                self.reference_match["matches"].to_excel(w, sheet_name="ReferenceMatch", index=False)
+            if getattr(self, "ci_result", None):
+                pd.DataFrame([{"Crystallinity index (%)": self.ci_result["CI_percent"]}]).to_excel(w, sheet_name="Crystallinity", index=False)
+        from scripts.common.provenance import write_sidecar
+        write_sidecar(path, "XRD", inputs=[getattr(self, "file_path", "")],
+                      parameters={"instrument_fwhm_deg": inst, "scherrer_k": k, "kalpha2_stripped": bool(self.var_ka2.get()),
+                                  "wavelength_A": xrd_core.LAMBDA_CU,
+                                  "reference": getattr(self, "reference_name", None)},
+                      results={"peaks": self.current_peaks_df,
+                               "williamson_hall": {k2: v for k2, v in (self.wh_result or {}).items() if k2 not in ("x", "y")}
+                               if getattr(self, "wh_result", None) else None})
+        self.log(f"Excel saved: {path}")
+
+    def open_compare(self):
+        """Several XRD patterns stacked (normalised, offset) with the strongest reflection of each."""
+        from scripts.common.compare_window import CompareWindow
+        inst, k = self._analysis_options()
+        CompareWindow(self, "xrd", options={"instrumental_fwhm_deg": inst, "k": k})
+
+    def load_reference(self):
+        """Read a reference peak list (2theta or d, hkl, I) and match it to the fitted reflections."""
+        path = filedialog.askopenfilename(title="Reference peak list (2theta or d, hkl, I)",
+                                          filetypes=[("Peak list", "*.csv *.txt *.xlsx *.xls"), ("All files", "*.*")])
+        if not path:
+            return
+        try:
+            self.reference = xrd_core.load_reference_peaks(path)
+            self.reference_name = os.path.splitext(os.path.basename(path))[0]
+        except Exception as e:
+            messagebox.showerror("Reference", str(e))
+            return
+        self.log(f"Reference '{self.reference_name}': {len(self.reference)} lines.")
+        self.match_reference()
+
+    def match_reference(self):
+        ref = getattr(self, "reference", None)
+        if ref is None:
+            return
+        if self.current_peaks_df is None or self.current_peaks_df.empty:
+            self._draw_reference_ticks()
+            self.log("Reference loaded; run the fitting to match it.")
+            return
+        try:
+            tol = float(self.ent_tol.get()) if hasattr(self, "ent_tol") else 0.15
+        except ValueError:
+            tol = 0.15
+        m = xrd_core.match_reference(self.current_peaks_df, ref, tolerance_deg=tol)
+        self.reference_match = m
+        self._draw_reference_ticks()
+        self.log(f"Reference '{self.reference_name}': {m['n_matched']}/{m['n_reference_lines']} lines found "
+                 f"(coverage {100 * m['coverage']:.0f} %), {len(m['unassigned'])} unassigned peak(s), "
+                 f"mean shift {m['mean_shift_deg']:+.3f}°, mean strain {m['mean_strain']:+.2e}")
+        self._show_match_table(m)
+
+    def _draw_reference_ticks(self):
+        ref = getattr(self, "reference", None)
+        if ref is None:
+            return
+        for art in getattr(self, "_ref_artists", []):
+            try:
+                art.remove()
+            except Exception:
+                pass
+        self._ref_artists = []
+        ymin, ymax = self.ax_res.get_ylim()
+        h = 0.06 * (ymax - ymin)
+        xmin, xmax = self.ax_res.get_xlim()
+        for _, r in ref.iterrows():
+            if not (xmin <= r["2Theta"] <= xmax):
+                continue
+            rel = (r["I_rel"] / 100.0) if np.isfinite(r["I_rel"]) else 1.0
+            ln = self.ax_res.vlines(r["2Theta"], ymin, ymin + h * (0.3 + 0.7 * rel), color=_pal.ACCENT, linewidth=1.2)
+            self._ref_artists.append(ln)
+            if r["hkl"] and rel >= 0.15:
+                self._ref_artists.append(self.ax_res.text(r["2Theta"], ymin + h * 1.05, f"({r['hkl']})", fontsize=7,
+                                                          rotation=90, ha="center", va="bottom", color=_pal.ACCENT))
+        self.ax_res.set_ylim(ymin, ymax)
+        self.canvas_res.draw_idle()
+
+    def _show_match_table(self, m):
+        win = ctk.CTkToplevel(self)
+        win.title(f"Reference match - {self.reference_name}")
+        win.geometry("820x480")
+        win.configure(fg_color=_pal.BG_WINDOW)
+        head = (f"{m['n_matched']} of {m['n_reference_lines']} reference lines found (coverage {100 * m['coverage']:.0f} %); "
+                f"{100 * m['assigned_fraction']:.0f} % of the observed peaks are assigned. Mean 2θ shift "
+                f"{m['mean_shift_deg']:+.3f}°, mean strain (d - d0)/d0 = {m['mean_strain']:+.2e}.")
+        ctk.CTkLabel(win, text=head, font=_pal.font(10), text_color=_pal.TXT, wraplength=790, justify="left"
+                     ).pack(anchor="w", padx=10, pady=(10, 4))
+        _theme.style_treeview(rowheight=22)
+        cols = ["hkl", "2Theta_obs", "2Theta_ref", "delta_2Theta", "d_obs", "d_ref", "strain", "I_obs", "I_ref", "FWHM"]
+        tree = ttk.Treeview(win, columns=cols, show="headings", height=12)
+        for c in cols:
+            tree.heading(c, text=c)
+            tree.column(c, width=78, anchor="center")
+        for _, r in m["matches"].iterrows():
+            tree.insert("", "end", values=[r["hkl"]] + [f"{r[c]:.4g}" if isinstance(r[c], float) and np.isfinite(r[c]) else ""
+                                                       for c in cols[1:]])
+        tree.pack(fill="both", expand=True, padx=10)
+        if len(m["unassigned"]):
+            txt = ", ".join(f"{t:.3f}°" for t in m["unassigned"]["2Theta"])
+            ctk.CTkLabel(win, text=f"Unassigned peaks (another phase?): {txt}", font=_pal.font(10), text_color=_pal.RED,
+                         wraplength=790, justify="left").pack(anchor="w", padx=10, pady=(6, 4))
+        try:
+            from scripts.common import plot_interactions as _pi
+            _pi.attach_tree_context_menu(win, tree)
+        except Exception:
+            pass
+
     def show_lattice_dialog(self):
         """Cubic lattice parameter from indexed reflections (mean and Nelson-Riley)."""
         df = self.current_peaks_df
@@ -682,6 +816,13 @@ class XRDAnalysisTab(ctk.CTkFrame):
                                                  "R²": wh["R2"], "Reflections": wh["n_peaks"]}))
         if getattr(self, "ci_result", None):
             sections.append(("Crystallinity", {"Crystallinity index (%)": self.ci_result["CI_percent"]}))
+        if getattr(self, "reference_match", None):
+            m = self.reference_match
+            sections.append((f"Reference match: {self.reference_name}", m["matches"].round(5)))
+            sections.append(("Reference coverage", {"Lines found": m["n_matched"], "Reference lines (I >= 5 %)": m["n_reference_lines"],
+                                                    "Coverage": m["coverage"], "Assigned fraction of observed peaks": m["assigned_fraction"],
+                                                    "Mean 2theta shift (deg)": m["mean_shift_deg"], "Mean strain": m["mean_strain"],
+                                                    "Unassigned peaks (deg)": ", ".join(f"{t:.3f}" for t in m["unassigned"]["2Theta"])}))
         if getattr(self, "lattice_result", None):
             lr = self.lattice_result
             sections.append(("Cubic lattice parameter", {"a mean (Å)": lr["a_mean_A"], "a std (Å)": lr["a_std_A"],
@@ -823,7 +964,10 @@ class AnalysisWindow(ctk.CTkToplevel):
                     "open": ("Open", self.tab.load_data),
                     "run": ("Run analysis", self.tab.run_analysis),
                     "fit": [("W-H plot", self.tab.show_williamson_hall),
-                            ("Lattice parameter", self.tab.show_lattice_dialog)],
+                            ("Lattice parameter", self.tab.show_lattice_dialog),
+                            ("Reference", self.tab.load_reference)],
+                    "extra": [("Compare files", self.tab.open_compare)],
+                    "excel": ("Excel", self.tab.export_excel),
                     "png": True,
                     "report": ("Report", self.tab.export_report),
                     "origin": ("Origin", self.tab.plot_to_origin),

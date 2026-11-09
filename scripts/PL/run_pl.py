@@ -125,6 +125,7 @@ class PLAnalysisWindow(ctk.CTkToplevel):
                 _shell.attach_chrome(self, "PL Analysis", {
                     "open": ("Open", self.load_data),
                     "run": ("Run analysis", self.run_analysis),
+                    "extra": [("Compare files", self.open_compare)],
                     "excel": ("Excel", self.export_excel),
                     "png": True,
                     "report": ("Report", self.export_report),
@@ -876,6 +877,13 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         txt.pack(fill="both", expand=True, padx=10, pady=10)
         txt.insert("1.0", text)
 
+    def open_compare(self):
+        """Several PL files side by side (peak, FWHM in nm and meV, integrated intensity)."""
+        from scripts.common.compare_window import CompareWindow
+        CompareWindow(self, "pl", options={"filter_width": float(self.var_filter_width.get()),
+                                           "rigidity": float(self.var_rigidity.get()),
+                                           "protection": float(self.var_protection.get())})
+
     def export_report(self):
         if self.last_results_df is None:
             messagebox.showwarning("Report", "Run the analysis first.", parent=self)
@@ -912,6 +920,14 @@ class PLAnalysisWindow(ctk.CTkToplevel):
                             proc.to_excel(writer, sheet_name="Processed", index=False)
                         except Exception:
                             pass
+                from scripts.common.provenance import write_sidecar
+                write_sidecar(path, "PL", inputs=[self.file_path_var.get()],
+                              parameters={"filter_width": float(self.var_filter_width.get()),
+                                          "rigidity_log10_lambda": float(self.var_rigidity.get()),
+                                          "protection_p": float(self.var_protection.get()),
+                                          "model": self.var_model.get(), "axis": self.var_axis.get(),
+                                          "reference_column": self.var_ref_col.get()},
+                              results={"table": self.last_results_df})
                 messagebox.showinfo("Saved", f"Saved to {path}", parent=self)
                 self.log(f"Excel saved: {path}")
             except Exception as e:

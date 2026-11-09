@@ -224,6 +224,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                 _shell.attach_chrome(self, "Raman Analysis", {
                     "open": ("Open", self.load_data),
                     "run": ("Compare", self.start_comparison),
+                    "extra": [("Compare files", self.open_compare)],
                     "fit": [("Fit bands", self.fit_target_bands), ("Peak shifts", self.shift_table_all)],
                     "excel": ("Excel", self.save_all_results),
                     "png": True,
@@ -460,6 +461,12 @@ class AnalysisWindow(ctk.CTkToplevel):
             
         except Exception as e:
             messagebox.showerror("Error", str(e))
+
+    def open_compare(self):
+        """Raman spectra from several files, stacked, with the strongest band of each."""
+        from scripts.common.compare_window import CompareWindow
+        baseline, lam, _sm, _prom = self._processing_options()
+        CompareWindow(self, "raman", options={"baseline": baseline, "lam": lam})
 
     def _processing_options(self):
         try:

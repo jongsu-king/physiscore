@@ -253,6 +253,40 @@ def spectroscopy():
     record("SEM", "geometric mean", 300.0, st["geo_mean"], "nm", "")
 
 
+def cross_technique():
+    from scipy.special import erf
+    from scripts.common import device_summary as ds
+    from scripts.XRD import xrd_core as xc
+    import pandas as pd
+    v = np.round(np.arange(-0.20, 1.1001, 0.01), 4)
+    j = single_diode_jv(v)
+    jv = compute_jv_parameters(v, j)
+    wl = np.arange(300.0, 1100.0 + 1e-9, 1.0)
+    e = eqe_core.HC_EV_NM / wl
+    q = 85.0 * 0.5 * (1 + erf((e - 1.60) / (0.03 * np.sqrt(2))))
+    s = ds.summarize_device(jv, wl, q, eg_abs_ev=1.61, pl_peak_ev=1.58)
+    jsc_eqe = eqe_core.calculate_jsc(wl, q)
+    record("Device", "Jsc mismatch", 100 * (jv["Jsc"] - jsc_eqe) / jsc_eqe, s["Jsc_mismatch_percent"], "%",
+           "single-diode J-V vs error-function EQE")
+    record("Device", "dV1 + dV2 + dV3", s["Voc_deficit"], s["dV1_SQ"] + s["dV2_rad"] + s["dV3_nonrad"], "V",
+           "loss terms close the Voc deficit")
+    record("Device", "band-gap spread", 30.0, s["Eg_spread_meV"], "meV", "EQE 1.60, Tauc 1.61, PL 1.58 eV")
+    # reference matching on a strained cubic film
+    hkl = [(1, 0, 0), (1, 1, 0), (1, 1, 1), (2, 0, 0), (2, 1, 0), (2, 1, 1), (2, 2, 0)]
+    def lines(a):
+        d = a / np.sqrt(np.sum(np.asarray(hkl, float) ** 2, axis=1))
+        return d, 2 * np.degrees(np.arcsin(LAMBDA_CU / (2 * d)))
+    d0, t0 = lines(6.28)
+    _, t1 = lines(6.28 * 1.003)
+    ref = pd.DataFrame({"2Theta": t0, "d": d0, "hkl": ["".join(map(str, h)) for h in hkl], "I_rel": 100.0})
+    x = np.round(np.arange(10.0, 50.0, 0.01), 4)
+    y = 50.0 + sum(pseudo_voigt(x, 1000.0, t, 0.12, 0.5) for t in t1)
+    peaks, _ = xc.detect_peaks_and_fit(x, y)
+    m = xc.match_reference(peaks, ref, tolerance_deg=0.3)
+    record("XRD", "lattice strain from reference match", 0.003, m["mean_strain"], "-", "7 reflections, a = 1.003 a0")
+    record("XRD", "reference coverage", 1.0, m["coverage"], "-", "")
+
+
 def as_markdown():
     head = ("| Technique | Quantity | Reference | Recovered | Unit | Dev. (%) | Conditions |\n"
             "|---|---|---:|---:|---|---:|---|\n")
@@ -287,6 +321,7 @@ def main():
     xrd_extra()
     photoluminescence()
     spectroscopy()
+    cross_technique()
 
     sys.stdout.write(as_csv() if args.csv else as_markdown())
 

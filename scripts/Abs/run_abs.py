@@ -103,6 +103,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                 _shell.attach_chrome(self, "Absorbance / Tauc Analysis", {
                     "open": ("Open Excel", self.browse_excel),
                     "run": ("Load and plot", self.load_data_from_ui),
+                    "extra": [("Compare files", self.open_compare)],
                     "fit": ("Auto fit", self.auto_fit_expected),
                     "excel": ("Excel", self.save_to_excel),
                     "png": True,
@@ -826,6 +827,12 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.btn_export_excel.configure(state="normal")
         self.btn_export_origin.configure(state="normal")
 
+    def open_compare(self):
+        """Several absorbance files side by side (automatic Tauc Eg, Urbach) with an overlay."""
+        from scripts.common.compare_window import CompareWindow
+        mode = "direct" if self.mode_btn.get() == "Direct" else "indirect"
+        CompareWindow(self, "abs", options={"mode": mode, "thickness_nm": None})
+
     def _update_result_table(self):
         if not hasattr(self, "result_tree"):
             return
@@ -940,6 +947,12 @@ class AnalysisWindow(ctk.CTkToplevel):
                 df_result.to_excel(writer, sheet_name="Result", index=False)
                 df_uvvis.to_excel(writer, sheet_name="UV-Vis", index=False)
                 df_tauc_fit.to_excel(writer, sheet_name="Tauc_Data", index=False)
+            from scripts.common.provenance import write_sidecar
+            write_sidecar(str(out_path), "Absorbance", inputs=[str(self.target_file)],
+                          parameters={"sheet": self.sheet_name, "column": self.selected_ycol.get(), "mode": res["mode"],
+                                      "basis": self.tauc_basis.get(), "thickness_nm": self._thickness_nm(),
+                                      "fit_range_eV": [res["fitMin"], res["fitMax"]]},
+                          results={k: v for k, v in res.items() if not hasattr(v, "__len__") or isinstance(v, str)})
 
             self.log(f"Saved Excel: {out_path}")
             messagebox.showinfo("Success", f"Saved:\n{out_path}")

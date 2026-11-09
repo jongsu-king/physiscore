@@ -59,8 +59,11 @@ def test_folder_processing_reports_hysteresis_and_diode_fit(jv_folder):
     assert row["PCE rev (%)"] == pytest.approx(pr["PCE"], abs=0.01)
     assert row["HI (%)"] == pytest.approx(jv_core.hysteresis_index(pr["PCE"], pf["PCE"]), abs=0.05)
 
-    # a file without the instrument summary is still analysed from its curve
-    assert data["summary_df"].set_index("Filename").loc["Target 1", "PCE (%)"] == "non"
+    # a file without the instrument summary gets its summary from the curve
+    sd = data["summary_df"].set_index("Filename")
+    assert sd.loc["Target 1", "Summary source"] == "curve"
+    assert sd.loc["Ref 1", "Summary source"] == "instrument"
+    assert float(sd.loc["Target 1", "PCE (%)"]) == pytest.approx(0.9 * pf["PCE"], abs=0.02)
     assert ca.loc["Target 1", "PCE (%)"] == pytest.approx(0.9 * pf["PCE"], rel=0.02)
 
 

@@ -166,6 +166,7 @@ class EQEWindow(ctk.CTkToplevel):
                 _shell.attach_chrome(self, "EQE Analysis", {
                     "open": ("Open file", self._browse_file),
                     "run": ("Load and plot", self._load_and_plot),
+                    "extra": [("Compare files", self.open_compare)],
                     "fit": ("Auto fit", self._auto_fit_all),
                     "excel": ("Excel", self._save_excel),
                     "png": True,
@@ -925,6 +926,11 @@ class EQEWindow(ctk.CTkToplevel):
         self.btn_origin.configure(state="normal")
         self.canvas.draw_idle()
 
+    def open_compare(self):
+        """Several EQE files side by side (Jsc, Eg, Urbach, Voc,rad) with an overlay."""
+        from scripts.common.compare_window import CompareWindow
+        CompareWindow(self, "eqe", options={"temperature_k": self._temperature_k()})
+
     def _measured_voc(self):
         try:
             return float(self.entry_voc.get())
@@ -1102,6 +1108,12 @@ class EQEWindow(ctk.CTkToplevel):
                 alt = out_path.parent / f"{out_path.stem}_{_time.strftime('%H%M%S')}.xlsx"
                 saved = _write(alt)
                 self._log(f"Excel was locked -> saved as {alt.name}")
+            from scripts.common.provenance import write_sidecar
+            write_sidecar(str(saved), "EQE", inputs=[str(self.target_file)],
+                          parameters={"sheet": self.sheet_name, "temperature_K": self._temperature_k(),
+                                      "measured_Voc_V": self._measured_voc(),
+                                      "urbach_fit_range_eV": [r["fitMin"], r["fitMax"]], "derivative_window_eV": r.get("eqe_span")},
+                          results=self.eqe_summary or {})
             messagebox.showinfo("Success", f"Saved:\n{saved}")
             self._log(f"Excel saved: {saved}")
         except Exception as e:

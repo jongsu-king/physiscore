@@ -26,7 +26,7 @@ from scripts.common import app_config  # noqa: E402
 from scripts.common import palette as _pal  # noqa: E402
 
 CONFIG_FILE = app_config.config_path()
-APP_VERSION = "3.0.0"
+APP_VERSION = "3.1.0"
 REPO_URL = "https://github.com/jongsu-king/physiscore"
 
 ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
@@ -42,6 +42,8 @@ TOOLS = [
      "Voc, Jsc, FF, PCE, Rs, Rsh from the curve; one-diode fit; forward/reverse hysteresis; group statistics"),
     ("J-V Dark", "Device", "J-V dark.png", "scripts.Dark_JV.run_jv_dark", None,
      "Ideality factor, J0, Rsh and Rs from dark curves; full diode fit and Cheung analysis"),
+    ("Device summary", "Device", "J-V Curve.png", "scripts.Device.run_device", None,
+     "J-V + EQE (+ absorbance, PL) of one device: Jsc cross-check, band gap from three techniques, Voc vs Voc,rad and Voc,SQ"),
     ("EQE", "Device", "EQE.png", "scripts.EQE.run_eqe", None,
      "AM1.5G-integrated Jsc, band gap (Rau), Urbach energy, Voc,rad and voltage-loss breakdown"),
     ("Absorbance", "Optical", "Abs.png", "scripts.Abs.run_abs", None,
@@ -635,6 +637,8 @@ def selftest(out=None) -> int:
     for mod in ("scripts.common.spectral", "scripts.common.vibrational", "scripts.JV.jv_core",
                 "scripts.Dark_JV.dark_jv_core", "scripts.EQE.eqe_core", "scripts.Abs.abs_core",
                 "scripts.PL.pl_core", "scripts.XRD.xrd_core", "scripts.SEM.sem_core", "spectra.core.xps",
+                "scripts.common.device_summary", "scripts.common.batch", "scripts.common.iv_io",
+                "scripts.common.provenance", "scripts.Device.run_device", "scripts.common.compare_window",
                 "scripts.JV.run_jv", "scripts.Dark_JV.run_jv_dark", "scripts.EQE.run_eqe",
                 "scripts.SEM.run_sem", "scripts.Abs.run_abs", "scripts.Raman.run_raman",
                 "scripts.FTIR.run_ftir", "scripts.XRD.run_xrd", "scripts.PL.run_pl", "spectra.app"):
