@@ -1,89 +1,68 @@
 # ============================================================
-# Physiscore_Launcher.py
-# unified launcher with the same UI format as JV Analysis exe (new file)
-#  - top toolbar: category segments + Settings button (Origin/API key popup)
-#  - body: analysis-tool cards for the selected category
-#  - bottom status bar: Ready / Origin & API status
-#  - PL & XRD merge the Pro (spectra auto-fit) into a single card
-#  - does not modify the existing main gui_test3.py
+# Physiscore_Launcher.py - main window of the analysis suite
+#  - menu bar (File / Analysis / Tools / Help) and a compact tool grid
+#  - Settings: Origin path, API key, cell area, theme
+#  - status bar: cell area, Origin, version
+#  - command line: --version, --selftest [--out f], --update, --spectra TAB,
+#    --tool NAME (open one analysis window directly)
 # ============================================================
-import os
-import sys
-import json
-import threading
-import subprocess
 import importlib
-
+import json
+import os
+import subprocess
+import sys
+import threading
 import tkinter as tk
+from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
-from tkinter import filedialog, messagebox
 from PIL import Image
-                                                                                                                                    
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from scripts.common import app_config  # noqa: E402  (needs BASE_DIR on sys.path)
+from scripts.common import app_config  # noqa: E402
+from scripts.common import palette as _pal  # noqa: E402
 
 CONFIG_FILE = app_config.config_path()
-APP_VERSION = "2.1.0"
+APP_VERSION = "3.0.0"
+REPO_URL = "https://github.com/jongsu-king/physiscore"
 
-# ------------------------------------------------------------
-# JV Analysis exe design tokens (measured from run_jv.py)
-# ------------------------------------------------------------
-BG_WINDOW   = "#0A0A0A"   # deepest background
-BG_PANEL    = "#141414"   # left/toolbar panel
-BG_CARD     = "#1E1E1E"   # card
-BG_SUB      = "#252525"   # input/sub area
-BG_HOVER    = "#303030"
-BORDER      = "#2D2D2D"
-BORDER_HI   = "#3D3D3D"
-
-ACCENT      = "#3182F6"   # JV blue
-ACCENT_HOV  = "#2563EB"
-GREEN       = "#10B981"
-GREEN_HOV   = "#059669"
-ORANGE      = "#F59E0B"
-PURPLE      = "#8B5CF6"
-PINK        = "#EC4899"
-RED         = "#EF4444"
-
-TXT         = "#FFFFFF"
-TXT_SUB     = "#8B8B8B"
-TXT_DIM     = "#666666"
-
-FONT_UI     = "Segoe UI"
-R_PILL      = 8           # JV exe pill radius
-R_CARD      = 10
-
-ctk.set_appearance_mode("Dark")
+ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
 ctk.set_default_color_theme("blue")
 
-# ------------------------------------------------------------
-# analysis-tool registry (overlapping Pro merged into the main card)
-#  key: (display name, category, icon file, module path, spectra tab or None)
-# ------------------------------------------------------------
-CATEGORIES = ["All", "Optoelectronic", "Structural", "Optical", "Spectroscopic"]
+CATEGORIES = ["All", "Device", "Optical", "Structural", "Vibrational", "Surface"]
 
-# using "exe:<filename>" as mod_path runs that external (upgraded) exe directly.
+# (name, category, icon file, module path, auto-fit tab or None, description)
+# module path "exe:<file>" prefers an external program (Windows) and falls back
+# to the built-in module; "spectra:<TAB>" opens the auto-fit workspace.
 TOOLS = [
-    ("J-V Curve",      "Optoelectronic", "J-V Curve.png", "exe:JV_Analysis.exe",         None),
-    ("J-V Dark",       "Optoelectronic", "J-V dark.png",  "scripts.Dark_JV.run_jv_dark", None),
-    ("EQE",            "Optoelectronic", "EQE.png",       "scripts.EQE.run_eqe",         None),
-    ("FE-SEM",         "Structural",     "FE-SEM.png",    "scripts.SEM.run_sem",         None),
-    ("XRD",            "Structural",     "XRD.png",       "scripts.XRD.run_xrd",         "XRD"),
-    ("Abs",            "Optical",        "Abs.png",       "scripts.Abs.run_abs",         None),
-    ("PL",             "Optical",        "PL.png",        "scripts.PL.run_pl",           "PL"),
-    ("Raman",          "Spectroscopic",  "Raman.png",     "scripts.Raman.run_raman",     None),
-    ("FTIR",           "Spectroscopic",  "FTIR.png",      "scripts.FTIR.run_ftir",       None),
+    ("J-V Curve", "Device", "J-V Curve.png", "exe:JV_Analysis.exe", None,
+     "Voc, Jsc, FF, PCE, Rs, Rsh from the curve; one-diode fit; forward/reverse hysteresis; group statistics"),
+    ("J-V Dark", "Device", "J-V dark.png", "scripts.Dark_JV.run_jv_dark", None,
+     "Ideality factor, J0, Rsh and Rs from dark curves; full diode fit and Cheung analysis"),
+    ("EQE", "Device", "EQE.png", "scripts.EQE.run_eqe", None,
+     "AM1.5G-integrated Jsc, band gap (Rau), Urbach energy, Voc,rad and voltage-loss breakdown"),
+    ("Absorbance", "Optical", "Abs.png", "scripts.Abs.run_abs", None,
+     "Tauc plot with automatic linear-region selection, Urbach tail, derivative band gap"),
+    ("PL", "Optical", "PL.png", "scripts.PL.run_pl", "PL",
+     "Baseline, Gaussian/Voigt fitting, energy axis with Jacobian, quenching efficiency"),
+    ("XRD", "Structural", "XRD.png", "scripts.XRD.run_xrd", "XRD",
+     "Background, pseudo-Voigt peak fitting, d-spacing, Scherrer, Williamson-Hall, Kalpha2 stripping"),
+    ("FE-SEM", "Structural", "FE-SEM.png", "scripts.SEM.run_sem", None,
+     "Grain segmentation, size distribution with log-normal statistics"),
+    ("Raman", "Vibrational", "Raman.png", "scripts.Raman.run_raman", None,
+     "Baseline, band detection and Lorentzian fitting, peak-shift tables, band library"),
+    ("FTIR", "Vibrational", "FTIR.png", "scripts.FTIR.run_ftir", None,
+     "Transmittance/absorbance, baseline, band fitting, peak-shift tables, band library"),
+    ("XPS", "Surface", "logo.png", "spectra:XPS", None,
+     "Shirley background, Voigt singlet/doublet fitting, charge referencing, atomic concentration"),
 ]
 
-# built-in module used when the external exe is not there (always on macOS/Linux)
 BUILTIN_FALLBACK = {"exe:JV_Analysis.exe": "scripts.JV.run_jv"}
 
 
-# candidate paths for the upgraded external exe (sibling folder first)
 def find_external_exe(filename):
     candidates = [
         os.path.join(BASE_DIR, filename),
@@ -98,7 +77,7 @@ def find_external_exe(filename):
 
 
 def resource_dir(sub: str) -> str:
-    """Find resource folder in both frozen(exe) and source runs."""
+    """Resource folder in both frozen and source runs."""
     if getattr(sys, "frozen", False):
         base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
         p = os.path.join(base, sub)
@@ -109,81 +88,95 @@ def resource_dir(sub: str) -> str:
 
 
 # ------------------------------------------------------------
-# Settings popup (Origin path + Gemini API key)
+# Settings dialog
 # ------------------------------------------------------------
 class SettingsDialog(ctk.CTkToplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
         self.title("Settings")
-        self.geometry("560x330")
+        self.geometry("560x420")
         self.resizable(False, False)
-        self.configure(fg_color=BG_WINDOW)
+        self.configure(fg_color=_pal.BG_WINDOW)
         self.transient(parent)
         self.grab_set()
 
-        body = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=R_CARD,
-                            border_width=1, border_color=BORDER)
-        body.pack(fill="both", expand=True, padx=14, pady=14)
+        body = ctk.CTkFrame(self, fg_color=_pal.BG_CARD, corner_radius=_pal.R_CARD,
+                            border_width=1, border_color=_pal.BORDER)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
 
-        ctk.CTkLabel(body, text="Settings", font=(FONT_UI, 17, "bold"),
-                     text_color=TXT).pack(anchor="w", padx=18, pady=(14, 2))
-        ctk.CTkLabel(body, text="Configure the Origin executable and Gemini API Key.",
-                     font=(FONT_UI, 11), text_color=TXT_SUB).pack(anchor="w", padx=18, pady=(0, 12))
+        def label(text, pady=(10, 2)):
+            ctk.CTkLabel(body, text=text, font=_pal.font(11, "bold"), text_color=_pal.TXT_SUB,
+                         anchor="w").pack(fill="x", padx=16, pady=pady)
 
-        # --- Origin path ---
-        ctk.CTkLabel(body, text="OriginLab Executable", font=(FONT_UI, 12, "bold"),
-                     text_color=ACCENT).pack(anchor="w", padx=18)
+        def field(placeholder="", show=None):
+            e = ctk.CTkEntry(body, height=28, fg_color=_pal.BG_SUB, border_color=_pal.BORDER,
+                             text_color=_pal.TXT, font=_pal.font(11), corner_radius=_pal.R_INPUT,
+                             placeholder_text=placeholder, show=show or "")
+            return e
+
+        # cell area
+        label("Device active area (cm²)", pady=(14, 2))
+        row0 = ctk.CTkFrame(body, fg_color="transparent")
+        row0.pack(fill="x", padx=16)
+        self.ent_area = field("0.04")
+        self.ent_area.pack(side="left", fill="x", expand=True)
+        self.ent_area.insert(0, f"{app_config.cell_area_cm2():g}")
+        ctk.CTkLabel(row0, text="Scales Jsc and PCE linearly; re-read for every analysis.",
+                     font=_pal.font(10), text_color=_pal.TXT_DIM).pack(side="left", padx=10)
+
+        # Origin
+        label("OriginLab executable (Windows, optional)")
         row1 = ctk.CTkFrame(body, fg_color="transparent")
-        row1.pack(fill="x", padx=18, pady=(4, 12))
-        self.ent_origin = ctk.CTkEntry(row1, height=34, fg_color=BG_SUB,
-                                       border_color=BORDER, text_color=TXT,
-                                       placeholder_text=r"C:\Program Files\OriginLab\...\Origin64.exe")
+        row1.pack(fill="x", padx=16)
+        self.ent_origin = field(r"C:\Program Files\OriginLab\...\Origin64.exe")
         self.ent_origin.pack(side="left", fill="x", expand=True)
         if parent.origin_path:
             self.ent_origin.insert(0, parent.origin_path)
-        ctk.CTkButton(row1, text="Browse", width=84, height=34,
-                      fg_color=BG_SUB, hover_color=BG_HOVER, border_width=1,
-                      border_color=BORDER_HI, text_color=TXT, corner_radius=R_PILL,
+        ctk.CTkButton(row1, text="Browse...", width=84, height=28, fg_color=_pal.BG_SUB,
+                      hover_color=_pal.BG_HOVER, border_width=1, border_color=_pal.BORDER_HI,
+                      text_color=_pal.TXT, corner_radius=_pal.R_PILL, font=_pal.font(11),
                       command=self._browse).pack(side="left", padx=(8, 0))
 
-        # --- Gemini API key ---
-        ctk.CTkLabel(body, text="Gemini API Key", font=(FONT_UI, 12, "bold"),
-                     text_color=ACCENT).pack(anchor="w", padx=18)
+        # API key
+        label("Gemini API key (optional; enables the interpretation panels only)")
         row2 = ctk.CTkFrame(body, fg_color="transparent")
-        row2.pack(fill="x", padx=18, pady=(4, 4))
-        self.ent_key = ctk.CTkEntry(row2, height=34, fg_color=BG_SUB, show="*",
-                                    border_color=BORDER, text_color=TXT,
-                                    placeholder_text="AIza...")
+        row2.pack(fill="x", padx=16)
+        self.ent_key = field("AIza...", show="*")
         self.ent_key.pack(side="left", fill="x", expand=True)
         if parent.gemini_api_key:
             self.ent_key.insert(0, parent.gemini_api_key)
         self._shown = False
-        ctk.CTkButton(row2, text="Show", width=64, height=34,
-                      fg_color=BG_SUB, hover_color=BG_HOVER, border_width=1,
-                      border_color=BORDER_HI, text_color=TXT, corner_radius=R_PILL,
+        ctk.CTkButton(row2, text="Show", width=64, height=28, fg_color=_pal.BG_SUB,
+                      hover_color=_pal.BG_HOVER, border_width=1, border_color=_pal.BORDER_HI,
+                      text_color=_pal.TXT, corner_radius=_pal.R_PILL, font=_pal.font(11),
                       command=self._toggle_show).pack(side="left", padx=(8, 0))
-        ctk.CTkLabel(body, text="The key is stored only in physisfera_config.json on this PC.",
-                     font=(FONT_UI, 10), text_color=TXT_DIM).pack(anchor="w", padx=18)
+        ctk.CTkLabel(body, text="Stored only in physisfera_config.json on this computer. "
+                                "No numerical result depends on it.",
+                     font=_pal.font(10), text_color=_pal.TXT_DIM, anchor="w").pack(fill="x", padx=16)
 
-        # --- buttons ---
+        # theme
+        label("Appearance (applies after restart)")
+        self.theme_var = ctk.StringVar(value=_pal.THEME.capitalize())
+        ctk.CTkSegmentedButton(body, values=["Light", "Dark"], variable=self.theme_var, height=26,
+                               font=_pal.font(11), corner_radius=_pal.R_PILL,
+                               selected_color=_pal.ACCENT, selected_hover_color=_pal.ACCENT_HOV,
+                               unselected_color=_pal.BG_SUB, unselected_hover_color=_pal.BG_HOVER,
+                               text_color=_pal.TXT).pack(anchor="w", padx=16)
+
         btns = ctk.CTkFrame(body, fg_color="transparent")
-        btns.pack(fill="x", padx=18, pady=(14, 14), side="bottom")
-        ctk.CTkButton(btns, text="Cancel", width=90, height=36,
-                      fg_color=BG_SUB, hover_color=BG_HOVER, text_color=TXT,
-                      border_width=1, border_color=BORDER_HI, corner_radius=R_PILL,
-                      command=self.destroy).pack(side="right", padx=(8, 0))
-        ctk.CTkButton(btns, text="Save", width=110, height=36,
-                      fg_color=ACCENT, hover_color=ACCENT_HOV, text_color="white",
-                      font=(FONT_UI, 13, "bold"), corner_radius=R_PILL,
+        btns.pack(fill="x", padx=16, pady=(12, 12), side="bottom")
+        ctk.CTkButton(btns, text="Cancel", width=90, height=30, fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                      text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI,
+                      corner_radius=_pal.R_PILL, font=_pal.font(11), command=self.destroy).pack(side="right", padx=(8, 0))
+        ctk.CTkButton(btns, text="Save", width=100, height=30, fg_color=_pal.ACCENT, hover_color=_pal.ACCENT_HOV,
+                      text_color="white", font=_pal.font(11, "bold"), corner_radius=_pal.R_PILL,
                       command=self._save).pack(side="right")
-
         self.after(80, self.focus)
 
     def _browse(self):
-        path = filedialog.askopenfilename(
-            title="Select Origin Executable",
-            filetypes=[("Executable", "*.exe"), ("All files", "*.*")])
+        path = filedialog.askopenfilename(title="Select Origin executable",
+                                          filetypes=[("Executable", "*.exe"), ("All files", "*.*")])
         if path:
             self.ent_origin.delete(0, "end")
             self.ent_origin.insert(0, path)
@@ -193,67 +186,54 @@ class SettingsDialog(ctk.CTkToplevel):
         self.ent_key.configure(show="" if self._shown else "*")
 
     def _save(self):
+        try:
+            area = float(self.ent_area.get())
+            if not area > 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showwarning("Settings", "The device area must be a positive number (cm²).", parent=self)
+            return
         self.parent.origin_path = self.ent_origin.get().strip()
         self.parent.gemini_api_key = self.ent_key.get().strip()
-        self.parent.save_config()
+        theme = self.theme_var.get().lower()
+        self.parent.save_config(extra={"cell_area_cm2": area, "theme": theme})
         self.parent.refresh_statusbar()
-        self.parent.toast("Settings saved")
+        if theme != _pal.THEME:
+            self.parent.set_status("Appearance saved; restart Physiscore to apply it.")
+        else:
+            self.parent.set_status("Settings saved.")
         self.destroy()
 
 
 # ------------------------------------------------------------
-# main launcher
+# Main window
 # ------------------------------------------------------------
 class LauncherApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Physiscore — Analysis Suite")
-        self.geometry("1180x760")
-        self.minsize(980, 640)
-        self.configure(fg_color=BG_WINDOW)
+        self.title("Physiscore")
+        self.geometry("1180x740")
+        self.minsize(960, 620)
+        self.configure(fg_color=_pal.BG_WINDOW)
 
         self.origin_path = ""
         self.gemini_api_key = ""
         self.load_config()
 
         self.logo_dir = resource_dir("logo")
-        self.modules = {}          # module_path -> module | None(failed) | "loading"
-        self.cards = {}            # module_path -> card widgets
+        self.modules = {}          # module_path -> module | None | "loading" | str(exe path)
+        self.cards = {}
         self.current_category = "All"
-        self._toast = None
+        self.updater = None
 
+        self._build_menubar()
         self._build_toolbar()
         self._build_body()
         self._build_statusbar()
         self.refresh_cards()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self._setup_updates()
-
-        # load modules in the background (show start screen immediately)
         threading.Thread(target=self._preload_modules, daemon=True).start()
-
-    # ---------------- updates ----------------
-    def _setup_updates(self):
-        self.update_menu.add_command(
-            label="Installation and updates (web)",
-            command=lambda: __import__("webbrowser").open(
-                "https://github.com/jongsu-king/physiscore/blob/main/docs/INSTALL.md"))
-        self.update_menu.add_separator()
-        try:
-            import selfupdate
-            self.updater = selfupdate.Updater(make_update_app(selfupdate))
-            selfupdate.attach_tk(self, self.updater, self.update_menu, lang="en",
-                                 status=lambda text: text and self.lbl_ready.configure(text=text))
-        except Exception as e:  # updates must never stop the analysis suite
-            print(f"[Physiscore] update support unavailable: {e}")
-
-    def _show_update_menu(self):
-        x = self.winfo_pointerx()
-        y = self.winfo_pointery()
-        try:
-            self.update_menu.tk_popup(x, y)
-        finally:
-            self.update_menu.grab_release()
 
     # ---------------- config ----------------
     def load_config(self):
@@ -264,109 +244,200 @@ class LauncherApp(ctk.CTk):
             os.environ["GEMINI_API_KEY"] = self.gemini_api_key
             os.environ.setdefault("GOOGLE_API_KEY", self.gemini_api_key)
 
-    def save_config(self):
-        # merge-preserve: keep keys managed elsewhere (cell_area_cm2 for the
-        # JV/Dark-JV cores, name_presets for the sample-naming menu) instead of
-        # overwriting the file. app_config.update also writes atomically, so an
-        # interrupted save cannot truncate the config.
+    def save_config(self, extra=None):
+        values = {"origin_path": self.origin_path, "gemini_api_key": self.gemini_api_key}
+        if extra:
+            values.update(extra)
         try:
-            app_config.update({"origin_path": self.origin_path,
-                               "gemini_api_key": self.gemini_api_key})
+            app_config.update(values)
         except Exception as e:
             print(f"Config save error: {e}")
         if self.gemini_api_key:
             os.environ["GEMINI_API_KEY"] = self.gemini_api_key
             os.environ.setdefault("GOOGLE_API_KEY", self.gemini_api_key)
 
-    # ---------------- UI: toolbar ----------------
+    # ---------------- menu bar ----------------
+    def _build_menubar(self):
+        bar = tk.Menu(self, tearoff=False)
+
+        m_file = tk.Menu(bar, tearoff=False)
+        m_file.add_command(label="Settings...", accelerator="Ctrl+,", command=self.open_settings)
+        m_file.add_command(label="Open settings folder", command=self._open_config_folder)
+        m_file.add_separator()
+        m_file.add_command(label="Quit", accelerator="Ctrl+Q", command=self.on_closing)
+        bar.add_cascade(label="File", menu=m_file)
+
+        m_an = tk.Menu(bar, tearoff=False)
+        for name, _cat, _icon, mod_path, tab, _desc in TOOLS:
+            m_an.add_command(label=name, command=lambda m=mod_path, n=name: self.open_tool(m, n))
+        m_an.add_separator()
+        m_an.add_command(label="Auto-fit workspace: PL", command=lambda: self.open_spectra("PL"))
+        m_an.add_command(label="Auto-fit workspace: XRD", command=lambda: self.open_spectra("XRD"))
+        m_an.add_command(label="Auto-fit workspace: XPS", command=lambda: self.open_spectra("XPS"))
+        bar.add_cascade(label="Analysis", menu=m_an)
+
+        m_tools = tk.Menu(bar, tearoff=False)
+        self.update_menu = tk.Menu(m_tools, tearoff=False)
+        m_tools.add_cascade(label="Updates", menu=self.update_menu)
+        m_tools.add_command(label="Run self-test", command=self._run_selftest)
+        m_tools.add_command(label="Command-line interface (help)", command=self._show_cli_help)
+        bar.add_cascade(label="Tools", menu=m_tools)
+
+        m_help = tk.Menu(bar, tearoff=False)
+        m_help.add_command(label="Methods and algorithms", command=lambda: self._open_url(f"{REPO_URL}/blob/main/docs/METHODS.md"))
+        m_help.add_command(label="Installation guide", command=lambda: self._open_url(f"{REPO_URL}/blob/main/docs/INSTALL.md"))
+        m_help.add_command(label="Report an issue", command=lambda: self._open_url(f"{REPO_URL}/issues"))
+        m_help.add_separator()
+        m_help.add_command(label="About Physiscore", command=self._about)
+        bar.add_cascade(label="Help", menu=m_help)
+        self.configure(menu=bar)
+        self.bind("<Control-q>", lambda e: self.on_closing())
+        self.bind("<Control-comma>", lambda e: self.open_settings())
+
+    def _open_url(self, url):
+        import webbrowser
+        webbrowser.open(url)
+
+    def _open_config_folder(self):
+        folder = os.path.dirname(app_config.config_path())
+        try:
+            if sys.platform == "win32":
+                os.startfile(folder)  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", folder])
+            else:
+                subprocess.Popen(["xdg-open", folder])
+        except Exception as e:
+            messagebox.showinfo("Settings folder", f"{folder}\n\n({e})")
+
+    def _about(self):
+        messagebox.showinfo(
+            "About Physiscore",
+            f"Physiscore {APP_VERSION}\n"
+            "Physics-constrained analysis of thin-film photovoltaic device and material measurements:\n"
+            "J-V (light and dark), EQE, absorbance, PL, XRD, SEM, Raman, FTIR, XPS.\n\n"
+            "Hybrid Materials and Optoelectronics Laboratory (H-MOL), Incheon National University.\n"
+            "MIT License.  Concept DOI 10.5281/zenodo.22267588\n"
+            f"{REPO_URL}")
+
+    def _show_cli_help(self):
+        messagebox.showinfo(
+            "Command line",
+            "Physiscore --tool \"J-V Curve\"      open one analysis window\n"
+            "Physiscore --spectra XRD|PL|XPS      auto-fit workspace\n"
+            "Physiscore --selftest [--out f.json] headless check\n"
+            "Physiscore --update                  check for / install updates\n"
+            "Physiscore --version\n\n"
+            "Batch analysis without the GUI: python -m physiscore_cli --help")
+
+    def _run_selftest(self):
+        self.set_status("Running self-test...")
+
+        def work():
+            import io
+            import contextlib
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                code = selftest(None)
+            self.after(0, lambda: (self.set_status("Self-test passed" if code == 0 else "Self-test FAILED"),
+                                   messagebox.showinfo("Self-test", buf.getvalue()[:4000])))
+        threading.Thread(target=work, daemon=True).start()
+
+    # ---------------- updates ----------------
+    def _setup_updates(self):
+        self.update_menu.add_command(label="Installation and updates (web)",
+                                     command=lambda: self._open_url(f"{REPO_URL}/blob/main/docs/INSTALL.md"))
+        self.update_menu.add_separator()
+        try:
+            import selfupdate
+            self.updater = selfupdate.Updater(make_update_app(selfupdate))
+            selfupdate.attach_tk(self, self.updater, self.update_menu, lang="en",
+                                 status=lambda text: text and self.set_status(text))
+        except Exception as e:  # updates must never stop the analysis suite
+            print(f"[Physiscore] update support unavailable: {e}")
+
+    # ---------------- toolbar ----------------
     def _build_toolbar(self):
-        bar = ctk.CTkFrame(self, height=54, fg_color=BG_PANEL, corner_radius=0)
+        bar = ctk.CTkFrame(self, height=44, fg_color=_pal.BG_PANEL, corner_radius=0)
         bar.pack(fill="x", side="top")
         bar.pack_propagate(False)
 
-        ctk.CTkLabel(bar, text="Physiscore", font=(FONT_UI, 17, "bold"),
-                     text_color=TXT).pack(side="left", padx=(16, 4))
-        ctk.CTkLabel(bar, text="Analysis Suite", font=(FONT_UI, 11),
-                     text_color=TXT_SUB).pack(side="left", padx=(0, 18))
+        ctk.CTkLabel(bar, text="Physiscore", font=_pal.font(13, "bold"), text_color=_pal.TXT
+                     ).pack(side="left", padx=(14, 4))
+        ctk.CTkLabel(bar, text="analysis suite", font=_pal.font(11), text_color=_pal.TXT_SUB
+                     ).pack(side="left", padx=(0, 16))
 
-        # category segments (JV exe pill style)
         self.seg = ctk.CTkSegmentedButton(
-            bar, values=CATEGORIES, height=34,
-            fg_color=BG_SUB,
-            selected_color=ACCENT, selected_hover_color=ACCENT_HOV,
-            unselected_color=BG_SUB, unselected_hover_color=BG_HOVER,
-            text_color=TXT, font=(FONT_UI, 12),
-            corner_radius=R_PILL, command=self._on_category)
+            bar, values=CATEGORIES, height=28, fg_color=_pal.BG_SUB,
+            selected_color=_pal.ACCENT, selected_hover_color=_pal.ACCENT_HOV,
+            unselected_color=_pal.BG_SUB, unselected_hover_color=_pal.BG_HOVER,
+            text_color=_pal.TXT, font=_pal.font(11), corner_radius=_pal.R_PILL, command=self._on_category)
         self.seg.set("All")
-        self.seg.pack(side="left", padx=4, pady=10)
+        self.seg.pack(side="left", padx=4, pady=8)
 
-        # right: Settings
-        ctk.CTkButton(bar, text="⚙  Settings", width=110, height=34,
-                      fg_color=BG_SUB, hover_color=BG_HOVER, text_color=TXT,
-                      border_width=1, border_color=BORDER_HI,
-                      font=(FONT_UI, 12), corner_radius=R_PILL,
-                      command=self.open_settings).pack(side="right", padx=16, pady=10)
+        ctk.CTkButton(bar, text="Settings", width=84, height=28, fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                      text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI, font=_pal.font(11),
+                      corner_radius=_pal.R_PILL, command=self.open_settings).pack(side="right", padx=12, pady=8)
 
-        # Updates (check now / automatic-update mode) - a small drop-down menu
-        self.update_menu = tk.Menu(self, tearoff=False)
-        ctk.CTkButton(bar, text="⟳  Updates", width=104, height=34,
-                      fg_color=BG_SUB, hover_color=BG_HOVER, text_color=TXT,
-                      border_width=1, border_color=BORDER_HI,
-                      font=(FONT_UI, 12), corner_radius=R_PILL,
-                      command=self._show_update_menu).pack(side="right", padx=(0, 4), pady=10)
-
-        # search
         self.search_var = ctk.StringVar()
-        ent = ctk.CTkEntry(bar, width=210, height=34, fg_color=BG_SUB,
-                           border_color=BORDER, text_color=TXT,
-                           placeholder_text="Search tools...",
-                           textvariable=self.search_var)
-        ent.pack(side="right", padx=(0, 4), pady=10)
+        ent = ctk.CTkEntry(bar, width=200, height=28, fg_color=_pal.BG_CARD, border_color=_pal.BORDER,
+                           text_color=_pal.TXT, font=_pal.font(11), corner_radius=_pal.R_INPUT,
+                           placeholder_text="Filter tools", textvariable=self.search_var)
+        ent.pack(side="right", padx=(0, 4), pady=8)
         ent.bind("<KeyRelease>", lambda e: self.refresh_cards())
 
-    # ---------------- UI: body ----------------
+    # ---------------- body ----------------
     def _build_body(self):
-        self.body = ctk.CTkScrollableFrame(self, fg_color=BG_WINDOW,
-                                           scrollbar_button_color=BG_PANEL,
-                                           scrollbar_button_hover_color=BG_HOVER)
-        self.body.pack(fill="both", expand=True, padx=14, pady=(10, 6))
+        self.body = ctk.CTkScrollableFrame(self, fg_color=_pal.BG_WINDOW,
+                                           scrollbar_button_color=_pal.BORDER_HI,
+                                           scrollbar_button_hover_color=_pal.TXT_DIM)
+        self.body.pack(fill="both", expand=True, padx=10, pady=(8, 4))
 
-    # ---------------- UI: statusbar ----------------
+    # ---------------- status bar ----------------
     def _build_statusbar(self):
-        sb = ctk.CTkFrame(self, height=30, fg_color=BG_PANEL, corner_radius=0)
+        sb = ctk.CTkFrame(self, height=24, fg_color=_pal.BG_PANEL, corner_radius=0)
         sb.pack(fill="x", side="bottom")
         sb.pack_propagate(False)
-        self.lbl_ready = ctk.CTkLabel(sb, text="Ready", font=(FONT_UI, 11),
-                                      text_color=TXT_SUB)
-        self.lbl_ready.pack(side="left", padx=14)
-        self.lbl_env = ctk.CTkLabel(sb, text="", font=(FONT_UI, 11),
-                                    text_color=TXT_DIM)
-        self.lbl_env.pack(side="right", padx=14)
+        self.lbl_ready = ctk.CTkLabel(sb, text="Ready", font=_pal.font(10), text_color=_pal.TXT_SUB, anchor="w")
+        self.lbl_ready.pack(side="left", padx=10)
+        self.lbl_env = ctk.CTkLabel(sb, text="", font=_pal.font(10), text_color=_pal.TXT_DIM, anchor="e")
+        self.lbl_env.pack(side="right", padx=10)
         self.refresh_statusbar()
 
     def refresh_statusbar(self):
-        o = "Origin: ✓" if self.origin_path else "Origin: —"
-        k = "API Key: ✓" if self.gemini_api_key else "API Key: —"
-        self.lbl_env.configure(text=f"{o}   ·   {k}   ·   v{APP_VERSION}")
+        area = app_config.cell_area_cm2()
+        o = "Origin: configured" if self.origin_path else "Origin: not set"
+        k = "Interpretation: on" if self.gemini_api_key else "Interpretation: off"
+        self.lbl_env.configure(text=f"Cell area {area:g} cm²   |   {o}   |   {k}   |   v{APP_VERSION}")
+
+    def set_status(self, text):
+        try:
+            self.lbl_ready.configure(text=text)
+        except Exception:
+            pass
 
     # ---------------- module loading ----------------
     def _preload_modules(self):
-        for _, _, _, mod_path, _ in TOOLS:
+        for _, _, _, mod_path, _, _ in TOOLS:
             self.modules[mod_path] = "loading"
-        for _, _, _, mod_path, _ in TOOLS:
+        for _, _, _, mod_path, _, _ in TOOLS:
             if mod_path.startswith("exe:"):
-                # external exe: check file existence instead of importing; without it
-                # (or off Windows) fall back to the built-in module of the same tool
                 exe = find_external_exe(mod_path[4:]) if sys.platform == "win32" else None
                 fallback = BUILTIN_FALLBACK.get(mod_path)
                 if exe or not fallback:
-                    self.modules[mod_path] = exe  # path(str) or None
+                    self.modules[mod_path] = exe
                 else:
                     try:
                         self.modules[mod_path] = importlib.import_module(fallback)
                     except Exception as e:
                         print(f"[Physiscore] {fallback} import failed: {e}")
                         self.modules[mod_path] = None
+            elif mod_path.startswith("spectra:"):
+                try:
+                    self.modules[mod_path] = importlib.import_module("spectra.app")
+                except Exception as e:
+                    print(f"[Physiscore] spectra import failed: {e}")
+                    self.modules[mod_path] = None
             else:
                 try:
                     self.modules[mod_path] = importlib.import_module(mod_path)
@@ -376,127 +447,104 @@ class LauncherApp(ctk.CTk):
             try:
                 self.after(0, self._update_card_state, mod_path)
             except Exception:
-                return  # window already closed
+                return
 
     def _update_card_state(self, mod_path):
         card = self.cards.get(mod_path)
         if not card:
             return
         mod = self.modules.get(mod_path)
-        badge, btn = card["badge"], card["btn"]
+        lbl, btn = card["status"], card["btn"]
         is_exe = mod_path.startswith("exe:") and isinstance(mod, str)
         if mod == "loading":
-            badge.configure(text="LOADING", fg_color=BG_SUB, text_color=TXT_SUB)
-            btn.configure(state="disabled", fg_color=BG_SUB, text_color=TXT_SUB)
+            lbl.configure(text="Loading...", text_color=_pal.TXT_DIM)
+            btn.configure(state="disabled", fg_color=_pal.BG_SUB, text_color=_pal.TXT_DIM)
         elif mod is None:
-            # if external exe missing, show as info-only (disabled); if a module, ERROR
-            badge.configure(text="EXE not found" if is_exe else "ERROR",
-                            fg_color=RED, text_color="white")
-            btn.configure(state="disabled", fg_color=BG_SUB, text_color=TXT_SUB)
+            lbl.configure(text="Unavailable (see console)", text_color=_pal.RED)
+            btn.configure(state="disabled", fg_color=_pal.BG_SUB, text_color=_pal.TXT_DIM)
         else:
-            badge.configure(text="UPGRADED" if is_exe else "READY",
-                            fg_color=PURPLE if is_exe else GREEN, text_color="white")
-            btn.configure(state="normal", fg_color=ACCENT, text_color="white")
+            lbl.configure(text="External program" if is_exe else "Ready", text_color=_pal.TXT_SUB)
+            btn.configure(state="normal", fg_color=_pal.ACCENT, text_color="white")
 
-    # ---------------- render cards ----------------
+    # ---------------- cards ----------------
     def refresh_cards(self):
         for w in self.body.winfo_children():
             w.destroy()
         self.cards.clear()
-
         q = self.search_var.get().strip().lower() if hasattr(self, "search_var") else ""
         cat = self.current_category
-
-        visible = [t for t in TOOLS
-                   if (cat == "All" or t[1] == cat)
-                   and (not q or q in t[0].lower())]
-
+        visible = [t for t in TOOLS if (cat == "All" or t[1] == cat)
+                   and (not q or q in t[0].lower() or q in t[5].lower())]
         grid = ctk.CTkFrame(self.body, fg_color="transparent")
         grid.pack(fill="both", expand=True)
-        cols = 3
+        cols = 2
         for i in range(cols):
             grid.grid_columnconfigure(i, weight=1, uniform="col")
-
-        for idx, (name, category, icon, mod_path, spectra_tab) in enumerate(visible):
+        for idx, tool in enumerate(visible):
             r, c = divmod(idx, cols)
-            self._build_card(grid, r, c, name, category, icon, mod_path, spectra_tab)
+            self._build_card(grid, r, c, *tool)
+        self.set_status(f"{len(visible)} analysis tools")
 
-        self.lbl_ready.configure(text=f"Ready · {len(visible)} tools")
-
-    def _build_card(self, parent, r, c, name, category, icon, mod_path, spectra_tab):
-        card = ctk.CTkFrame(parent, fg_color=BG_CARD, corner_radius=R_CARD,
-                            border_width=1, border_color=BORDER)
-        card.grid(row=r, column=c, padx=8, pady=8, sticky="nsew")
-        card.bind("<Enter>", lambda e: card.configure(border_color=ACCENT))
-        card.bind("<Leave>", lambda e: card.configure(border_color=BORDER))
-
-        top = ctk.CTkFrame(card, fg_color="transparent")
-        top.pack(fill="x", padx=14, pady=(14, 6))
+    def _build_card(self, parent, r, c, name, category, icon, mod_path, spectra_tab, description):
+        card = ctk.CTkFrame(parent, fg_color=_pal.BG_CARD, corner_radius=_pal.R_CARD,
+                            border_width=1, border_color=_pal.BORDER)
+        card.grid(row=r, column=c, padx=6, pady=6, sticky="nsew")
+        card.grid_columnconfigure(1, weight=1)
 
         img = None
         p = os.path.join(self.logo_dir, icon)
         if os.path.exists(p):
             try:
                 pil = Image.open(p)
-                img = ctk.CTkImage(light_image=pil, dark_image=pil, size=(44, 44))
+                img = ctk.CTkImage(light_image=pil, dark_image=pil, size=(36, 36))
             except Exception:
                 img = None
-        if img:
-            ctk.CTkLabel(top, text="", image=img).pack(side="left")
-        ctk.CTkLabel(top, text=name, font=(FONT_UI, 15, "bold"),
-                     text_color=TXT).pack(side="left", padx=(10, 0))
+        icon_lbl = ctk.CTkLabel(card, text="" if img else name[:2], image=img, width=40,
+                                font=_pal.font(12, "bold"), text_color=_pal.TXT_SUB)
+        icon_lbl.grid(row=0, column=0, rowspan=2, padx=(12, 8), pady=(10, 6), sticky="n")
 
-        badge = ctk.CTkLabel(top, text="LOADING", font=(FONT_UI, 9, "bold"),
-                             fg_color=BG_SUB, text_color=TXT_SUB,
-                             corner_radius=6, padx=8, pady=3)
-        badge.pack(side="right")
+        head = ctk.CTkFrame(card, fg_color="transparent")
+        head.grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=(10, 0))
+        ctk.CTkLabel(head, text=name, font=_pal.font(12, "bold"), text_color=_pal.TXT).pack(side="left")
+        ctk.CTkLabel(head, text=category, font=_pal.font(10), text_color=_pal.TXT_DIM).pack(side="left", padx=8)
+        status = ctk.CTkLabel(head, text="Loading...", font=_pal.font(10), text_color=_pal.TXT_DIM)
+        status.pack(side="right")
 
-        ctk.CTkLabel(card, text=category, font=(FONT_UI, 10),
-                     text_color=TXT_SUB).pack(anchor="w", padx=16)
+        ctk.CTkLabel(card, text=description, font=_pal.font(10), text_color=_pal.TXT_SUB,
+                     justify="left", anchor="w", wraplength=440).grid(row=1, column=1, sticky="ew", padx=(0, 12))
 
         btns = ctk.CTkFrame(card, fg_color="transparent")
-        btns.pack(fill="x", padx=14, pady=(10, 14))
-        btn = ctk.CTkButton(btns, text="Open", height=34,
-                            fg_color=BG_SUB, text_color=TXT_SUB, state="disabled",
-                            hover_color=ACCENT_HOV, font=(FONT_UI, 12, "bold"),
-                            corner_radius=R_PILL,
-                            command=lambda m=mod_path, n=name: self.open_tool(m, n))
-        btn.pack(side="left", fill="x", expand=True)
-
+        btns.grid(row=2, column=0, columnspan=2, sticky="ew", padx=12, pady=(6, 10))
+        btn = ctk.CTkButton(btns, text="Open", width=90, height=26, fg_color=_pal.BG_SUB, text_color=_pal.TXT_DIM,
+                            state="disabled", hover_color=_pal.ACCENT_HOV, font=_pal.font(11, "bold"),
+                            corner_radius=_pal.R_PILL, command=lambda m=mod_path, n=name: self.open_tool(m, n))
+        btn.pack(side="left")
         if spectra_tab:
-            ctk.CTkButton(btns, text="Auto-Fit", width=76, height=34,
-                          fg_color=BG_SUB, hover_color=BG_HOVER, text_color=GREEN,
-                          border_width=1, border_color=BORDER_HI,
-                          font=(FONT_UI, 11), corner_radius=R_PILL,
-                          command=lambda t=spectra_tab: self.open_spectra(t)
-                          ).pack(side="left", padx=(8, 0))
-
-        self.cards[mod_path] = {"badge": badge, "btn": btn}
+            ctk.CTkButton(btns, text="Auto-fit workspace", width=130, height=26, fg_color=_pal.BG_SUB,
+                          hover_color=_pal.BG_HOVER, text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI,
+                          font=_pal.font(11), corner_radius=_pal.R_PILL,
+                          command=lambda t=spectra_tab: self.open_spectra(t)).pack(side="left", padx=(8, 0))
+        self.cards[mod_path] = {"status": status, "btn": btn}
         self._update_card_state(mod_path)
 
-    # ---------------- launch ----------------
+    # ---------------- launching ----------------
     def open_tool(self, mod_path, name):
         mod = self.modules.get(mod_path)
-
-        # (1) run the external upgraded exe directly (e.g. JV_Analysis.exe)
+        if mod_path.startswith("spectra:"):
+            self.open_spectra(mod_path.split(":", 1)[1])
+            return
         if mod_path.startswith("exe:") and not hasattr(mod, "AnalysisWindow"):
             exe = mod if isinstance(mod, str) else find_external_exe(mod_path[4:])
             if not exe or not os.path.isfile(exe):
-                messagebox.showerror(
-                    "Error",
-                    f"Cannot find the upgraded executable for {name}.\n"
-                    f"(place {mod_path[4:]} in this folder or a sibling folder)")
+                messagebox.showerror("Error", f"The external program for {name} was not found.")
                 return
             try:
-                # sync current settings to physisfera_config.json in the exe's folder
                 self._sync_config_to(os.path.dirname(exe))
                 subprocess.Popen([exe], cwd=os.path.dirname(exe))
-                self.toast(f"Launched {name} (upgraded)")
+                self.set_status(f"Started {name} (external program)")
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to run {name}:\n{e}")
+                messagebox.showerror("Error", f"Failed to start {name}:\n{e}")
             return
-
-        # (2) built-in tkinter module
         if mod in (None, "loading"):
             messagebox.showerror("Error", f"The {name} module is not ready yet.")
             return
@@ -510,12 +558,15 @@ class LauncherApp(ctk.CTk):
             win = win_cls(self, self.origin_path, self.gemini_api_key)
             self.wait_window(win)
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to run {name}:\n{e}")
+            messagebox.showerror("Error", f"Failed to open {name}:\n{e}")
         finally:
-            self.deiconify()
+            try:
+                self.deiconify()
+            except Exception:
+                pass
 
     def _sync_config_to(self, folder):
-        """Share Origin/API key via physisfera_config.json in the external exe folder."""
+        """Share Origin path and API key with the external program's config."""
         try:
             target = os.path.join(folder, "physisfera_config.json")
             data = {}
@@ -526,22 +577,23 @@ class LauncherApp(ctk.CTk):
                 data["origin_path"] = self.origin_path
             if self.gemini_api_key:
                 data["gemini_api_key"] = self.gemini_api_key
+            data["cell_area_cm2"] = app_config.cell_area_cm2()
             with open(target, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"config sync skip: {e}")
 
     def open_spectra(self, tab):
-        """PL/XRD advanced auto-fit (spectra) - run as a separate process (avoid nested mainloop)"""
+        """Auto-fit workspace in a separate process (its own Tk main loop)."""
         try:
             if getattr(sys, "frozen", False):
                 cmd = [sys.executable, "--spectra", tab]
             else:
                 cmd = [sys.executable, "-m", "spectra.app", tab]
             subprocess.Popen(cmd, cwd=BASE_DIR)
-            self.toast(f"Launched Auto-Fit {tab} window")
+            self.set_status(f"Opened the {tab} auto-fit workspace")
         except Exception as e:
-            messagebox.showerror("Error", f"Auto-Fit failed:\n{e}")
+            messagebox.showerror("Error", f"Could not open the workspace:\n{e}")
 
     def open_settings(self):
         SettingsDialog(self)
@@ -549,16 +601,6 @@ class LauncherApp(ctk.CTk):
     def _on_category(self, value):
         self.current_category = value
         self.refresh_cards()
-
-    def toast(self, msg):
-        if self._toast is not None and self._toast.winfo_exists():
-            self._toast.destroy()
-        self._toast = ctk.CTkLabel(self, text=f"✓ {msg}", fg_color=GREEN,
-                                   text_color="white", corner_radius=R_PILL,
-                                   font=(FONT_UI, 12, "bold"), padx=16, pady=8)
-        self._toast.place(relx=0.5, rely=0.93, anchor="center")
-        self.after(1800, lambda: self._toast.destroy()
-                   if self._toast and self._toast.winfo_exists() else None)
 
     def on_closing(self):
         try:
@@ -580,30 +622,55 @@ def make_update_app(selfupdate):
 
 def selftest(out=None) -> int:
     """Headless check used by the installer builds: import every analysis core and
-    compute J-V parameters of a synthetic diode curve."""
+    GUI module and compute reference quantities of synthetic data."""
     import numpy as np
     result = {"version": APP_VERSION, "frozen": bool(getattr(sys, "frozen", False)), "imports": {}}
-    for mod in ("scripts.JV.jv_core", "scripts.Dark_JV.dark_jv_core", "scripts.PL.pl_core",
-                "scripts.XRD.xrd_core", "scripts.EQE.run_eqe", "scripts.SEM.run_sem",
-                "scripts.Abs.run_abs", "scripts.Raman.run_raman", "scripts.FTIR.run_ftir",
-                "spectra.app"):
+    for mod in ("scripts.common.spectral", "scripts.common.vibrational", "scripts.JV.jv_core",
+                "scripts.Dark_JV.dark_jv_core", "scripts.EQE.eqe_core", "scripts.Abs.abs_core",
+                "scripts.PL.pl_core", "scripts.XRD.xrd_core", "scripts.SEM.sem_core", "spectra.core.xps",
+                "scripts.JV.run_jv", "scripts.Dark_JV.run_jv_dark", "scripts.EQE.run_eqe",
+                "scripts.SEM.run_sem", "scripts.Abs.run_abs", "scripts.Raman.run_raman",
+                "scripts.FTIR.run_ftir", "scripts.XRD.run_xrd", "scripts.PL.run_pl", "spectra.app"):
         try:
             importlib.import_module(mod)
             result["imports"][mod] = "ok"
         except Exception as e:  # noqa: BLE001
             result["imports"][mod] = f"failed: {e!r}"
+    checks = {}
     try:
-        from scripts.JV.jv_core import compute_jv_parameters
+        from scripts.JV.jv_core import compute_jv_parameters, fit_single_diode, single_diode_current
         v = np.linspace(-0.2, 1.1, 261)
-        j = -20.0 + 1e-9 * (np.exp(v / 0.0257 / 1.5) - 1.0)
+        j = single_diode_current(v, 22.0, 1e-9, 1.5, 2.0, 2000.0)
         p = compute_jv_parameters(v, j, pin_mw_cm2=100.0)
-        result["jv"] = {k: float(p[k]) for k in ("Voc", "Jsc", "FF", "PCE")}
+        fit = fit_single_diode(v, j)
+        checks["jv"] = {k: float(p[k]) for k in ("Voc", "Jsc", "FF", "PCE")}
+        checks["jv"]["n_fit"] = float(fit["n"])
+        checks["jv_ok"] = bool(p["PCE"] > 0 and abs(fit["n"] - 1.5) < 0.1)
     except Exception as e:  # noqa: BLE001
-        result["jv"] = f"failed: {e!r}"
-    ok = all(v == "ok" for v in result["imports"].values()) and isinstance(result["jv"], dict) and result["jv"]["PCE"] > 0
-    result["ok"] = ok
+        checks["jv"] = f"failed: {e!r}"
+        checks["jv_ok"] = False
+    try:
+        from scripts.EQE.eqe_core import shockley_queisser
+        sq = shockley_queisser(1.34)
+        checks["sq_1p34eV"] = {k: float(sq[k]) for k in ("Jsc_SQ", "Voc_SQ", "PCE_SQ")}
+        checks["sq_ok"] = bool(32.5 < sq["PCE_SQ"] < 34.5)
+    except Exception as e:  # noqa: BLE001
+        checks["sq_1p34eV"] = f"failed: {e!r}"
+        checks["sq_ok"] = False
+    try:
+        from scripts.common.vibrational import load_library
+        checks["band_library_entries"] = len(load_library())
+        checks["library_ok"] = checks["band_library_entries"] > 40
+    except Exception as e:  # noqa: BLE001
+        checks["band_library_entries"] = f"failed: {e!r}"
+        checks["library_ok"] = False
+    result["checks"] = checks
+    ok = (all(v == "ok" for v in result["imports"].values())
+          and checks.get("jv_ok") and checks.get("sq_ok") and checks.get("library_ok"))
+    result["ok"] = bool(ok)
     result["executable"] = sys.executable
     result["config"] = app_config.config_path()
+    result["theme"] = _pal.THEME
     text = json.dumps(result, indent=2)
     if not ok:
         print(text, file=sys.stderr)
@@ -613,6 +680,28 @@ def selftest(out=None) -> int:
     else:
         print(text)
     return 0 if ok else 1
+
+
+def _open_single_tool(name: str) -> int:
+    """`--tool NAME`: open one analysis window without the launcher grid."""
+    match = next((t for t in TOOLS if t[0].lower() == name.lower()), None)
+    if match is None:
+        print("unknown tool; choose one of: " + ", ".join(t[0] for t in TOOLS), file=sys.stderr)
+        return 2
+    mod_path = match[3]
+    if mod_path.startswith("spectra:"):
+        from spectra.app import App as SpectraApp
+        SpectraApp(start_tab=mod_path.split(":", 1)[1]).mainloop()
+        return 0
+    mod_path = BUILTIN_FALLBACK.get(mod_path, mod_path)
+    mod = importlib.import_module(mod_path)
+    root = ctk.CTk()
+    root.withdraw()
+    data = app_config.load(refresh=True)
+    win = mod.AnalysisWindow(root, data.get("origin_path", ""), data.get("gemini_api_key", ""))
+    win.protocol("WM_DELETE_WINDOW", lambda: (root.quit(), root.destroy()))
+    root.mainloop()
+    return 0
 
 
 if __name__ == "__main__":
@@ -634,9 +723,12 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"spectra run failed: {e}")
         sys.exit(0)
+    if "--tool" in sys.argv:
+        _i = sys.argv.index("--tool")
+        sys.exit(_open_single_tool(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else ""))
     try:
         import ctypes
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)  # type: ignore[attr-defined]
     except Exception:
         pass
     app = LauncherApp()

@@ -28,6 +28,9 @@ import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from scripts.common import palette as _pal
+from scripts.common import theme as _theme
+from scripts.common import report as _report
 
 # Import core logic from sem_core.py
 try:
@@ -161,12 +164,14 @@ class AnalysisWindow(ctk.CTkToplevel):
         if _shell is not None:
             try:
                 _shell.attach_chrome(self, "FE-SEM Analysis", {
-                    "open": ("📁 Open Image", self.load_image),
-                    "run": ("▶ Auto Segment", self.run_auto_segment),
+                    "open": ("Open Image", self.load_image),
+                    "run": ("Auto Segment", self.run_auto_segment),
                     "excel": ("Excel", self.export_excel),
+                    "png": True,
+                    "report": ("Report", self.export_report),
                     "origin": ("Origin", self.export_origin),
-                    "ai": ("🤖 AI", self.open_advisor_dialog)
-                }, hints="Open -> Process -> Fit -> Export  |  shared toolbar across all tools")
+                    "ai": ("Interpretation", self.open_advisor_dialog)
+                }, hints="Click: segment the grain under the cursor  |  Drag: brush  |  Calibrate: drag along the scale bar  |  Ctrl+Z / Ctrl+Y: undo / redo")
             except Exception as _ce:
                 print(f"shell skip: {_ce}")
 
@@ -176,42 +181,35 @@ class AnalysisWindow(ctk.CTkToplevel):
     # =====================
     def create_left_panel(self):
         # Toss-style color definitions
-        self.card_bg = "#1E1E1E"
-        self.card_border = "#2D2D2D"
-        self.accent_blue = "#3182F6"
-        self.accent_orange = "#F59E0B"
-        self.text_primary = "#FFFFFF"
-        self.text_secondary = "#8B8B8B"
+        self.card_bg = _pal.BG_CARD
+        self.card_border = _pal.BORDER
+        self.accent_blue = _pal.ACCENT
+        self.accent_orange = _pal.ORANGE
+        self.text_primary = _pal.TXT
+        self.text_secondary = _pal.TXT_SUB
 
-        self.left_frame = ctk.CTkFrame(self, width=280, corner_radius=0, fg_color="#141414")
+        self.left_frame = ctk.CTkFrame(self, width=280, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.left_frame.grid(row=0, column=0, sticky="nsew")
         # Lock left panel width to JV size
         self.left_frame.grid_propagate(False)
-        self.left_scroll = ctk.CTkScrollableFrame(self.left_frame, width=280, fg_color="#141414", corner_radius=0)
+        self.left_scroll = ctk.CTkScrollableFrame(self.left_frame, width=280, fg_color=_pal.BG_PANEL, corner_radius=0)
         self.left_scroll.pack(fill="both", expand=True)
         left_content = self.left_scroll
 
         # 1. Load Data card
-        load_card = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        load_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         load_card.pack(pady=(16, 8), padx=12, fill="x")
 
-        ctk.CTkLabel(load_card, text="Load Data", font=("Segoe UI", 15, "bold"),
+        ctk.CTkLabel(load_card, text="Load Data", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
         ctk.CTkButton(load_card, text="Load SEM Image", command=self.load_image,
-                      corner_radius=12, height=40, fg_color=self.accent_blue,
-                      hover_color="#2563EB", font=("Segoe UI", 13)).pack(pady=(0, 16), padx=16, fill="x")
-        nano_row = ctk.CTkFrame(load_card, fg_color="transparent")
-        nano_row.pack(fill="x", padx=16, pady=(0, 16))
-        ctk.CTkLabel(nano_row, text="Nano Banana", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
-        ctk.CTkButton(nano_row, text="Open", command=self.open_nano_banana,
-                      corner_radius=10, height=30, fg_color="#252525",
-                      hover_color="#303030", font=("Segoe UI", 11)).pack(side="right")
+                      corner_radius=_pal.R_CARD, height=28, fg_color=self.accent_blue,
+                      hover_color=_pal.ACCENT_HOV, font=_pal.font(11)).pack(pady=(0, 16), padx=16, fill="x")
         self.lbl_shortcuts = ctk.CTkLabel(
             load_card,
             text="Shortcuts: shown after image is loaded.",
             text_color=self.text_secondary,
-            font=("Segoe UI", 13),
+            font=_pal.font(11),
             justify="left",
             anchor="w",
             wraplength=240,
@@ -219,104 +217,104 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.lbl_shortcuts.pack(pady=(0, 14), padx=(20, 16), anchor="w", fill="x")
 
         # 2. Calibration card
-        calib_card = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        calib_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         calib_card.pack(pady=8, padx=12, fill="x")
 
-        ctk.CTkLabel(calib_card, text="Calibration", font=("Segoe UI", 15, "bold"),
+        ctk.CTkLabel(calib_card, text="Calibration", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 12), padx=16, anchor="w")
 
         sf = ctk.CTkFrame(calib_card, fg_color="transparent")
         sf.pack(fill="x", padx=16)
         ctk.CTkLabel(sf, text="Known (nm)", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
-        self.entry_scale_nm = ctk.CTkEntry(sf, width=100, corner_radius=8, height=32)
+                     font=_pal.font(12)).pack(side="left")
+        self.entry_scale_nm = ctk.CTkEntry(sf, width=100, corner_radius=_pal.R_PILL, height=26)
         self.entry_scale_nm.insert(0, "100")
         self.entry_scale_nm.pack(side="right")
 
         self.btn_calib = ctk.CTkButton(calib_card, text="Calibrate", command=self.toggle_calibration,
-                                        fg_color="#252525", hover_color="#303030",
-                                        corner_radius=12, height=40, font=("Segoe UI", 13))
+                                        fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                                        corner_radius=_pal.R_CARD, height=28, font=_pal.font(11))
         self.btn_calib.pack(pady=12, padx=16, fill="x")
 
         self.btn_calib_auto = ctk.CTkButton(
             calib_card, text="Auto Calibrate (Scale Bar)", command=self.auto_calibrate_from_scale_bar,
-            fg_color="#252525", hover_color="#303030", corner_radius=10, height=36, font=("Segoe UI", 11)
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=28, font=_pal.font(11)
         )
         self.btn_calib_auto.pack(pady=(0, 12), padx=16, fill="x")
 
         self.lbl_scale_info = ctk.CTkLabel(calib_card, text="Scale: Not set",
-                                            text_color=self.text_secondary, font=("Segoe UI", 12))
+                                            text_color=self.text_secondary, font=_pal.font(12))
         self.lbl_scale_info.pack(pady=(0, 16))
 
         # 3. Tools card
-        tools_card = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        tools_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         tools_card.pack(pady=4, padx=12, fill="x")
 
-        ctk.CTkLabel(tools_card, text="Brush Tool", font=("Segoe UI", 15, "bold"),
+        ctk.CTkLabel(tools_card, text="Brush Tool", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(10, 6), padx=16, anchor="w")
 
         self.slider_brush = ctk.CTkSlider(tools_card, from_=1, to=50, number_of_steps=49,
                                           command=self.update_brush_size,
                                           button_color=self.accent_blue,
-                                          button_hover_color="#2563EB",
+                                          button_hover_color=_pal.ACCENT_HOV,
                                           progress_color=self.accent_blue)
         self.slider_brush.set(self.SET.brush_radius)
         self.slider_brush.pack(padx=16, pady=(0, 4), fill="x")
 
         self.lbl_brush_val = ctk.CTkLabel(tools_card, text=f"Size: {self.SET.brush_radius}",
-                                          text_color=self.text_secondary, font=("Segoe UI", 12))
+                                          text_color=self.text_secondary, font=_pal.font(12))
         self.lbl_brush_val.pack(pady=(4, 10))
 
         # 4. Actions card (export and other action buttons)
-        actions_card = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        actions_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         actions_card.pack(pady=8, padx=12, fill="x")
 
-        ctk.CTkLabel(actions_card, text="Actions", font=("Segoe UI", 15, "bold"),
+        ctk.CTkLabel(actions_card, text="Actions", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         btn_frame = ctk.CTkFrame(actions_card, fg_color="transparent")
         btn_frame.pack(fill="x", padx=12, pady=(0, 12))
 
         ctk.CTkButton(btn_frame, text="Export Excel", command=self.export_excel,
-                      fg_color="#252525", hover_color="#303030",
-                      corner_radius=10, height=36, font=("Segoe UI", 12)).pack(fill="x", pady=3)
+                      fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                      corner_radius=_pal.R_PILL, height=28, font=_pal.font(12)).pack(fill="x", pady=3)
         ctk.CTkButton(btn_frame, text="Delete Selected", command=self.delete_selected_row,
-                      fg_color="#252525", hover_color="#303030",
-                      corner_radius=10, height=36, font=("Segoe UI", 12)).pack(fill="x", pady=3)
+                      fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                      corner_radius=_pal.R_PILL, height=28, font=_pal.font(12)).pack(fill="x", pady=3)
         ctk.CTkButton(btn_frame, text="Send to Origin", command=self.export_origin,
-                      fg_color="#252525", hover_color="#303030",
-                      corner_radius=10, height=36, font=("Segoe UI", 12)).pack(fill="x", pady=3)
+                      fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                      corner_radius=_pal.R_PILL, height=28, font=_pal.font(12)).pack(fill="x", pady=3)
 
         # 5. Auto Segment Card (Replaces Status)
-        auto_card = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        auto_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         auto_card.pack(pady=8, padx=12, fill="x")
 
-        ctk.CTkLabel(auto_card, text="Auto Segment", font=("Segoe UI", 15, "bold"),
+        ctk.CTkLabel(auto_card, text="Auto Segment", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         # Params
         param_row = ctk.CTkFrame(auto_card, fg_color="transparent")
         param_row.pack(fill="x", padx=16, pady=(0, 4))
 
-        ctk.CTkLabel(param_row, text="Max Pts", text_color=self.text_secondary, font=("Segoe UI", 11)).pack(side="left")
-        self.entry_max_pts = ctk.CTkEntry(param_row, width=60, height=28, corner_radius=6)
+        ctk.CTkLabel(param_row, text="Max Pts", text_color=self.text_secondary, font=_pal.font(11)).pack(side="left")
+        self.entry_max_pts = ctk.CTkEntry(param_row, width=60, height=28, corner_radius=_pal.R_PILL)
         self.entry_max_pts.insert(0, str(self.SET.seed_max_points))
         self.entry_max_pts.pack(side="left", padx=(4, 0))
 
         param_row2 = ctk.CTkFrame(auto_card, fg_color="transparent")
         param_row2.pack(fill="x", padx=16, pady=(0, 8))
 
-        ctk.CTkLabel(param_row2, text="Min Dist", text_color=self.text_secondary, font=("Segoe UI", 11)).pack(side="left")
-        self.entry_min_dist = ctk.CTkEntry(param_row2, width=60, height=28, corner_radius=6)
+        ctk.CTkLabel(param_row2, text="Min Dist", text_color=self.text_secondary, font=_pal.font(11)).pack(side="left")
+        self.entry_min_dist = ctk.CTkEntry(param_row2, width=60, height=28, corner_radius=_pal.R_PILL)
         self.entry_min_dist.insert(0, str(self.SET.seed_min_distance_px))
         self.entry_min_dist.pack(side="left", padx=(4, 0))
 
         ctk.CTkButton(auto_card, text="Run Auto Segment", command=self.run_auto_segment,
-                      fg_color=self.accent_blue, hover_color="#2563EB",
-                      corner_radius=12, height=40, font=("Segoe UI", 13)).pack(pady=(8, 16), padx=16, fill="x")
+                      fg_color=self.accent_blue, hover_color=_pal.ACCENT_HOV,
+                      corner_radius=_pal.R_CARD, height=28, font=_pal.font(11)).pack(pady=(8, 16), padx=16, fill="x")
 
         # 6. Process Advisor (Gemini)
-        advisor_card = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        advisor_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         advisor_card.pack(pady=8, padx=12, fill="both", expand=True)
         advisor_card.bind("<Button-1>", lambda e: self.open_advisor_dialog())
 
@@ -324,22 +322,22 @@ class AnalysisWindow(ctk.CTkToplevel):
         header_row.pack(pady=(16, 6), padx=16, fill="x")
         header_row.bind("<Button-1>", lambda e: self.open_advisor_dialog())
 
-        ctk.CTkLabel(header_row, text="Process Advisor", font=("Segoe UI", 15, "bold"),
+        ctk.CTkLabel(header_row, text="Process Advisor", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(side="left")
-        ctk.CTkLabel(header_row, text="Click to open", font=("Segoe UI", 11),
+        ctk.CTkLabel(header_row, text="Click to open", font=_pal.font(11),
                      text_color=self.text_secondary).pack(side="right")
 
         ctk.CTkLabel(advisor_card,
                      text="Enter composition / antisolvent conditions\nto get grain-size based advice.",
                      text_color=self.text_secondary,
-                     font=("Segoe UI", 11),
+                     font=_pal.font(11),
                      justify="left").pack(pady=(0, 8), padx=16, anchor="w")
 
         self.lbl_advice_status = ctk.CTkLabel(
             advisor_card,
             text="Ready",
             text_color=self.text_secondary,
-            font=("Segoe UI", 11),
+            font=_pal.font(11),
             wraplength=240,
             justify="left"
         )
@@ -347,7 +345,7 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         ctk.CTkButton(
             advisor_card, text="Open Advisor", command=self.open_advisor_dialog,
-            fg_color="#252525", hover_color="#303030", corner_radius=10, height=32, font=("Segoe UI", 12)
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=26, font=_pal.font(12)
         ).pack(padx=16, pady=(0, 16), fill="x")
 
         # Hidden entries for settings (API key, Origin path) & model combo
@@ -370,15 +368,15 @@ class AnalysisWindow(ctk.CTkToplevel):
         spacer.pack(fill="both", expand=True)
 
         # Shortcuts card (bottom)
-        shortcuts_card = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        shortcuts_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         shortcuts_card.pack(pady=(8, 16), padx=12, fill="x")
 
-        ctk.CTkLabel(shortcuts_card, text="Shortcuts", font=("Segoe UI", 13, "bold"),
+        ctk.CTkLabel(shortcuts_card, text="Shortcuts", font=_pal.font(13, "bold"),
                      text_color=self.text_secondary).pack(pady=(12, 8), padx=16, anchor="w")
 
         shortcuts_text = "M Save  •  N Discard  •  Z/X Undo/Redo\n[/] Size  •  P Eraser  •  Right-click Toggle"
         ctk.CTkLabel(shortcuts_card, text=shortcuts_text, justify="left",
-                     text_color="#666666", font=("Segoe UI", 11)).pack(padx=16, pady=(0, 12), anchor="w")
+                     text_color=_pal.TXT_DIM, font=_pal.font(11)).pack(padx=16, pady=(0, 12), anchor="w")
 
     def open_nano_banana(self):
         api_key = self.initial_api_key or self.entry_api_key.get().strip()
@@ -394,20 +392,20 @@ class AnalysisWindow(ctk.CTkToplevel):
         webbrowser.open_new_tab(url)
 
     def create_center_panel(self):
-        self.center_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="#0A0A0A")
+        self.center_frame = ctk.CTkFrame(self, corner_radius=0, fg_color=_pal.BG_WINDOW)
         self.center_frame.grid(row=0, column=1, sticky="nsew")
         self.center_frame.grid_rowconfigure(0, weight=1)
         self.center_frame.grid_columnconfigure(0, weight=1)
 
         # Canvas container (for padding)
-        canvas_container = ctk.CTkFrame(self.center_frame, corner_radius=12, fg_color="#1E1E1E")
+        canvas_container = ctk.CTkFrame(self.center_frame, corner_radius=_pal.R_CARD, fg_color=_pal.BG_CARD)
         canvas_container.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
         canvas_container.grid_rowconfigure(0, weight=1)
         canvas_container.grid_columnconfigure(0, weight=1)
 
         self.v_scroll = ctk.CTkScrollbar(canvas_container, orientation="vertical")
         self.h_scroll = ctk.CTkScrollbar(canvas_container, orientation="horizontal")
-        self.canvas = tk.Canvas(canvas_container, bg="#141414", highlightthickness=0,
+        self.canvas = tk.Canvas(canvas_container, bg=_pal.BG_PANEL, highlightthickness=0,
                                 xscrollcommand=self.h_scroll.set, yscrollcommand=self.v_scroll.set)
         self.v_scroll.configure(command=self.canvas.yview)
         self.h_scroll.configure(command=self.canvas.xview)
@@ -422,7 +420,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.canvas.bind("<Button-3>", self.on_right_click)
 
     def create_right_resizer(self):
-        self.right_resizer = tk.Frame(self, width=10, bg="#3D3D3D", cursor="sb_h_double_arrow")
+        self.right_resizer = tk.Frame(self, width=10, bg=_pal.BORDER_HI, cursor="sb_h_double_arrow")
         self.right_resizer.grid(row=0, column=2, sticky="nsew")
         self.right_resizer.grid_propagate(False)
         self.right_resizer.lift()
@@ -447,15 +445,15 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.right_frame.update_idletasks()
 
     def create_right_panel(self):
-        self.right_frame = ctk.CTkFrame(self, width=self.right_width, corner_radius=0, fg_color="#141414")
+        self.right_frame = ctk.CTkFrame(self, width=self.right_width, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.right_frame.grid(row=0, column=3, sticky="nsew")
         self.right_frame.grid_rowconfigure(1, weight=1)
 
         # Statistics card
-        stats_card = ctk.CTkFrame(self.right_frame, corner_radius=16, fg_color=self.card_bg)
+        stats_card = ctk.CTkFrame(self.right_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         stats_card.grid(row=0, column=0, sticky="ew", padx=12, pady=(16, 8))
 
-        ctk.CTkLabel(stats_card, text="Statistics", font=("Segoe UI", 15, "bold"),
+        ctk.CTkLabel(stats_card, text="Statistics", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 12), padx=16, anchor="w")
 
         # Statistics grid layout
@@ -466,19 +464,19 @@ class AnalysisWindow(ctk.CTkToplevel):
         row1 = ctk.CTkFrame(stats_grid, fg_color="transparent")
         row1.pack(fill="x", pady=4)
 
-        mean_box = ctk.CTkFrame(row1, corner_radius=10, fg_color="#252525")
+        mean_box = ctk.CTkFrame(row1, corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB)
         mean_box.pack(side="left", expand=True, fill="x", padx=(0, 4))
         ctk.CTkLabel(mean_box, text="Mean", text_color=self.text_secondary,
-                     font=("Segoe UI", 10)).pack(pady=(8, 2))
-        self.lbl_stats_mean = ctk.CTkLabel(mean_box, text="- nm", font=("Segoe UI", 14, "bold"),
+                     font=_pal.font(10)).pack(pady=(8, 2))
+        self.lbl_stats_mean = ctk.CTkLabel(mean_box, text="- nm", font=_pal.font(12, "bold"),
                                            text_color=self.accent_blue)
         self.lbl_stats_mean.pack(pady=(0, 8))
 
-        std_box = ctk.CTkFrame(row1, corner_radius=10, fg_color="#252525")
+        std_box = ctk.CTkFrame(row1, corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB)
         std_box.pack(side="right", expand=True, fill="x", padx=(4, 0))
         ctk.CTkLabel(std_box, text="Std Dev", text_color=self.text_secondary,
-                     font=("Segoe UI", 10)).pack(pady=(8, 2))
-        self.lbl_stats_std = ctk.CTkLabel(std_box, text="- nm", font=("Segoe UI", 14, "bold"),
+                     font=_pal.font(10)).pack(pady=(8, 2))
+        self.lbl_stats_std = ctk.CTkLabel(std_box, text="- nm", font=_pal.font(12, "bold"),
                                           text_color=self.accent_blue)
         self.lbl_stats_std.pack(pady=(0, 8))
 
@@ -486,47 +484,52 @@ class AnalysisWindow(ctk.CTkToplevel):
         row2 = ctk.CTkFrame(stats_grid, fg_color="transparent")
         row2.pack(fill="x", pady=4)
 
-        min_box = ctk.CTkFrame(row2, corner_radius=10, fg_color="#252525")
+        min_box = ctk.CTkFrame(row2, corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB)
         min_box.pack(side="left", expand=True, fill="x", padx=(0, 4))
         ctk.CTkLabel(min_box, text="Min", text_color=self.text_secondary,
-                     font=("Segoe UI", 10)).pack(pady=(8, 2))
-        self.lbl_stats_min = ctk.CTkLabel(min_box, text="- nm", font=("Segoe UI", 14, "bold"),
-                                          text_color="#10B981")
+                     font=_pal.font(10)).pack(pady=(8, 2))
+        self.lbl_stats_min = ctk.CTkLabel(min_box, text="- nm", font=_pal.font(12, "bold"),
+                                          text_color=_pal.GREEN)
         self.lbl_stats_min.pack(pady=(0, 8))
 
-        max_box = ctk.CTkFrame(row2, corner_radius=10, fg_color="#252525")
+        max_box = ctk.CTkFrame(row2, corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB)
         max_box.pack(side="right", expand=True, fill="x", padx=(4, 0))
         ctk.CTkLabel(max_box, text="Max", text_color=self.text_secondary,
-                     font=("Segoe UI", 10)).pack(pady=(8, 2))
-        self.lbl_stats_max = ctk.CTkLabel(max_box, text="- nm", font=("Segoe UI", 14, "bold"),
-                                          text_color="#EF4444")
+                     font=_pal.font(10)).pack(pady=(8, 2))
+        self.lbl_stats_max = ctk.CTkLabel(max_box, text="- nm", font=_pal.font(12, "bold"),
+                                          text_color=_pal.RED)
         self.lbl_stats_max.pack(pady=(0, 8))
 
+        ctk.CTkLabel(stats_grid, text="Distribution", font=_pal.font(10, "bold"), text_color=self.text_secondary,
+                     anchor="w").pack(fill="x", pady=(8, 2))
+        self.dist_tree = _theme.kv_table(stats_grid, height=7, key_width=170, value_width=100)
+        self.dist_tree.pack(fill="x")
+
         # Results card (table)
-        results_card = ctk.CTkFrame(self.right_frame, corner_radius=16, fg_color=self.card_bg)
+        results_card = ctk.CTkFrame(self.right_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         results_card.grid(row=1, column=0, sticky="nsew", padx=12, pady=8)
         results_card.grid_rowconfigure(1, weight=1)
         results_card.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(results_card, text="Results", font=("Segoe UI", 15, "bold"),
+        ctk.CTkLabel(results_card, text="Results", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).grid(row=0, column=0, pady=(16, 8), padx=16, sticky="w")
 
         # Table style
         style = ttk.Style()
         style.theme_use("clam")
         style.configure("Treeview",
-                        background="#1E1E1E",
+                        background=_pal.BG_CARD,
                         foreground="white",
-                        fieldbackground="#1E1E1E",
+                        fieldbackground=_pal.BG_CARD,
                         borderwidth=0,
                         rowheight=30,
-                        font=("Segoe UI", 11))
+                        font=_pal.font(11))
         style.configure("Treeview.Heading",
-                        background="#252525",
+                        background=_pal.BG_SUB,
                         foreground="white",
                         borderwidth=0,
-                        font=("Segoe UI", 11, "bold"))
-        style.map("Treeview", background=[("selected", "#3182F6")])
+                        font=_pal.font(11, "bold"))
+        style.map("Treeview", background=[("selected", _pal.ACCENT)])
 
         tree_frame = ctk.CTkFrame(results_card, fg_color="transparent")
         tree_frame.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
@@ -541,24 +544,24 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.tree.grid(row=0, column=0, sticky="nsew")
 
         # Distribution card (size improved)
-        hist_card = ctk.CTkFrame(self.right_frame, corner_radius=16, fg_color=self.card_bg)
+        hist_card = ctk.CTkFrame(self.right_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         hist_card.grid(row=2, column=0, sticky="nsew", padx=12, pady=(8, 16))
         self.right_frame.grid_rowconfigure(2, weight=2)  # larger weight
 
-        ctk.CTkLabel(hist_card, text="Distribution", font=("Segoe UI", 15, "bold"),
+        ctk.CTkLabel(hist_card, text="Distribution", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
-        self.hist_frame = ctk.CTkFrame(hist_card, fg_color="#252525", corner_radius=12)
+        self.hist_frame = ctk.CTkFrame(hist_card, fg_color=_pal.BG_SUB, corner_radius=_pal.R_CARD)
         self.hist_frame.pack(fill="both", expand=True, padx=12, pady=(0, 16))
 
-        self.fig = Figure(figsize=(4, 3), dpi=100, facecolor='#252525')
+        self.fig = Figure(figsize=(4, 3), dpi=100, facecolor=_pal.BG_SUB)
         self.ax = self.fig.add_subplot(111)
-        self.fig.patch.set_facecolor('#252525')
-        self.ax.set_facecolor('#252525')
-        self.ax.tick_params(colors='#AAAAAA', labelsize=10, width=1)
+        self.fig.patch.set_facecolor(_pal.BG_SUB)
+        self.ax.set_facecolor(_pal.BG_SUB)
+        self.ax.tick_params(colors=_pal.PLOT_TICK, labelsize=10, width=1)
         self.ax.tick_params(axis='both', which='major', labelsize=10)
         for spine in self.ax.spines.values():
-            spine.set_color('#2D2D2D')
+            spine.set_color(_pal.BORDER)
         self.canvas_hist = FigureCanvasTkAgg(self.fig, master=self.hist_frame)
         self.canvas_hist.get_tk_widget().pack(fill="both", expand=True)
 
@@ -675,10 +678,30 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.advice_items = []
             return
         vals = [r["nm"] for r in self.records]
-        self.ax.hist(vals, bins=10, color='#1f538d', edgecolor='white', alpha=0.7)
-        self.ax.set_title(f"N={len(vals)}", color='white', fontsize=10)
+        stats, counts, edges, xs, curve = sem_core.histogram_with_fit(vals)
+        self.size_stats = stats
+        if len(counts):
+            self.ax.bar(edges[:-1], counts, width=np.diff(edges), align="edge", color=_pal.ACCENT,
+                        edgecolor=_pal.PLOT_BG, alpha=0.75, label="grains")
+            if len(vals) >= 5 and np.isfinite(stats.get("lognorm_sigma", float("nan"))) and stats["lognorm_sigma"] > 0:
+                self.ax.plot(xs, curve, color=_pal.RED, linewidth=1.3,
+                             label=f"log-normal (D50 {stats['D50']:.0f} nm, GSD {stats['gsd']:.2f})")
+                self.ax.legend(fontsize=7, framealpha=0.9)
+        self.ax.set_xlabel("Equivalent diameter (nm)", fontsize=9)
+        self.ax.set_ylabel("Count", fontsize=9)
+        self.ax.set_title(f"N = {len(vals)}", color=_pal.PLOT_FG, fontsize=10)
         self.fig.tight_layout()
         self.canvas_hist.draw()
+        if hasattr(self, "dist_tree"):
+            _theme.fill_kv(self.dist_tree, [
+                ("N", int(stats["n"])),
+                ("Median D50 (nm)", stats["D50"], ".1f"),
+                ("D10 / D90 (nm)", f"{stats['D10']:.1f} / {stats['D90']:.1f}" if np.isfinite(stats["D10"]) else "-"),
+                ("Coefficient of variation", stats["cv"], ".3f"),
+                ("Geometric mean (nm)", stats["geo_mean"], ".1f"),
+                ("Geometric std. deviation", stats["gsd"], ".3f"),
+                ("Log-normal mode (nm)", stats["lognorm_mode"], ".1f"),
+            ])
 
         # Update Stats Panel
         if vals:
@@ -815,7 +838,7 @@ class AnalysisWindow(ctk.CTkToplevel):
     def _update_advice_list(self, items):
         self.advice_items = items
         if not items:
-            self._set_advice_status("No suggestions", "#F59E0B")
+            self._set_advice_status("No suggestions", _pal.ORANGE)
             self._append_chat_rich("assistant", "No suggestions returned.")
             return
         msg = "\n".join([f"- {line}" for line in items])
@@ -896,9 +919,9 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         header = ctk.CTkFrame(win, fg_color="transparent")
         header.pack(fill="x", padx=16, pady=(16, 8))
-        ctk.CTkLabel(header, text="Process Advisor", font=("Segoe UI", 16, "bold")).pack(side="left")
+        ctk.CTkLabel(header, text="Process Advisor", font=_pal.font(12, "bold")).pack(side="left")
 
-        ctk.CTkLabel(win, text="Composition", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=16)
+        ctk.CTkLabel(win, text="Composition", font=_pal.font(12, "bold")).pack(anchor="w", padx=16)
         entry_comp = ctk.CTkEntry(win, textvariable=self.comp_ratio_var,
                                   placeholder_text="FA:MA:Cs=0.8:0.1:0.1")
         entry_comp.pack(fill="x", padx=16, pady=(4, 10))
@@ -907,7 +930,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         model_row.pack(fill="x", padx=16, pady=(0, 8))
         model_row.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(model_row, text="Gemini model", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        ctk.CTkLabel(model_row, text="Gemini model", font=_pal.font(12, "bold")).pack(anchor="w")
         self.combo_advisor_model = ctk.CTkComboBox(
             model_row,
             values=[],
@@ -933,7 +956,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         )
         entry_anti.pack(fill="x", padx=16, pady=(0, 10))
 
-        ctk.CTkLabel(win, text="Extra conditions", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=16)
+        ctk.CTkLabel(win, text="Extra conditions", font=_pal.font(12, "bold")).pack(anchor="w", padx=16)
         self.txt_extra_info = ctk.CTkTextbox(win, height=90)
         self.txt_extra_info.pack(fill="x", padx=16, pady=(4, 10))
         if self.extra_info_var.get().strip():
@@ -970,7 +993,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         btn_row.pack(fill="x", padx=16, pady=(0, 8))
         self.btn_advice = ctk.CTkButton(
             btn_row, text="Get Suggestions", command=self.get_process_advice,
-            fg_color="#252525", hover_color="#303030", corner_radius=10, height=32, font=("Segoe UI", 12)
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=26, font=_pal.font(12)
         )
         self.btn_advice.pack(side="left", fill="x", expand=True)
 
@@ -978,14 +1001,14 @@ class AnalysisWindow(ctk.CTkToplevel):
             win,
             text="Ready",
             text_color=self.text_secondary,
-            font=("Segoe UI", 11),
+            font=_pal.font(11),
             wraplength=460,
             justify="left"
         )
         status.pack(padx=16, pady=(0, 6), anchor="w", fill="x")
         self.lbl_advice_status = status
 
-        chat_frame = ctk.CTkFrame(win, fg_color="#252525", corner_radius=10)
+        chat_frame = ctk.CTkFrame(win, fg_color=_pal.BG_SUB, corner_radius=_pal.R_PILL)
         chat_frame.pack(padx=16, pady=(0, 10), fill="both", expand=True)
         chat_frame.grid_rowconfigure(0, weight=1)
         chat_frame.grid_columnconfigure(0, weight=1)
@@ -993,7 +1016,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.chat_log = tk.Text(
             chat_frame,
             height=10,
-            bg="#1E1E1E",
+            bg=_pal.BG_CARD,
             fg="white",
             wrap="word",
             highlightthickness=0,
@@ -1001,7 +1024,7 @@ class AnalysisWindow(ctk.CTkToplevel):
             spacing2=2,
             spacing3=6,
         )
-        self.chat_log.tag_config("red", foreground="#EF4444")
+        self.chat_log.tag_config("red", foreground=_pal.RED)
         self.chat_log.grid(row=0, column=0, sticky="nsew", padx=(6, 0), pady=6)
         chat_scroll = ctk.CTkScrollbar(chat_frame, orientation="vertical", command=self.chat_log.yview)
         chat_scroll.grid(row=0, column=1, sticky="ns", padx=6, pady=6)
@@ -1017,7 +1040,7 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         ctk.CTkButton(
             input_row, text="Send", command=self.send_chat_message,
-            fg_color=self.accent_blue, hover_color="#2563EB", corner_radius=10, height=32
+            fg_color=self.accent_blue, hover_color=_pal.ACCENT_HOV, corner_radius=_pal.R_PILL, height=26
         ).grid(row=0, column=1)
 
         if self.chat_history:
@@ -1066,7 +1089,7 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         self.save_settings()
         self.btn_advice.configure(state="disabled", text="Analyzing...")
-        self._set_advice_status("Connecting to Gemini...", "#F59E0B")
+        self._set_advice_status("Connecting to Gemini...", _pal.ORANGE)
 
         def _worker():
             try:
@@ -1082,7 +1105,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                 n = len(vals)
                 tips = self._fallback_advice(mean_nm, std_nm, min_nm, max_nm, n)
                 self.after(0, lambda: self._update_advice_list(tips))
-                self.after(0, lambda: self._set_advice_status("Fallback suggestions", "#F59E0B"))
+                self.after(0, lambda: self._set_advice_status("Fallback suggestions", _pal.ORANGE))
                 self.after(0, lambda: self.btn_advice.configure(state="normal", text="Get Suggestions"))
                 return
 
@@ -1118,7 +1141,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                 status = "Fallback suggestions"
                 if error_msg:
                     status = f"Fallback suggestions (Gemini error: {error_msg})"
-                self.after(0, lambda s=status: self._set_advice_status(s, "#F59E0B"))
+                self.after(0, lambda s=status: self._set_advice_status(s, _pal.ORANGE))
             else:
                 self.after(0, lambda: self._set_advice_status("Suggestions ready", self.text_secondary))
 
@@ -1152,7 +1175,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.entry_chat.delete(0, "end")
         self.chat_history.append({"role": "user", "content": msg})
         self._append_chat("user", msg)
-        self._set_advice_status("Thinking...", "#F59E0B")
+        self._set_advice_status("Thinking...", _pal.ORANGE)
 
         def _worker():
             try:
@@ -1160,7 +1183,7 @@ class AnalysisWindow(ctk.CTkToplevel):
             except ImportError:
                 reply = "Required library is missing. (install google-generativeai)"
                 self.after(0, lambda: self._append_chat_rich("assistant", reply))
-                self.after(0, lambda: self._set_advice_status("Fallback", "#F59E0B"))
+                self.after(0, lambda: self._set_advice_status("Fallback", _pal.ORANGE))
                 return
 
             error_msg = ""
@@ -1197,7 +1220,7 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.chat_history.append({"role": "assistant", "content": reply})
             self.after(0, lambda t=reply: self._append_chat_rich("assistant", t))
             if error_msg:
-                self.after(0, lambda s=f"Fallback reply (Gemini error: {error_msg})": self._set_advice_status(s, "#F59E0B"))
+                self.after(0, lambda s=f"Fallback reply (Gemini error: {error_msg})": self._set_advice_status(s, _pal.ORANGE))
             else:
                 self.after(0, lambda: self._set_advice_status("Ready", self.text_secondary))
 
@@ -1612,8 +1635,33 @@ class AnalysisWindow(ctk.CTkToplevel):
             return
         p = filedialog.asksaveasfilename(defaultextension=".xlsx")
         if p:
-            pd.DataFrame([{"ID": r["id"], "Size(nm)": r["nm"]} for r in self.records]).to_excel(p, index=False)
-            messagebox.showinfo("Export", "Saved")
+            grains = pd.DataFrame([{"ID": r["id"], "Equivalent diameter (nm)": r["nm"],
+                                    "Area (um2)": r.get("area_um2", np.nan), "Method": r.get("method", "")}
+                                   for r in self.records])
+            stats = sem_core.size_statistics([r["nm"] for r in self.records])
+            st = pd.DataFrame(list(stats.items()), columns=["Quantity", "Value"])
+            with pd.ExcelWriter(p, engine="openpyxl") as w:
+                grains.to_excel(w, sheet_name="Grains", index=False)
+                st.to_excel(w, sheet_name="Statistics", index=False)
+            messagebox.showinfo("Export", "Saved grains and statistics.")
+
+    def export_report(self):
+        if not self.records:
+            messagebox.showwarning("Report", "Measure some grains first.")
+            return
+        path = _report.ask_report_path(self, "SEM_grain_report.md")
+        if not path:
+            return
+        stats = sem_core.size_statistics([r["nm"] for r in self.records])
+        grains = pd.DataFrame([{"ID": r["id"], "Equivalent diameter (nm)": round(r["nm"], 1)} for r in self.records])
+        notes = ("Equivalent circular diameter of each segmented grain, d = 2 sqrt(A/pi). Statistics use the sample "
+                 "standard deviation (N-1); the log-normal parameters are maximum-likelihood estimates of ln d.")
+        try:
+            _report.write_markdown_report(path, "SEM grain-size analysis",
+                                          [("Statistics", stats), ("Grains", grains)], figure=self.fig, notes=notes)
+            messagebox.showinfo("Report", f"Saved {os.path.basename(path)}")
+        except Exception as ex:
+            messagebox.showerror("Report", str(ex))
 
     def export_origin(self):
         if not self.records:
@@ -1703,11 +1751,11 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         # Progress Popup
         self.progress_window = ctk.CTkToplevel(self)
-        self.progress_window.title("AI Analysis")
+        self.progress_window.title("Interpretation")
         self.progress_window.geometry("300x150")
         self.progress_window.attributes("-topmost", True)
 
-        lbl_info = ctk.CTkLabel(self.progress_window, text="Initializing...", font=("Segoe UI", 14))
+        lbl_info = ctk.CTkLabel(self.progress_window, text="Initializing...", font=_pal.font(11))
         lbl_info.pack(pady=20)
 
         pbar = ctk.CTkProgressBar(self.progress_window, width=250)
@@ -1846,7 +1894,7 @@ class AnalysisWindow(ctk.CTkToplevel):
 # Standalone Entry Point
 # =========================
 def main():
-    ctk.set_appearance_mode("Dark")
+    ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
     ctk.set_default_color_theme("blue")
 
     root = ctk.CTk()

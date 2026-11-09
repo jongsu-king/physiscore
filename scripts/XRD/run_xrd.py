@@ -23,21 +23,24 @@ from matplotlib.widgets import RectangleSelector
 import pandas as pd
 import numpy as np
 import os
+from scripts.common import palette as _pal
+from scripts.common import theme as _theme
+from scripts.common import report as _report
 
 # Theme Colors
-COL_BG = "#0A0A0A"      # JV Main Background
-COL_CARD = "#1E1E1E"    # JV Card Background
-COL_STROKE = "#2D2D2D"  # JV Card Border
-COL_TXT = "#FFFFFF"     # JV Text Primary
-COL_MUT = "#8B8B8B"     # JV Text Secondary
-COL_ACC = "#3182F6"     # JV Accent Blue
-COL_FIT = "#EF4444"     # JV Accent Red
+COL_BG = _pal.BG_WINDOW      # JV Main Background
+COL_CARD = _pal.BG_CARD    # JV Card Background
+COL_STROKE = _pal.BORDER  # JV Card Border
+COL_TXT = _pal.TXT     # JV Text Primary
+COL_MUT = _pal.TXT_SUB     # JV Text Secondary
+COL_ACC = _pal.ACCENT     # JV Accent Blue
+COL_FIT = _pal.RED     # JV Accent Red
 try:
     from scripts.common import analysis_shell as _shell
 except Exception:
     _shell = None
 
-COL_ERR = "#EF4444"     # JV Accent Red
+COL_ERR = _pal.RED     # JV Accent Red
 
 class AIResultDialog(ctk.CTkToplevel):
     """Dialog showing AI analysis result as copyable text"""
@@ -72,9 +75,9 @@ class AIResultDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             header_frame,
-            text="AI Analysis Result",
-            font=("Segoe UI", 18, "bold"),
-            text_color="#FFFFFF"
+            text="Interpretation result",
+            font=_pal.font(13, "bold"),
+            text_color=_pal.TXT
         ).pack(side="left")
 
         # Copy button
@@ -82,9 +85,9 @@ class AIResultDialog(ctk.CTkToplevel):
             header_frame,
             text="Copy All",
             width=80,
-            height=32,
+            height=26,
             fg_color=COL_ACC,
-            hover_color="#2563EB",
+            hover_color=_pal.ACCENT_HOV,
             command=self._copy_content
         )
         self.btn_copy.pack(side="right")
@@ -92,10 +95,10 @@ class AIResultDialog(ctk.CTkToplevel):
         # Text display (scrollable, selectable)
         self.text_display = ctk.CTkTextbox(
             main_frame,
-            font=("Consolas", 12),
-            fg_color="#252525",
+            font=_pal.mono(11),
+            fg_color=_pal.BG_SUB,
             text_color=COL_TXT,
-            corner_radius=8,
+            corner_radius=_pal.R_PILL,
             wrap="word"
         )
         self.text_display.pack(fill="both", expand=True, padx=16, pady=(8, 8))
@@ -110,8 +113,8 @@ class AIResultDialog(ctk.CTkToplevel):
         self.lbl_status = ctk.CTkLabel(
             btn_frame,
             text="",
-            text_color="#8B8B8B",
-            font=("Segoe UI", 11)
+            text_color=_pal.TXT_SUB,
+            font=_pal.font(11)
         )
         self.lbl_status.pack(side="left")
 
@@ -119,9 +122,9 @@ class AIResultDialog(ctk.CTkToplevel):
             btn_frame,
             text="Close",
             width=80,
-            height=32,
-            fg_color="#3D3D3D",
-            hover_color="#666666",
+            height=26,
+            fg_color=_pal.BG_SUB,
+            hover_color=_pal.TXT_DIM,
             command=self.destroy
         ).pack(side="right")
 
@@ -130,27 +133,27 @@ class AIResultDialog(ctk.CTkToplevel):
         content = self.text_display.get("1.0", "end-1c")
         self.clipboard_clear()
         self.clipboard_append(content)
-        self.lbl_status.configure(text="Copied to clipboard!", text_color="#10B981")
+        self.lbl_status.configure(text="Copied to clipboard!", text_color=_pal.GREEN)
         self.after(2000, lambda: self.lbl_status.configure(text=""))
 
 class AIConfigDialog(ctk.CTkToplevel):
     def __init__(self, parent, api_key, on_confirm):
         super().__init__(parent)
-        self.title("AI Analysis Configuration")
+        self.title("Interpretation settings")
         self.geometry("500x400")
         self.api_key = api_key
         self.on_confirm = on_confirm
         self.attributes('-topmost', True)
         
-        ctk.CTkLabel(self, text="Select Gemini Model:", font=("Segoe UI", 14, "bold")).pack(pady=(20, 5))
+        ctk.CTkLabel(self, text="Select Gemini Model:", font=_pal.font(12, "bold")).pack(pady=(20, 5))
         self.combo_model = ctk.CTkComboBox(self, values=["Fetching models..."], width=300)
         self.combo_model.pack(pady=5)
         
-        ctk.CTkLabel(self, text="Sample Context / Additional Info:", font=("Segoe UI", 14, "bold")).pack(pady=(15, 5))
+        ctk.CTkLabel(self, text="Sample Context / Additional Info:", font=_pal.font(12, "bold")).pack(pady=(15, 5))
         self.txt_context = ctk.CTkTextbox(self, width=400, height=150)
         self.txt_context.pack(pady=5)
         
-        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color="#252525", width=200, height=40).pack(pady=20)
+        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28).pack(pady=20)
         
         threading.Thread(target=self.fetch_models, daemon=True).start()
         
@@ -188,34 +191,51 @@ class XRDAnalysisTab(ctk.CTkFrame):
         self.grid_rowconfigure(0, weight=1)
 
         # Fonts
-        btn_font = ("Segoe UI", 14, "bold")
-        lbl_font = ("Segoe UI", 16, "bold")
+        btn_font = _pal.font(12, "bold")
+        lbl_font = _pal.font(12, "bold")
 
         # --- LEFT PANEL (Controls & Peak List) ---
-        self.left_panel = ctk.CTkFrame(self, width=280, fg_color="#141414", corner_radius=0)
+        self.left_panel = ctk.CTkFrame(self, width=280, fg_color=_pal.BG_PANEL, corner_radius=0)
         self.left_panel.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
         self.left_panel.grid_propagate(False)
 
         # 1. Controls Card (JV Style)
-        controls_card = ctk.CTkFrame(self.left_panel, corner_radius=16, fg_color=COL_CARD)
+        controls_card = ctk.CTkFrame(self.left_panel, corner_radius=_pal.R_CARD, fg_color=COL_CARD)
         controls_card.pack(pady=(16, 8), padx=12, fill="x")
 
         ctk.CTkLabel(controls_card, text="XRD Controls", font=lbl_font, text_color=COL_TXT).pack(pady=(16, 8), padx=16, anchor="w")
         
-        self.btn_load = ctk.CTkButton(controls_card, text="📂 Load Data", command=self.load_data, fg_color=COL_ACC, height=42, font=btn_font, text_color="white")
+        self.btn_load = ctk.CTkButton(controls_card, text="Load data", command=self.load_data, fg_color=_pal.BG_SUB, height=30, font=btn_font, text_color=COL_TXT, border_width=1, border_color=_pal.BORDER_HI)
         self.btn_load.pack(fill="x", padx=16, pady=3)
         
-        self.btn_run = ctk.CTkButton(controls_card, text="▶ Run Fitting", command=self.run_analysis, fg_color=COL_ERR, height=42, font=btn_font, state="disabled", text_color="white", text_color_disabled="white")
+        self.btn_run = ctk.CTkButton(controls_card, text="Run fitting", command=self.run_analysis, fg_color=COL_ACC, hover_color=_pal.ACCENT_HOV, height=30, font=btn_font, state="disabled", text_color="white", text_color_disabled=COL_MUT)
         self.btn_run.pack(fill="x", padx=16, pady=3)
         
-        self.btn_origin = ctk.CTkButton(controls_card, text="📊 Plot to Origin", command=self.plot_to_origin, fg_color="#252525", height=42, font=btn_font, state="disabled", text_color="white", text_color_disabled="white")
+        self.btn_origin = ctk.CTkButton(controls_card, text="Plot to Origin", command=self.plot_to_origin, fg_color=_pal.BG_SUB, height=30, font=btn_font, state="disabled", text_color=COL_TXT, text_color_disabled=COL_MUT, border_width=1, border_color=_pal.BORDER_HI)
         self.btn_origin.pack(fill="x", padx=16, pady=3)
 
-        self.btn_ai = ctk.CTkButton(controls_card, text="✨ AI Analysis", command=self.trigger_ai, fg_color="#252525", height=42, font=btn_font, state="disabled", text_color="white", text_color_disabled="white")
-        self.btn_ai.pack(fill="x", padx=16, pady=(3, 16))
+        self.btn_ai = ctk.CTkButton(controls_card, text="Interpretation", command=self.trigger_ai, fg_color=_pal.BG_SUB, height=30, font=btn_font, state="disabled", text_color=COL_TXT, text_color_disabled=COL_MUT, border_width=1, border_color=_pal.BORDER_HI)
+        self.btn_ai.pack(fill="x", padx=16, pady=(3, 10))
+
+        # analysis options: instrument broadening, Scherrer constant, Kalpha2 stripping
+        opt = ctk.CTkFrame(controls_card, fg_color="transparent")
+        opt.pack(fill="x", padx=16, pady=(0, 12))
+        opt.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(opt, text="Instrument FWHM (°)", font=_pal.font(10), text_color=COL_MUT).grid(row=0, column=0, sticky="w")
+        self.ent_inst = _theme.entry(opt, width=70, height=24); self.ent_inst.insert(0, "0.0")
+        self.ent_inst.grid(row=0, column=1, sticky="e", pady=2)
+        ctk.CTkLabel(opt, text="Scherrer K", font=_pal.font(10), text_color=COL_MUT).grid(row=1, column=0, sticky="w")
+        self.ent_k = _theme.entry(opt, width=70, height=24); self.ent_k.insert(0, "0.9")
+        self.ent_k.grid(row=1, column=1, sticky="e", pady=2)
+        self.var_ka2 = tk.BooleanVar(value=False)
+        ctk.CTkCheckBox(opt, text="Strip Cu Kα2 (Rachinger)", variable=self.var_ka2, font=_pal.font(10),
+                        text_color=COL_TXT, checkbox_width=16, checkbox_height=16).grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self.lbl_ci = ctk.CTkLabel(opt, text="Crystallinity index: -", font=_pal.font(10), text_color=COL_MUT, anchor="w")
+        self.lbl_ci.grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self.wh_result = None
 
         # 2. Peak List Card (JV Style)
-        peak_card = ctk.CTkFrame(self.left_panel, corner_radius=16, fg_color=COL_CARD)
+        peak_card = ctk.CTkFrame(self.left_panel, corner_radius=_pal.R_CARD, fg_color=COL_CARD)
         peak_card.pack(pady=8, padx=12, fill="both", expand=True)
 
         ctk.CTkLabel(peak_card, text="Peak List", font=lbl_font, text_color=COL_TXT).pack(pady=(16, 8), padx=16, anchor="w")
@@ -223,20 +243,22 @@ class XRDAnalysisTab(ctk.CTkFrame):
         # Treeview for Peaks
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("Treeview", background=COL_CARD, foreground=COL_TXT, fieldbackground=COL_CARD, borderwidth=0, font=("Segoe UI", 11), rowheight=25)
+        style.configure("Treeview", background=COL_CARD, foreground=COL_TXT, fieldbackground=COL_CARD, borderwidth=0, font=_pal.font(11), rowheight=25)
         style.map('Treeview', background=[('selected', COL_ACC)], foreground=[('selected', 'white')])
-        style.configure("Treeview.Heading", background=COL_STROKE, foreground=COL_TXT, relief="flat", font=("Segoe UI", 12, "bold"))
+        style.configure("Treeview.Heading", background=COL_STROKE, foreground=COL_TXT, relief="flat", font=_pal.font(12, "bold"))
         
         self.tree_frame = ctk.CTkFrame(peak_card, fg_color="transparent")
         self.tree_frame.pack(fill="both", expand=True, padx=10, pady=5)
         
-        columns = ("2th", "int", "d", "fwhm", "size")
+        columns = ("2th", "int", "d", "fwhm", "size", "eta", "r2")
         self.tree = ttk.Treeview(self.tree_frame, columns=columns, show="headings", selectmode="browse")
-        self.tree.heading("2th", text="2θ"); self.tree.column("2th", width=55, anchor="center")
-        self.tree.heading("int", text="Int."); self.tree.column("int", width=55, anchor="center")
-        self.tree.heading("d", text="d(Å)"); self.tree.column("d", width=55, anchor="center")
-        self.tree.heading("fwhm", text="W"); self.tree.column("fwhm", width=48, anchor="center")
-        self.tree.heading("size", text="τ(nm)"); self.tree.column("size", width=55, anchor="center")
+        self.tree.heading("2th", text="2θ (°)"); self.tree.column("2th", width=58, anchor="center")
+        self.tree.heading("int", text="I"); self.tree.column("int", width=50, anchor="center")
+        self.tree.heading("d", text="d (Å)"); self.tree.column("d", width=55, anchor="center")
+        self.tree.heading("fwhm", text="FWHM (°)"); self.tree.column("fwhm", width=62, anchor="center")
+        self.tree.heading("size", text="τ (nm)"); self.tree.column("size", width=52, anchor="center")
+        self.tree.heading("eta", text="η"); self.tree.column("eta", width=40, anchor="center")
+        self.tree.heading("r2", text="R²"); self.tree.column("r2", width=50, anchor="center")
         
         scrollbar = ctk.CTkScrollbar(self.tree_frame, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -262,7 +284,7 @@ class XRDAnalysisTab(ctk.CTkFrame):
         self.frame_preview = ctk.CTkFrame(self.center_panel, fg_color=COL_CARD, border_width=1, border_color=COL_STROKE)
         self.frame_preview.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
         
-        ctk.CTkLabel(self.frame_preview, text="1. Data Preview", font=("Segoe UI", 14, "bold"), text_color=COL_MUT).pack(pady=5)
+        ctk.CTkLabel(self.frame_preview, text="1. Data Preview", font=_pal.font(12, "bold"), text_color=COL_MUT).pack(pady=5)
         
         self.fig_prev, self.ax_prev = plt.subplots(figsize=(4, 5), dpi=100)
         self._setup_ax(self.fig_prev, self.ax_prev)
@@ -273,7 +295,7 @@ class XRDAnalysisTab(ctk.CTkFrame):
         self.frame_result = ctk.CTkFrame(self.center_panel, fg_color=COL_CARD, border_width=1, border_color=COL_STROKE)
         self.frame_result.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
         
-        ctk.CTkLabel(self.frame_result, text="2. Optimized Fitting", font=("Segoe UI", 14, "bold"), text_color=COL_ACC).pack(pady=5)
+        ctk.CTkLabel(self.frame_result, text="2. Optimized Fitting", font=_pal.font(12, "bold"), text_color=COL_ACC).pack(pady=5)
 
         self.fig_res, self.ax_res = plt.subplots(figsize=(4, 5), dpi=100)
         self._setup_ax(self.fig_res, self.ax_res)
@@ -292,26 +314,26 @@ class XRDAnalysisTab(ctk.CTkFrame):
             print(f"plot interactions skip: {_pe}")
         
         # Zoom Controls (Custom) - Right Plot Only for now
-        self.zoom_frame = ctk.CTkFrame(self.frame_result, fg_color="transparent", height=40)
+        self.zoom_frame = ctk.CTkFrame(self.frame_result, fg_color="transparent", height=28)
         self.zoom_frame.pack(side="bottom", fill="x", padx=10, pady=5)
         
-        self.btn_reset = ctk.CTkButton(self.zoom_frame, text="⟲ Reset", command=self.reset_view, width=80, height=32, font=("Segoe UI", 14, "bold"), fg_color="#3D3D3D")
+        self.btn_reset = ctk.CTkButton(self.zoom_frame, text="Reset view", command=self.reset_view, width=80, height=26, font=_pal.font(12, "bold"), fg_color=_pal.BG_SUB)
         self.btn_reset.pack(side="right", padx=5)
         
-        self.btn_undo = ctk.CTkButton(self.zoom_frame, text="↩ Undo", command=self.undo_zoom, width=80, height=32, font=("Segoe UI", 14, "bold"), fg_color="#3D3D3D")
+        self.btn_undo = ctk.CTkButton(self.zoom_frame, text="Undo", command=self.undo_zoom, width=80, height=26, font=_pal.font(12, "bold"), fg_color=_pal.BG_SUB)
         self.btn_undo.pack(side="right", padx=5)
 
         # Drag action mode: Zoom <-> Fit Range
         self.drag_mode = "zoom"
-        self.btn_fitrange = ctk.CTkButton(self.zoom_frame, text="🎯 Fit Range: OFF",
-                                          command=self.toggle_fit_range, width=140, height=32,
-                                          font=("Segoe UI", 13, "bold"), fg_color="#3D3D3D")
+        self.btn_fitrange = ctk.CTkButton(self.zoom_frame, text="Fit range: off",
+                                          command=self.toggle_fit_range, width=140, height=26,
+                                          font=_pal.font(13, "bold"), fg_color=_pal.BG_SUB)
         self.btn_fitrange.pack(side="right", padx=5)
 
-        self.btn_wh = ctk.CTkButton(self.zoom_frame, text="📐 W-H Plot",
-                                    command=self.show_williamson_hall, width=110, height=32,
-                                    font=("Segoe UI", 13, "bold"),
-                                    fg_color="#252525", hover_color="#303030")
+        self.btn_wh = ctk.CTkButton(self.zoom_frame, text="W-H plot",
+                                    command=self.show_williamson_hall, width=110, height=26,
+                                    font=_pal.font(13, "bold"),
+                                    fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER)
         self.btn_wh.pack(side="right", padx=5)
 
         # Rectangle Selector for Zoom (Right Plot)
@@ -327,9 +349,9 @@ class XRDAnalysisTab(ctk.CTkFrame):
         self.ai_frame = ctk.CTkFrame(self, fg_color=COL_CARD, border_width=1, border_color=COL_STROKE, height=120)
         self.ai_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 10))
         
-        ctk.CTkLabel(self.ai_frame, text="🤖 AI Insights / Log", font=("Segoe UI", 20, "bold"), text_color=COL_ACC).pack(anchor="w", padx=15, pady=5)
+        ctk.CTkLabel(self.ai_frame, text="Interpretation Insights / Log", font=_pal.font(13, "bold"), text_color=COL_ACC).pack(anchor="w", padx=15, pady=5)
         
-        self.ai_textbox = ctk.CTkTextbox(self.ai_frame, height=80, font=("Consolas", 16), fg_color="#1E1E1E", text_color=COL_TXT)
+        self.ai_textbox = ctk.CTkTextbox(self.ai_frame, height=80, font=_pal.mono(11), fg_color=_pal.BG_CARD, text_color=COL_TXT)
         self.ai_textbox.pack(fill="x", padx=15, pady=(0, 15))
         self.log("Ready. Load data to start.")
         self.ai_textbox.configure(state="disabled")
@@ -383,15 +405,29 @@ class XRDAnalysisTab(ctk.CTkFrame):
         if self.x_data is None: return
         
         try:
-            self.log("Running Optimized Voigt Fitting...")
-            
+            self.log("Running pseudo-Voigt fitting...")
+            inst, k = self._analysis_options()
+            y_in = self.y_data
+            if self.var_ka2.get():
+                y_in = xrd_core.strip_kalpha2(self.x_data, self.y_data)
+                self.log("Cu Kα2 contribution stripped (Rachinger, I2/I1 = 0.5).")
+            self.y_used = y_in
+
             # --- Call Core Logic (Returns DF and Fitted Curve) ---
-            self.current_peaks_df, self.y_fit_total = xrd_core.detect_peaks_and_fit(self.x_data, self.y_data)
+            self.current_peaks_df, self.y_fit_total = xrd_core.detect_peaks_and_fit(
+                self.x_data, y_in, instrumental_fwhm_deg=inst, scherrer_k=k)
+            try:
+                ci = xrd_core.crystallinity_index(self.x_data, y_in)
+                self.ci_result = ci
+                self.lbl_ci.configure(text=f"Crystallinity index: {ci['CI_percent']:.1f} % (ALS amorphous background)")
+            except Exception:
+                self.ci_result = None
             
             # --- Right Plot: Fitting Result ---
             self.ax_res.clear()
             # 1. Raw Data (Background)
-            self.ax_res.scatter(self.x_data, self.y_data, s=5, color='gray', alpha=0.4, label='Raw')
+            self.ax_res.scatter(self.x_data, y_in, s=5, color='gray', alpha=0.4,
+                                label='Kα1 (Kα2 stripped)' if self.var_ka2.get() else 'Raw')
             
             # 2. Fitted Curve (Red Line)
             if self.y_fit_total is not None:
@@ -401,7 +437,7 @@ class XRDAnalysisTab(ctk.CTkFrame):
             if not self.current_peaks_df.empty:
                 px = self.current_peaks_df["2Theta"]
                 py = self.current_peaks_df["Intensity"]
-                self.ax_res.plot(px, py, "v", color="#00FF00", markersize=6, label="Peak")
+                self.ax_res.plot(px, py, "v", color=_pal.GREEN, markersize=6, label="Peak")
                 
                 # Annotate top peaks
                 for i in range(min(3, len(self.current_peaks_df))):
@@ -411,15 +447,7 @@ class XRDAnalysisTab(ctk.CTkFrame):
 
                 # Update Treeview
                 for item in self.tree.get_children(): self.tree.delete(item)
-                for _, row in self.current_peaks_df.iterrows():
-                    size_nm = row.get('Crystallite_nm', float('nan'))
-                    self.tree.insert("", "end", values=(
-                        f"{row['2Theta']:.2f}",
-                        f"{row['Intensity']:.0f}",
-                        f"{row['d_spacing']:.3f}",
-                        f"{row['FWHM']:.3f}",
-                        f"{size_nm:.1f}" if pd.notna(size_nm) else "-"
-                    ))
+                self._refresh_peak_table()
             
             self.ax_res.set_title("Fitted Result", color=COL_TXT, fontsize=14)
             self.ax_res.legend()
@@ -459,9 +487,9 @@ class XRDAnalysisTab(ctk.CTkFrame):
             self.after(0, lambda err=str(e): self.update_ai_ui(f"Error: {err}"))
 
     def update_ai_ui(self, text):
-        self.log("AI Analysis Complete.")
+        self.log("Interpretation Complete.")
         # Show Result in Popup
-        AIResultDialog(self, "XRD AI Analysis", text)
+        AIResultDialog(self, "XRD Interpretation", text)
         self.btn_ai.configure(state="normal")
         
     def plot_to_origin(self):
@@ -499,10 +527,10 @@ class XRDAnalysisTab(ctk.CTkFrame):
     def toggle_fit_range(self):
         self.drag_mode = "fit" if self.drag_mode == "zoom" else "zoom"
         if self.drag_mode == "fit":
-            self.btn_fitrange.configure(text="🎯 Fit Range: ON", fg_color="#10B981")
+            self.btn_fitrange.configure(text="Fit range: on", fg_color=_pal.GREEN)
             self.log("Fit Range mode: fits only the dragged 2-theta range.")
         else:
-            self.btn_fitrange.configure(text="🎯 Fit Range: OFF", fg_color="#3D3D3D")
+            self.btn_fitrange.configure(text="Fit range: off", fg_color=_pal.BG_SUB)
             self.log("Back to Zoom mode.")
 
     def fit_selected_range(self, xmin, xmax):
@@ -536,7 +564,7 @@ class XRDAnalysisTab(ctk.CTkFrame):
             self.current_peaks_df = sub_df
 
         # Draw overlay
-        self.ax_res.plot(self.x_data[mask], sub_fit, color="#10B981",
+        self.ax_res.plot(self.x_data[mask], sub_fit, color=_pal.GREEN,
                          linewidth=1.8, label=f"Fit [{xmin:.1f}-{xmax:.1f}]")
         self.ax_res.legend(fontsize=8)
         self.canvas_res.draw()
@@ -544,20 +572,133 @@ class XRDAnalysisTab(ctk.CTkFrame):
         self.log(f"Range [{xmin:.2f}, {xmax:.2f}] fitted: {len(sub_df)} peaks "
                  f"(mean FWHM {sub_df['FWHM'].mean():.3f} deg)")
 
+    def _analysis_options(self):
+        try:
+            inst = max(float(self.ent_inst.get()), 0.0)
+        except (ValueError, AttributeError):
+            inst = 0.0
+        try:
+            k = float(self.ent_k.get())
+            if not 0.5 < k < 1.5:
+                k = 0.9
+        except (ValueError, AttributeError):
+            k = 0.9
+        return inst, k
+
     def _refresh_peak_table(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
         if self.current_peaks_df is None:
             return
         for _, row in self.current_peaks_df.iterrows():
+            size_nm = row.get('Crystallite_nm', float('nan'))
+            eta = row.get('eta_pV', float('nan'))
+            r2 = row.get('Fit_R2', float('nan'))
             self.tree.insert("", "end", values=(
-                f"{row['2Theta']:.2f}", f"{row['Intensity']:.0f}",
-                f"{row['d_spacing']:.3f}", f"{row['FWHM']:.3f}"))
+                f"{row['2Theta']:.3f}", f"{row['Intensity']:.0f}",
+                f"{row['d_spacing']:.4f}", f"{row['FWHM']:.3f}",
+                f"{size_nm:.1f}" if pd.notna(size_nm) else "-",
+                f"{eta:.2f}" if pd.notna(eta) else "-",
+                f"{r2:.3f}" if pd.notna(r2) else "-"))
+
+    def show_lattice_dialog(self):
+        """Cubic lattice parameter from indexed reflections (mean and Nelson-Riley)."""
+        df = self.current_peaks_df
+        if df is None or df.empty:
+            messagebox.showwarning("Lattice parameter", "Run the fitting first.")
+            return
+        win = ctk.CTkToplevel(self)
+        win.title("Lattice parameter (cubic)")
+        win.geometry("520x520")
+        win.configure(fg_color=_pal.BG_WINDOW)
+        win.transient(self.winfo_toplevel())
+        ctk.CTkLabel(win, text="Enter h k l for the reflections to use (leave blank to skip). "
+                              "a = d·sqrt(h²+k²+l²); the Nelson-Riley extrapolation to θ = 90° removes "
+                              "displacement and absorption errors.", font=_pal.font(10), text_color=COL_MUT,
+                     wraplength=490, justify="left").pack(anchor="w", padx=12, pady=(12, 6))
+        frame = ctk.CTkScrollableFrame(win, fg_color=COL_CARD, height=250)
+        frame.pack(fill="both", expand=True, padx=12)
+        entries = []
+        peaks = df.sort_values("2Theta")
+        for _, row in peaks.iterrows():
+            r = ctk.CTkFrame(frame, fg_color="transparent")
+            r.pack(fill="x", pady=2)
+            ctk.CTkLabel(r, text=f"2θ = {row['2Theta']:.3f}°   d = {row['d_spacing']:.4f} Å", font=_pal.font(10),
+                         text_color=COL_TXT, width=240, anchor="w").pack(side="left")
+            e = _theme.entry(r, width=90, height=24, placeholder_text="h k l")
+            e.pack(side="right")
+            entries.append((float(row["2Theta"]), e))
+        out = ctk.CTkTextbox(win, height=110, font=_pal.mono(10), fg_color=COL_CARD, text_color=COL_TXT)
+        out.pack(fill="x", padx=12, pady=8)
+
+        def compute():
+            tt, hkl = [], []
+            for two_theta, e in entries:
+                txt = e.get().strip().replace(",", " ")
+                if not txt:
+                    continue
+                parts = txt.split()
+                if len(parts) != 3:
+                    messagebox.showwarning("Lattice parameter", f"'{txt}' is not an h k l triple.", parent=win)
+                    return
+                try:
+                    hkl.append(tuple(int(v) for v in parts))
+                except ValueError:
+                    messagebox.showwarning("Lattice parameter", f"'{txt}' is not an h k l triple.", parent=win)
+                    return
+                tt.append(two_theta)
+            if len(tt) < 1:
+                return
+            res = xrd_core.lattice_parameter_cubic(tt, hkl)
+            lines = [f"a (mean of {len(tt)} reflections) = {res['a_mean_A']:.5f} ± {res['a_std_A']:.5f} Å"]
+            if np.isfinite(res["a_NR_A"]):
+                lines.append(f"a (Nelson-Riley extrapolation) = {res['a_NR_A']:.5f} Å   (R² = {res['NR_R2']:.3f})")
+            else:
+                lines.append("Nelson-Riley extrapolation needs at least 3 indexed reflections.")
+            for (h, k_, l), a in zip(hkl, res["a_per_peak_A"]):
+                lines.append(f"  ({h} {k_} {l}): a = {a:.5f} Å")
+            out.configure(state="normal")
+            out.delete("1.0", "end")
+            out.insert("1.0", "\n".join(lines))
+            out.configure(state="disabled")
+            self.lattice_result = res
+            self.log(lines[0] + ("; " + lines[1] if len(lines) > 1 else ""))
+
+        ctk.CTkButton(win, text="Compute", height=28, fg_color=COL_ACC, hover_color=_pal.ACCENT_HOV, text_color="white",
+                      font=_pal.font(11, "bold"), corner_radius=_pal.R_PILL, command=compute).pack(pady=(0, 12))
+
+    def export_report(self):
+        if self.current_peaks_df is None or self.current_peaks_df.empty:
+            messagebox.showwarning("Report", "Run the fitting first.")
+            return
+        path = _report.ask_report_path(self, "XRD_report.md")
+        if not path:
+            return
+        inst, k = self._analysis_options()
+        sections = [("Fitted reflections", self.current_peaks_df.round(5))]
+        if getattr(self, "wh_result", None):
+            wh = self.wh_result
+            sections.append(("Williamson-Hall", {"Crystallite size D (nm)": wh["D_nm"], "D standard error (nm)": wh["D_err_nm"],
+                                                 "Microstrain": wh["strain"], "Strain standard error": wh["strain_err"],
+                                                 "R²": wh["R2"], "Reflections": wh["n_peaks"]}))
+        if getattr(self, "ci_result", None):
+            sections.append(("Crystallinity", {"Crystallinity index (%)": self.ci_result["CI_percent"]}))
+        if getattr(self, "lattice_result", None):
+            lr = self.lattice_result
+            sections.append(("Cubic lattice parameter", {"a mean (Å)": lr["a_mean_A"], "a std (Å)": lr["a_std_A"],
+                                                         "a Nelson-Riley (Å)": lr["a_NR_A"]}))
+        notes = (f"ALS background; overlapping reflections fitted simultaneously with pseudo-Voigt profiles. "
+                 f"Scherrer τ = Kλ/(β cos θ), K = {k}, Cu Kα λ = {xrd_core.LAMBDA_CU} Å, instrument FWHM {inst}° "
+                 f"removed in quadrature. Kα2 stripping: {'on' if self.var_ka2.get() else 'off'}.")
+        try:
+            _report.write_markdown_report(path, "XRD analysis", sections, figure=self.fig_res, notes=notes)
+            self.log(f"Report saved: {path}")
+        except Exception as ex:
+            messagebox.showerror("Report", str(ex))
 
     def show_williamson_hall(self):
-        """Williamson-Hall plot: beta*cos(theta) = K*lambda/D + 4*eps*sin(theta)
-        slope = microstrain (eps), intercept = K*lambda/D -> crystallite size D.
-        Note: instrumental broadening is not corrected."""
+        """Williamson-Hall plot (xrd_core.williamson_hall): beta cos(theta) = K lambda/D + 4 eps sin(theta),
+        with the instrument FWHM from the options removed in quadrature."""
         df = self.current_peaks_df
         if df is None or df.empty:
             messagebox.showwarning("W-H", "Run Analysis to fit peaks first.")
@@ -567,65 +708,63 @@ class XRDAnalysisTab(ctk.CTkFrame):
             messagebox.showwarning("W-H", "W-H plot needs at least 2 valid peaks.")
             return
 
-        K = 0.9
+        inst, K = self._analysis_options()
         lam = xrd_core.LAMBDA_CU  # Å
+        wh = xrd_core.williamson_hall(d2["2Theta"].values, d2["FWHM"].values, instrumental_fwhm_deg=inst, k=K)
+        if wh["n_peaks"] < 2:
+            messagebox.showwarning("W-H", "Fewer than 2 reflections remain after the instrument correction.")
+            return
+        self.wh_result = wh
+        X, Y = wh["x"], wh["y"]
+        m, b = wh["slope"], wh["intercept"]
+        eps, D_nm, r2 = wh["strain"], wh["D_nm"], wh["R2"]
         theta = np.radians(d2["2Theta"].values / 2.0)
-        beta = np.radians(d2["FWHM"].values)          # rad
-        X = 4.0 * np.sin(theta)
-        Y = beta * np.cos(theta)
-
-        m, b = np.polyfit(X, Y, 1)
-        eps = m                                        # microstrain (dimensionless)
-        D_nm = (K * lam / b) / 10.0 if b > 0 else float("inf")  # Å→nm
-        # Coefficient of determination
-        yhat = m * X + b
-        ss_res = float(np.sum((Y - yhat) ** 2))
-        ss_tot = float(np.sum((Y - np.mean(Y)) ** 2))
-        r2 = 1 - ss_res / ss_tot if ss_tot else float("nan")
-        # Per-peak Scherrer size
-        D_scherrer_nm = (K * lam / (beta * np.cos(theta))) / 10.0
+        D_scherrer_nm = np.array([xrd_core.scherrer_size(t, f, inst, K) for t, f in zip(d2["2Theta"].values, d2["FWHM"].values)])
 
         win = ctk.CTkToplevel(self)
         win.title("Williamson-Hall Plot")
         win.geometry("760x600")
-        win.configure(fg_color="#0A0A0A")
+        win.configure(fg_color=_pal.BG_WINDOW)
         win.transient(self.winfo_toplevel())
 
         from matplotlib.figure import Figure as _Fig
         from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg as _Canvas
-        fig = _Fig(figsize=(7, 4), dpi=100, facecolor="#1E1E1E")
+        fig = _Fig(figsize=(7, 4), dpi=100, facecolor=_pal.BG_CARD)
         ax = fig.add_subplot(111)
-        ax.set_facecolor("#161616")
+        ax.set_facecolor(_pal.PLOT_AXES)
         for sp in ax.spines.values():
-            sp.set_color("#444444")
-        ax.tick_params(colors="#AAAAAA")
-        ax.scatter(X, Y, s=45, color="#3182F6", zorder=3, label="peaks")
+            sp.set_color(_pal.PLOT_SPINE)
+        ax.tick_params(colors=_pal.PLOT_TICK)
+        ax.scatter(X, Y, s=45, color=_pal.ACCENT, zorder=3, label="peaks")
         xs = np.linspace(0, X.max() * 1.05, 100)
-        ax.plot(xs, m * xs + b, color="#EF4444", linewidth=2,
+        ax.plot(xs, m * xs + b, color=_pal.RED, linewidth=2,
                 label=f"fit  (R²={r2:.4f})")
-        ax.set_xlabel("4·sinθ", color="#DDDDDD")
-        ax.set_ylabel("β·cosθ (rad)", color="#DDDDDD")
-        ax.set_title(f"D = {D_nm:.1f} nm   ε = {eps:.2e}", color="white")
-        ax.grid(True, linestyle="--", alpha=0.3, color="#252525")
-        ax.legend(facecolor="#252525", edgecolor="#444444", labelcolor="#DDDDDD")
+        ax.set_xlabel("4·sinθ", color=_pal.TXT_MUTED)
+        ax.set_ylabel("β·cosθ (rad)", color=_pal.TXT_MUTED)
+        err_d = f" ± {wh['D_err_nm']:.1f}" if np.isfinite(wh["D_err_nm"]) else ""
+        err_e = f" ± {wh['strain_err']:.1e}" if np.isfinite(wh["strain_err"]) else ""
+        ax.set_title(f"D = {D_nm:.1f}{err_d} nm    ε = {eps:.2e}{err_e}", color=_pal.PLOT_FG)
+        ax.grid(True, linestyle="--", alpha=0.3, color=_pal.BG_SUB)
+        ax.legend(facecolor=_pal.BG_SUB, edgecolor=_pal.PLOT_SPINE, labelcolor=_pal.TXT_MUTED)
         fig.tight_layout()
         cv = _Canvas(fig, master=win)
         cv.get_tk_widget().pack(fill="both", expand=True, padx=12, pady=12)
         cv.draw()
 
-        txt = ctk.CTkTextbox(win, height=150, font=("Consolas", 12),
-                             fg_color="#1E1E1E", text_color="#DDDDDD")
+        txt = ctk.CTkTextbox(win, height=150, font=_pal.mono(11),
+                             fg_color=_pal.BG_CARD, text_color=_pal.TXT_MUTED)
         txt.pack(fill="x", padx=12, pady=(0, 12))
         lines = [f"Williamson-Hall:  βcosθ = Kλ/D + 4ε·sinθ   (K={K}, λ={lam} Å, Cu Kα)",
-                 f"  Crystallite size D = {D_nm:.2f} nm   |   Microstrain ε = {eps:.3e}   |   R² = {r2:.4f}",
-                 f"  (note: instrumental broadening not corrected -> D is a lower bound)",
+                 f"  Crystallite size D = {D_nm:.2f}{err_d} nm   |   Microstrain ε = {eps:.3e}{err_e}   |   R² = {r2:.4f}",
+                 (f"  instrument FWHM {inst}° removed in quadrature" if inst > 0 else
+                  "  (note: no instrument correction entered -> D is a lower bound)"),
                  "-" * 72,
                  f"  {'2θ(°)':>8} {'FWHM(°)':>9} {'Scherrer D(nm)':>15}"]
         for tt, fw, dd in zip(d2['2Theta'].values, d2['FWHM'].values, D_scherrer_nm):
             lines.append(f"  {tt:>8.2f} {fw:>9.3f} {dd:>15.1f}")
         txt.insert("1.0", "\n".join(lines))
         txt.configure(state="disabled")
-        self.log(f"W-H: D={D_nm:.1f} nm, ε={eps:.2e} (R²={r2:.3f})")
+        self.log(f"W-H: D = {D_nm:.1f}{err_d} nm, ε = {eps:.2e}{err_e} (R² = {r2:.3f}, {wh['n_peaks']} reflections)")
 
     def undo_zoom(self):
         if self.zoom_history:
@@ -682,13 +821,16 @@ class AnalysisWindow(ctk.CTkToplevel):
         if _shell is not None:
             try:
                 _shell.attach_chrome(self, "XRD Analysis", {
-                    "open": ("📁 Open", self.tab.load_data),
-                    "run": ("▶ Run Analysis", self.tab.run_analysis),
-                    "fit": [("📐 W-H Plot", self.tab.show_williamson_hall)],
+                    "open": ("Open", self.tab.load_data),
+                    "run": ("Run analysis", self.tab.run_analysis),
+                    "fit": [("W-H plot", self.tab.show_williamson_hall),
+                            ("Lattice parameter", self.tab.show_lattice_dialog)],
                     "png": True,
+                    "report": ("Report", self.tab.export_report),
                     "origin": ("Origin", self.tab.plot_to_origin),
-                    "ai": ("🤖 AI", self.tab.trigger_ai)
-                }, hints="Open -> Process -> Fit -> Export  |  shared toolbar across all tools")
+                    "ai": ("Interpretation", self.tab.trigger_ai)
+                }, hints="Drag on the fit plot: zoom (or fit range when 'Fit range' is on)  |  Click a peak row: zoom to it  |  "
+                         "Wheel: zoom  |  Right-click: menus")
             except Exception as _ce:
                 print(f"shell skip: {_ce}")
 
@@ -698,7 +840,7 @@ class AnalysisWindow(ctk.CTkToplevel):
 
 if __name__ == "__main__":
     try:
-        ctk.set_appearance_mode("Dark")
+        ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
         root = ctk.CTk()
         AnalysisWindow(root)
         root.mainloop()

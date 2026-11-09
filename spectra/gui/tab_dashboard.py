@@ -1,10 +1,6 @@
 # gui/tab_dashboard.py
 # ------------------------------------------------------------
-# Spectra Processor v4 - Dark Dashboard Tab (XRD / PL)
-# ✅ Left: ALL parameters restored + AI (Gemini) selector
-# ✅ Actions: Load / RUN(RED) / Save / Export Excel / Batch / 🔥 AI Report
-# ✅ Plot: Before/After toggle + Show only fitted + Preview mode
-# ✅ Box Plot: REMOVED
+# Auto-fit workspace tab (XRD / PL / XPS): parameters, run, export, batch, report
 #
 # requires:
 #   pip install customtkinter matplotlib numpy pandas openpyxl
@@ -29,6 +25,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
 from scripts.common import app_config
+from scripts.common import theme as _theme
 from spectra.core.config import PipelineConfig
 from spectra.core.utils import safe_sorted_xy, robust_read_csv
 
@@ -37,6 +34,7 @@ from spectra.pipelines.run_pl import run_pl_pipeline
 from spectra.pipelines.run_xps import run_xps_pipeline
 
 from spectra.core.report import generate_ai_peak_report
+from scripts.common import palette as _pal
 
 
 
@@ -51,20 +49,20 @@ def _resolve_api_key() -> str | None:
 # -------------------------
 # Theme (you can tweak)
 # -------------------------
-COL_BG   = "#0b0f16"
-COL_CARD = "#0f1520"
-COL_CARD2 = "#121a27"
-COL_STROKE = "#1e2a3a"
-COL_TXT  = "#e8eefc"
-COL_MUT  = "#9fb0c7"
+COL_BG   = _pal.BG_WINDOW
+COL_CARD = _pal.BG_CARD
+COL_CARD2 = _pal.BG_SUB
+COL_STROKE = _pal.BORDER
+COL_TXT  = _pal.TXT
+COL_MUT  = _pal.TXT_SUB
 
-COL_ACC  = "#2b7fff"
-COL_OK   = "#3ee089"
-COL_WARN = "#ffb020"
-COL_ERR  = "#ff4d4d"
+COL_ACC  = _pal.ACCENT
+COL_OK   = _pal.GREEN
+COL_WARN = _pal.ORANGE
+COL_ERR  = _pal.RED
 
-COL_RUN  = "#e53935"
-COL_RUN_H = "#c62828"
+COL_RUN  = _pal.ACCENT
+COL_RUN_H = _pal.ACCENT_HOV
 
 
 class SpectraDashboardTab(ctk.CTkFrame):
@@ -120,7 +118,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
     # UI helpers
     # -------------------------
     def _card(self, parent, title: str):
-        outer = ctk.CTkFrame(parent, fg_color=COL_CARD, corner_radius=14, border_width=1, border_color=COL_STROKE)
+        outer = ctk.CTkFrame(parent, fg_color=COL_CARD, corner_radius=_pal.R_CARD, border_width=1, border_color=COL_STROKE)
         head = ctk.CTkFrame(outer, fg_color="transparent")
         head.pack(fill="x", padx=12, pady=(10, 0))
         ctk.CTkLabel(head, text=title, text_color=COL_TXT, font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w")
@@ -174,7 +172,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
         self._build_params_card(self.card_params)
 
         # AI
-        self.card_ai = self._card(self.left, "AI (Gemini)")
+        self.card_ai = self._card(self.left, "Interpretation (Gemini, optional)")
         self.card_ai.grid(row=2, column=0, sticky="ew", pady=(0, 12))
         self._build_ai_card(self.card_ai)
 
@@ -203,7 +201,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
         self.center_title.grid(row=0, column=0, sticky="w")
 
         # plot card
-        self.plot_card = ctk.CTkFrame(self.center, fg_color=COL_CARD, corner_radius=16, border_width=1, border_color=COL_STROKE)
+        self.plot_card = ctk.CTkFrame(self.center, fg_color=COL_CARD, corner_radius=_pal.R_CARD, border_width=1, border_color=COL_STROKE)
         self.plot_card.grid(row=1, column=0, sticky="nsew")
         self.plot_card.grid_rowconfigure(1, weight=1)
         self.plot_card.grid_columnconfigure(0, weight=1)
@@ -289,7 +287,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
         self.btn_sheet_apply.grid(row=0, column=2, sticky="e")
 
         # action buttons
-        self.btn_run = ctk.CTkButton(body, text="RUN", command=self.run_clicked, fg_color=COL_RUN, hover_color=COL_RUN_H)
+        self.btn_run = ctk.CTkButton(body, text="Run", command=self.run_clicked, fg_color=COL_ACC, hover_color=_pal.ACCENT_HOV, text_color="white")
         self.btn_run.grid(row=2, column=0, sticky="ew", padx=6, pady=(0, 8))
 
         grid = ctk.CTkFrame(body, fg_color="transparent")
@@ -305,8 +303,12 @@ class SpectraDashboardTab(ctk.CTkFrame):
         self.btn_batch = ctk.CTkButton(grid, text="Batch Folder", command=self.batch_folder, fg_color=COL_CARD2, hover_color=COL_STROKE)
         self.btn_batch.grid(row=1, column=0, sticky="ew", padx=(0, 6))
 
-        self.btn_report = ctk.CTkButton(grid, text="🔥 AI Peak Report", command=self.make_report, fg_color=COL_ACC, hover_color="#1f66d6")
+        self.btn_report = ctk.CTkButton(grid, text="Peak report", command=self.make_report, fg_color=COL_CARD2, hover_color=COL_STROKE)
         self.btn_report.grid(row=1, column=1, sticky="ew", padx=(6, 0))
+        if self.cfg_default.technique == "XPS":
+            self.btn_quant = ctk.CTkButton(grid, text="Quantify (atomic %)...", command=self.quantify_dialog,
+                                           fg_color=COL_CARD2, hover_color=COL_STROKE)
+            self.btn_quant.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
 
         # hide sheet selector initially
         self._set_sheet_ui(False)
@@ -335,7 +337,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
         )
         self.chk_noise.grid(row=4, column=0, columnspan=2, padx=10, pady=(8, 2), sticky="w")
 
-        line = ctk.CTkFrame(body, fg_color=COL_CARD2, corner_radius=12)
+        line = ctk.CTkFrame(body, fg_color=COL_CARD2, corner_radius=_pal.R_CARD)
         line.grid(row=5, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 10))
         line.grid_columnconfigure((1, 3), weight=1)
 
@@ -347,9 +349,33 @@ class SpectraDashboardTab(ctk.CTkFrame):
         self.ent_sep = ctk.CTkEntry(line, fg_color=COL_CARD, width=90); self.ent_sep.insert(0, f"{self.var_min_sep_x.get():g}")
         self.ent_sep.grid(row=0, column=3, padx=(0, 10), pady=8, sticky="ew")
 
+        # XPS block: background, charge referencing, doublet constraints, region of interest
+        if self.cfg_default.technique == "XPS":
+            xp = ctk.CTkFrame(body, fg_color=COL_CARD2, corner_radius=_pal.R_CARD)
+            xp.grid(row=6, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 10))
+            xp.grid_columnconfigure(1, weight=1)
+            ctk.CTkLabel(xp, text="Background", text_color=COL_MUT).grid(row=0, column=0, padx=10, pady=(8, 4), sticky="w")
+            self.var_xps_bg = ctk.StringVar(value=self.cfg_default.xps_background)
+            ctk.CTkOptionMenu(xp, values=["shirley", "asls"], variable=self.var_xps_bg, width=110, height=24,
+                              fg_color=COL_CARD, button_color=COL_CARD, button_hover_color=COL_STROKE).grid(row=0, column=1, padx=10, pady=(8, 4), sticky="e")
+            ctk.CTkLabel(xp, text="Charge shift (eV, added to BE)", text_color=COL_MUT).grid(row=1, column=0, padx=10, pady=4, sticky="w")
+            self.ent_xps_shift = ctk.CTkEntry(xp, fg_color=COL_CARD, width=90); self.ent_xps_shift.insert(0, "0.0")
+            self.ent_xps_shift.grid(row=1, column=1, padx=10, pady=4, sticky="e")
+            ctk.CTkLabel(xp, text="Doublet split (eV; 0 = singlet)", text_color=COL_MUT).grid(row=2, column=0, padx=10, pady=4, sticky="w")
+            self.ent_xps_split = ctk.CTkEntry(xp, fg_color=COL_CARD, width=90); self.ent_xps_split.insert(0, f"{self.cfg_default.xps_split_ev:g}")
+            self.ent_xps_split.grid(row=2, column=1, padx=10, pady=4, sticky="e")
+            ctk.CTkLabel(xp, text="Doublet area ratio (minor/major)", text_color=COL_MUT).grid(row=3, column=0, padx=10, pady=4, sticky="w")
+            self.ent_xps_ratio = ctk.CTkEntry(xp, fg_color=COL_CARD, width=90); self.ent_xps_ratio.insert(0, f"{self.cfg_default.xps_area_ratio:g}")
+            self.ent_xps_ratio.grid(row=3, column=1, padx=10, pady=4, sticky="e")
+            ctk.CTkLabel(xp, text="Region of interest (eV, lo-hi)", text_color=COL_MUT).grid(row=4, column=0, padx=10, pady=(4, 8), sticky="w")
+            self.ent_xps_roi = ctk.CTkEntry(xp, fg_color=COL_CARD, width=90, placeholder_text="e.g. 280-292")
+            self.ent_xps_roi.grid(row=4, column=1, padx=10, pady=(4, 8), sticky="e")
+            ctk.CTkLabel(xp, text="Typical splits: Pb4f 4.87 (3/4), I3d 11.5 (2/3), Ti2p 5.7 (1/2), Sn3d 8.41 (2/3), S2p 1.18 (1/2)",
+                         text_color=COL_MUT, font=ctk.CTkFont(size=10), wraplength=300, justify="left").grid(row=5, column=0, columnspan=2, padx=10, pady=(0, 8), sticky="w")
+
         # PL block
         if self.cfg_default.technique == "PL":
-            pl = ctk.CTkFrame(body, fg_color=COL_CARD2, corner_radius=12)
+            pl = ctk.CTkFrame(body, fg_color=COL_CARD2, corner_radius=_pal.R_CARD)
             pl.grid(row=6, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 10))
             pl.grid_columnconfigure(1, weight=1)
 
@@ -369,7 +395,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
         body.grid_columnconfigure(1, weight=1)
 
         self.chk_ai = ctk.CTkCheckBox(
-            body, text="Use Gemini (hint/report)",
+            body, text="Add Gemini commentary to the report",
             variable=self.var_use_gemini, text_color=COL_TXT, fg_color=COL_ACC
         )
         self.chk_ai.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 6), sticky="w")
@@ -492,6 +518,26 @@ class SpectraDashboardTab(ctk.CTkFrame):
             cfg.pl_defect_fwhm_threshold = float(self.ent_pl_thr.get())
         else:
             cfg.pl_enable_aic = False
+        if cfg.technique == "XPS":
+            cfg.xps_background = str(self.var_xps_bg.get())
+            try:
+                cfg.xps_charge_shift_ev = float(self.ent_xps_shift.get() or 0.0)
+            except ValueError:
+                cfg.xps_charge_shift_ev = 0.0
+            try:
+                cfg.xps_split_ev = float(self.ent_xps_split.get() or 0.0)
+                cfg.xps_area_ratio = float(self.ent_xps_ratio.get() or 0.5)
+            except ValueError:
+                pass
+            roi = self.ent_xps_roi.get().replace(" ", "")
+            if "-" in roi:
+                try:
+                    lo, hi = roi.split("-", 1)
+                    cfg.xps_roi_min, cfg.xps_roi_max = float(lo), float(hi)
+                except ValueError:
+                    cfg.xps_roi_min = cfg.xps_roi_max = 0.0
+            else:
+                cfg.xps_roi_min = cfg.xps_roi_max = 0.0
 
         return cfg
 
@@ -628,7 +674,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
                 self.proc, self.cand, self.fitted = proc, cand, fitted
 
                 # auto report
-                self._log("🔥 Generating AI peak report...")
+                self._log("Generating peak report...")
                 rp = generate_ai_peak_report(
                     proc=proc, cand=cand, fitted=fitted, cfg=cfg,
                     outdir=outdir,
@@ -730,7 +776,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
 
         try:
             cfg = self._cfg_from_ui()
-            self._log("🔥 Generating AI peak report (manual)...")
+            self._log("Generating peak report...")
             rp = generate_ai_peak_report(
                 proc=self.proc, cand=self.cand, fitted=self.fitted, cfg=cfg,
                 outdir=outdir,
@@ -740,6 +786,73 @@ class SpectraDashboardTab(ctk.CTkFrame):
             self._log(f"Report written: {rp}")
         except Exception as e:
             self._log(f"[ERR] Report: {e}")
+
+    def quantify_dialog(self):
+        """Atomic concentration from fitted peak areas with editable sensitivity factors."""
+        if self.fitted is None or self.fitted.empty:
+            self._log("Quantify: run the fit first.")
+            return
+        from spectra.core import xps as _xps
+        win = ctk.CTkToplevel(self)
+        win.title("Atomic concentration")
+        win.geometry("640x520")
+        win.configure(fg_color=COL_BG)
+        ctk.CTkLabel(win, text="Assign each fitted peak to a core level (e.g. C1s, O1s, Pb4f) and give its relative "
+                              "sensitivity factor. Scofield values (relative to C 1s = 1) are filled in when the "
+                              "name is recognised; prefer the factors supplied with your spectrometer.",
+                     text_color=COL_MUT, wraplength=600, justify="left").pack(anchor="w", padx=12, pady=(12, 6))
+        frame = ctk.CTkScrollableFrame(win, fg_color=COL_CARD, height=260)
+        frame.pack(fill="both", expand=True, padx=12)
+        hdr = ctk.CTkFrame(frame, fg_color="transparent"); hdr.pack(fill="x")
+        for text, w in (("Centre (eV)", 90), ("Area", 110), ("Core level", 120), ("RSF", 90), ("Use", 50)):
+            ctk.CTkLabel(hdr, text=text, width=w, text_color=COL_MUT, anchor="w").pack(side="left", padx=4)
+        rows = []
+        for _, r in self.fitted.sort_values("center").iterrows():
+            fr = ctk.CTkFrame(frame, fg_color="transparent"); fr.pack(fill="x", pady=1)
+            ctk.CTkLabel(fr, text=f"{r['center']:.2f}", width=90, anchor="w", text_color=COL_TXT).pack(side="left", padx=4)
+            ctk.CTkLabel(fr, text=f"{r['area_amplitude']:.4g}", width=110, anchor="w", text_color=COL_TXT).pack(side="left", padx=4)
+            e_name = ctk.CTkEntry(fr, width=120, fg_color=COL_CARD2); e_name.pack(side="left", padx=4)
+            e_rsf = ctk.CTkEntry(fr, width=90, fg_color=COL_CARD2); e_rsf.pack(side="left", padx=4)
+            use = ctk.BooleanVar(value=True)
+            ctk.CTkCheckBox(fr, text="", variable=use, width=40, checkbox_width=16, checkbox_height=16).pack(side="left", padx=4)
+
+            def _autofill(_ev=None, e_name=e_name, e_rsf=e_rsf):
+                base = e_name.get().strip().split("_")[0]
+                if base in _xps.SCOFIELD_RSF and not e_rsf.get().strip():
+                    e_rsf.insert(0, f"{_xps.SCOFIELD_RSF[base]:g}")
+            e_name.bind("<FocusOut>", _autofill)
+            rows.append((float(r["area_amplitude"]), e_name, e_rsf, use))
+        out = ctk.CTkTextbox(win, height=120, fg_color=COL_CARD2, text_color=COL_TXT)
+        out.pack(fill="x", padx=12, pady=8)
+
+        def compute():
+            areas, rsf = {}, {}
+            for area, e_name, e_rsf, use in rows:
+                if not use.get():
+                    continue
+                name = e_name.get().strip()
+                if not name:
+                    continue
+                key = name
+                k = 2
+                while key in areas:
+                    key = f"{name}_{k}"; k += 1
+                areas[key] = area
+                try:
+                    if e_rsf.get().strip():
+                        rsf[key] = float(e_rsf.get())
+                except ValueError:
+                    pass
+            try:
+                conc = _xps.atomic_concentration(areas, rsf)
+            except ValueError as ex:
+                out.configure(state="normal"); out.delete("1.0", "end"); out.insert("1.0", f"{ex}"); out.configure(state="disabled")
+                return
+            lines = [f"{k:12s} {v:6.2f} at.%" for k, v in conc.items()]
+            out.configure(state="normal"); out.delete("1.0", "end"); out.insert("1.0", "\n".join(lines)); out.configure(state="disabled")
+            self._log("Atomic concentration: " + ", ".join(f"{k} {v:.1f}%" for k, v in conc.items()))
+
+        ctk.CTkButton(win, text="Compute", command=compute, fg_color=COL_ACC, hover_color=_pal.ACCENT_HOV).pack(pady=(0, 12))
 
     def batch_folder(self):
         import tkinter as tk

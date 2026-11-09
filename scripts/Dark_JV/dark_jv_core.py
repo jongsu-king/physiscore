@@ -14,6 +14,7 @@ import openpyxl
 from scripts.common import app_config
 from scripts.common.naming import display_name_from_path, natural_sort_key
 from scripts.common.origin import WIN32COM_AVAILABLE, connect_to_origin
+from scripts.common import palette as _pal
 
 # =========================
 # Constants & Settings
@@ -386,15 +387,14 @@ def create_dark_iv_plot(ax, combined_data: pd.DataFrame, settings: DarkJVSetting
     ax.clear()
 
     if combined_data.empty:
-        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color='#888888')
+        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     # Plot each sample
     voltage_col = 'Voltage(V)'
     sample_cols = [col for col in combined_data.columns if col != voltage_col]
 
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-              '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    colors = _pal.SERIES_COLORS
 
     for i, col in enumerate(sample_cols):
         color = colors[i % len(colors)]
@@ -405,14 +405,14 @@ def create_dark_iv_plot(ax, combined_data: pd.DataFrame, settings: DarkJVSetting
         ax.semilogy(voltage, current, '-', linewidth=2, label=col, color=color)
 
     # Style - white labels
-    ax.set_xlabel("Voltage (V)", fontsize=12, color='white')
-    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color='white')
+    ax.set_xlabel("Voltage (V)", fontsize=12, color=_pal.PLOT_FG)
+    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color=_pal.PLOT_FG)
     ax.set_xlim(settings.x_min, settings.x_max)
     ax.set_ylim(settings.y_min, settings.y_max)
 
     # Reference lines
-    ax.axhline(y=1, color='#555555', linewidth=0.8, linestyle='-')
-    ax.axvline(x=0, color='#555555', linewidth=0.8, linestyle='-')
+    ax.axhline(y=1, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
+    ax.axvline(x=0, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
 
     # Grid
     ax.grid(True, which='both', alpha=0.3, linestyle='--')
@@ -428,7 +428,7 @@ def create_single_dark_iv_plot(ax, combined_data: pd.DataFrame, sample_name: str
     ax.clear()
 
     if combined_data.empty:
-        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color='#888888')
+        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     voltage_col = 'Voltage(V)'
@@ -442,25 +442,25 @@ def create_single_dark_iv_plot(ax, combined_data: pd.DataFrame, sample_name: str
 
     if matching_col is None:
         ax.text(0.5, 0.5, f"Sample '{sample_name}' not found",
-                ha='center', va='center', fontsize=14, color='#888888')
+                ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     voltage = combined_data[voltage_col]
     current = combined_data[matching_col]
 
     # Plot selected sample with semilogy
-    ax.semilogy(voltage, current, '-', linewidth=2.5, label=matching_col, color='#3182F6')
+    ax.semilogy(voltage, current, '-', linewidth=2.5, label=matching_col, color=_pal.ACCENT)
 
     # Style - white labels
-    ax.set_xlabel("Voltage (V)", fontsize=12, color='white')
-    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color='white')
+    ax.set_xlabel("Voltage (V)", fontsize=12, color=_pal.PLOT_FG)
+    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color=_pal.PLOT_FG)
     ax.set_xlim(settings.x_min, settings.x_max)
     ax.set_ylim(settings.y_min, settings.y_max)
-    ax.set_title(f"{sample_name}", fontsize=14, color='white')
+    ax.set_title(f"{sample_name}", fontsize=14, color=_pal.PLOT_FG)
 
     # Reference lines
-    ax.axhline(y=1, color='#555555', linewidth=0.8, linestyle='-')
-    ax.axvline(x=0, color='#555555', linewidth=0.8, linestyle='-')
+    ax.axhline(y=1, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
+    ax.axvline(x=0, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
 
     # Grid
     ax.grid(True, which='both', alpha=0.3, linestyle='--')
@@ -474,13 +474,12 @@ def create_multi_dark_iv_plot(ax, combined_data: pd.DataFrame, sample_names: Lis
     ax.clear()
 
     if combined_data.empty:
-        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color='#888888')
+        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     voltage_col = 'Voltage(V)'
 
-    colors = ['#3182F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-              '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16']
+    colors = _pal.SERIES_COLORS
 
     plotted = False
     for i, sample_name in enumerate(sample_names):
@@ -501,23 +500,23 @@ def create_multi_dark_iv_plot(ax, combined_data: pd.DataFrame, sample_names: Lis
 
     if not plotted:
         ax.text(0.5, 0.5, "No matching samples found",
-                ha='center', va='center', fontsize=14, color='#888888')
+                ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     # Style - white labels
-    ax.set_xlabel("Voltage (V)", fontsize=12, color='white')
-    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color='white')
+    ax.set_xlabel("Voltage (V)", fontsize=12, color=_pal.PLOT_FG)
+    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color=_pal.PLOT_FG)
     ax.set_xlim(settings.x_min, settings.x_max)
     ax.set_ylim(settings.y_min, settings.y_max)
 
     if len(sample_names) <= 3:
-        ax.set_title(", ".join(sample_names), fontsize=12, color='white')
+        ax.set_title(", ".join(sample_names), fontsize=12, color=_pal.PLOT_FG)
     else:
-        ax.set_title(f"Multiple Samples ({len(sample_names)})", fontsize=12, color='white')
+        ax.set_title(f"Multiple Samples ({len(sample_names)})", fontsize=12, color=_pal.PLOT_FG)
 
     # Reference lines
-    ax.axhline(y=1, color='#555555', linewidth=0.8, linestyle='-')
-    ax.axvline(x=0, color='#555555', linewidth=0.8, linestyle='-')
+    ax.axhline(y=1, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
+    ax.axvline(x=0, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
 
     # Grid
     ax.grid(True, which='both', alpha=0.3, linestyle='--')

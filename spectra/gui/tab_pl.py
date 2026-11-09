@@ -21,6 +21,7 @@ from spectra.core.config import PipelineConfig
 from spectra.core.utils import safe_sorted_xy, robust_read_csv
 from spectra.pipelines.run_pl import run_pl_pipeline
 from spectra.core.report import generate_ai_peak_report
+from scripts.common import palette as _pal
 
 
 def _resolve_api_key() -> str | None:
@@ -32,16 +33,16 @@ def _resolve_api_key() -> str | None:
     return app_config.api_key()
 
 # Theme
-COL_BG = "#0b0f16"
-COL_CARD = "#0f1520"
-COL_STROKE = "#1e2a3a"
-COL_TXT = "#e8eefc"
-COL_MUT = "#9fb0c7"
-COL_ACC = "#2b7fff"
-COL_OK = "#3ee089"
-COL_ERR = "#ff4d4d"
+COL_BG = _pal.BG_WINDOW
+COL_CARD = _pal.BG_CARD
+COL_STROKE = _pal.BORDER
+COL_TXT = _pal.TXT
+COL_MUT = _pal.TXT_SUB
+COL_ACC = _pal.ACCENT
+COL_OK = _pal.GREEN
+COL_ERR = _pal.RED
 
-COLORS = ["#3182F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#06B6D4", "#F97316", "#14B8A6"]
+COLORS = list(_pal.SERIES_COLORS)
 
 
 class PLAnalysisTab(ctk.CTkFrame):
@@ -99,8 +100,8 @@ class PLAnalysisTab(ctk.CTkFrame):
         self._build_log()
 
     def _card(self, parent, title):
-        card = ctk.CTkFrame(parent, fg_color=COL_CARD, corner_radius=16, border_width=1, border_color=COL_STROKE)
-        hdr = ctk.CTkFrame(card, fg_color="transparent", height=32)
+        card = ctk.CTkFrame(parent, fg_color=COL_CARD, corner_radius=_pal.R_CARD, border_width=1, border_color=COL_STROKE)
+        hdr = ctk.CTkFrame(card, fg_color="transparent", height=26)
         hdr.pack(fill="x", padx=16, pady=(12, 6))
         ctk.CTkLabel(hdr, text=title, text_color=COL_TXT, font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
         body = ctk.CTkFrame(card, fg_color="transparent")
@@ -112,20 +113,20 @@ class PLAnalysisTab(ctk.CTkFrame):
         card.pack(fill="x", pady=(0, 12))
         body.grid_columnconfigure(0, weight=1)
 
-        self.btn_load = ctk.CTkButton(body, text="📂 Load Data", command=self._load_file, fg_color=COL_ACC, height=36)
+        self.btn_load = ctk.CTkButton(body, text="Load data", command=self._load_file, fg_color=COL_ACC, height=28)
         self.btn_load.grid(row=0, column=0, sticky="ew", pady=(0, 8))
 
         self.btn_run = ctk.CTkButton(
-            body, text="▶ RUN",
+            body, text="Run",
             command=self._run_analysis,
-            fg_color="#e53935", hover_color="#c62828",
-            height=40
+            fg_color=_pal.ACCENT, hover_color=_pal.ACCENT_HOV,
+            height=28
         )
         self.btn_run.grid(row=1, column=0, sticky="ew", pady=(0, 8))
         self.btn_run.configure(state="disabled")
 
         # Export
-        self.btn_export = ctk.CTkButton(body, text="💾 Export Excel", command=self._export_excel, fg_color="gray", height=36)
+        self.btn_export = ctk.CTkButton(body, text="Export Excel", command=self._export_excel, fg_color="gray", height=28)
         self.btn_export.grid(row=2, column=0, sticky="ew", pady=(0, 8))
         self.btn_export.configure(state="disabled")
 
@@ -141,7 +142,7 @@ class PLAnalysisTab(ctk.CTkFrame):
         self.ent_ai_model.insert(0, self.var_model.get())
         self.ent_ai_model.grid(row=0, column=1, sticky="ew", padx=(8, 0))
 
-        self.btn_ai = ctk.CTkButton(body, text="🤖 AI Comment", command=self._ai_comment, fg_color=COL_ACC, height=36)
+        self.btn_ai = ctk.CTkButton(body, text="Interpretation", command=self._ai_comment, fg_color=COL_ACC, height=28)
         self.btn_ai.grid(row=4, column=0, sticky="ew", pady=(0, 8))
         self.btn_ai.configure(state="disabled")
 
@@ -188,7 +189,7 @@ class PLAnalysisTab(ctk.CTkFrame):
             for i, layer in enumerate(self.layers):
                 if layer["name"] == choice:
                     self.ref_layer_idx = i
-                    self._log(f"✓ Reference set: {choice}")
+                    self._log(f"Reference set: {choice}")
                     if any((l.get("fitted") is not None and not l.get("fitted").empty) for l in self.layers):
                         self._calc_bandgap_plqe()
                         self._update_summary()
@@ -207,7 +208,7 @@ class PLAnalysisTab(ctk.CTkFrame):
         title_bar.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(title_bar, text="PL Spectrum", text_color=COL_TXT, font=ctk.CTkFont(size=16, weight="bold")).grid(row=0, column=0, sticky="w")
 
-        plot_card = ctk.CTkFrame(self.center, fg_color=COL_CARD, corner_radius=16, border_width=1, border_color=COL_STROKE)
+        plot_card = ctk.CTkFrame(self.center, fg_color=COL_CARD, corner_radius=_pal.R_CARD, border_width=1, border_color=COL_STROKE)
         plot_card.grid(row=1, column=0, sticky="nsew")
         plot_card.grid_rowconfigure(0, weight=1)
         plot_card.grid_columnconfigure(0, weight=1)
@@ -270,7 +271,7 @@ class PLAnalysisTab(ctk.CTkFrame):
         if self.var_layer_mode.get() == "Interface" and self.ref_layer_idx is not None:
             if 0 <= self.ref_layer_idx < len(self.layers):
                 ref_layer = self.layers[self.ref_layer_idx]
-                ax.plot(ref_layer["x"], ref_layer["y"], color="#ffffff", alpha=0.25, ls="--", lw=1.2, label=f"Ref: {ref_layer['name']}")
+                ax.plot(ref_layer["x"], ref_layer["y"], color=_pal.TXT, alpha=0.25, ls="--", lw=1.2, label=f"Ref: {ref_layer['name']}")
 
         for i, layer in enumerate(self.layers):
             if i not in self.selected_layers:
@@ -367,7 +368,7 @@ class PLAnalysisTab(ctk.CTkFrame):
             self.file_path = path
             self.btn_run.configure(state="normal")
             self.lbl_status.configure(text=f"Loaded: {os.path.basename(path)}", text_color=COL_OK)
-            self._log(f"✓ Loaded {len(self.layers)} layers")
+            self._log(f"Loaded {len(self.layers)} layers")
             self._on_layer_mode()
             self._plot()
 
@@ -420,7 +421,7 @@ class PLAnalysisTab(ctk.CTkFrame):
 
         def task():
             try:
-                self.lbl_status.configure(text="Running...", text_color="#ffb020")
+                self.lbl_status.configure(text="Running...", text_color=_pal.ORANGE)
                 self._log("Starting PL analysis...")
 
                 cfg = PipelineConfig(technique="PL", sg_window=31, sg_poly=3, als_lam=1e5, als_p=0.01)
@@ -438,12 +439,12 @@ class PLAnalysisTab(ctk.CTkFrame):
 
                     layer["proc"] = proc
                     layer["fitted"] = fitted
-                    self._log(f"✓ {layer_name} done")
+                    self._log(f"{layer_name} done")
 
                 self._calc_bandgap_plqe()
 
                 self.lbl_status.configure(text="Done", text_color=COL_OK)
-                self._log("✓ Analysis complete")
+                self._log("Analysis complete")
                 self.btn_export.configure(state="normal")
                 self.btn_ai.configure(state="normal")
                 self._plot()
@@ -519,7 +520,7 @@ class PLAnalysisTab(ctk.CTkFrame):
 
         for i, layer in enumerate(self.layers):
             fitted = layer.get("fitted")
-            bg_col = "#1e2a3a" if i in self.selected_layers else "transparent"
+            bg_col = _pal.BORDER if i in self.selected_layers else "transparent"
             row_frame = ctk.CTkFrame(self.summary_frame, fg_color=bg_col)
             row_frame.pack(fill="x", pady=2)
 
@@ -628,7 +629,7 @@ class PLAnalysisTab(ctk.CTkFrame):
                         used.add(sheet_name)
                         fitted.to_excel(writer, sheet_name=sheet_name, index=False)
 
-            self._log(f"✓ Exported: {os.path.basename(path)}")
+            self._log(f"Exported: {os.path.basename(path)}")
             messagebox.showinfo("Export", "Excel exported successfully")
 
         except Exception as e:
@@ -636,7 +637,7 @@ class PLAnalysisTab(ctk.CTkFrame):
     def _show_ai_report_popup(self, text: str):
         """Show AI report in a large, readable popup window."""
         popup = ctk.CTkToplevel(self)
-        popup.title("🤖 AI Peak Explanation Report")
+        popup.title("Interpretation Peak Explanation Report")
         popup.geometry("1000x700")
         popup.resizable(True, True)
         
@@ -646,7 +647,7 @@ class PLAnalysisTab(ctk.CTkFrame):
         header.pack_propagate(False)
         ctk.CTkLabel(
             header, 
-            text="AI Peak Explanation Report", 
+            text="Peak report", 
             text_color="black",
             font=ctk.CTkFont(size=16, weight="bold")
         ).pack(pady=10)
@@ -663,7 +664,7 @@ class PLAnalysisTab(ctk.CTkFrame):
             fg_color=COL_CARD,
             text_color=COL_TXT,
             font=ctk.CTkFont(family="Courier", size=11),
-            corner_radius=8,
+            corner_radius=_pal.R_PILL,
             border_width=1,
             border_color=COL_STROKE,
             wrap="word"
@@ -678,20 +679,20 @@ class PLAnalysisTab(ctk.CTkFrame):
         
         ctk.CTkButton(
             btn_frame,
-            text="📋 Copy to Clipboard",
+            text="Copy to clipboard",
             command=lambda: self._copy_to_clipboard(text),
             fg_color=COL_ACC,
             text_color="black",
             font=ctk.CTkFont(size=11, weight="bold"),
-            height=36
+            height=28
         ).pack(side="left", padx=5)
         
         ctk.CTkButton(
             btn_frame,
-            text="✓ Close",
+            text="Close",
             command=popup.destroy,
             fg_color="gray",
-            height=36,
+            height=28,
             font=ctk.CTkFont(size=11, weight="bold")
         ).pack(side="right", padx=5)
         
@@ -703,7 +704,7 @@ class PLAnalysisTab(ctk.CTkFrame):
         try:
             self.clipboard_clear()
             self.clipboard_append(text)
-            self._log("✓ Report copied to clipboard")
+            self._log("Report copied to clipboard")
             messagebox.showinfo("Success", "Report copied to clipboard!")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to copy: {e}")

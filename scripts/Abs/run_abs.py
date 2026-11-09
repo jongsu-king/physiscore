@@ -18,6 +18,10 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from matplotlib.widgets import RangeSlider, SpanSelector, RadioButtons
+from scripts.common import palette as _pal
+from scripts.common import theme as _theme
+from scripts.common import report as _report
+from scripts.Abs import abs_core
 
 # Win32com check
 try:
@@ -45,16 +49,16 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.passed_api_key = api_key
 
         # -------------------------
-        # Style (Toss-ish)
+        # Style
         # -------------------------
-        self.card_bg = "#1E1E1E"
-        self.card_border = "#2D2D2D"
-        self.accent_blue = "#3182F6"
-        self.accent_orange = "#F59E0B"
-        self.accent_green = "#10B981"
-        self.accent_purple = "#8B5CF6"
-        self.text_primary = "#FFFFFF"
-        self.text_secondary = "#8B8B8B"
+        self.card_bg = _pal.BG_CARD
+        self.card_border = _pal.BORDER
+        self.accent_blue = _pal.ACCENT
+        self.accent_orange = _pal.ORANGE
+        self.accent_green = _pal.GREEN
+        self.accent_purple = _pal.PURPLE
+        self.text_primary = _pal.TXT
+        self.text_secondary = _pal.TXT_SUB
 
         # -------------------------
         # State
@@ -97,45 +101,50 @@ class AnalysisWindow(ctk.CTkToplevel):
         if _shell is not None:
             try:
                 _shell.attach_chrome(self, "Absorbance / Tauc Analysis", {
-                    "open": ("📁 Open Excel", self.browse_excel),
-                    "run": ("▶ Load & Plot", self.load_data_from_ui),
-                    "fit": ("⚡ Auto Fit", self.auto_fit_expected),
+                    "open": ("Open Excel", self.browse_excel),
+                    "run": ("Load and plot", self.load_data_from_ui),
+                    "fit": ("Auto fit", self.auto_fit_expected),
                     "excel": ("Excel", self.save_to_excel),
                     "png": True,
+                    "report": ("Report", self.export_report),
                     "origin": ("Origin", self.send_to_origin)
-                }, hints="Open -> Process -> Fit -> Export  |  shared toolbar across all tools")
+                }, hints="Drag on the Tauc plot: linear fit of that range  |  Auto fit: automatic region  |  "
+                         "Wheel: zoom (Ctrl = x, Shift = y)  |  Right-click: plot menu")
             except Exception as _ce:
                 print(f"shell skip: {_ce}")
+
+    def on_closing(self):
+        self.destroy()
 
     # =====================
     # UI
     # =====================
     def create_left_panel(self):
-        self.left_frame = ctk.CTkFrame(self, width=300, corner_radius=0, fg_color="#141414")
+        self.left_frame = ctk.CTkFrame(self, width=300, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.left_frame.grid(row=0, column=0, sticky="nsew")
 
         # ---- Load Card ----
-        load_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        load_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         load_card.pack(pady=(16, 8), padx=12, fill="x")
 
-        ctk.CTkLabel(load_card, text="Load Data", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(load_card, text="Load Data", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         row = ctk.CTkFrame(load_card, fg_color="transparent")
         row.pack(fill="x", padx=16, pady=(0, 8))
 
-        self.entry_file = ctk.CTkEntry(row, placeholder_text="Select Excel file...", height=36)
+        self.entry_file = ctk.CTkEntry(row, placeholder_text="Select Excel file...", height=28)
         self.entry_file.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
-        ctk.CTkButton(row, text="...", width=40, height=36,
-                      command=self.browse_excel, corner_radius=8).pack(side="right")
+        ctk.CTkButton(row, text="...", width=40, height=28,
+                      command=self.browse_excel, corner_radius=_pal.R_PILL).pack(side="right")
 
         # Sheet select
         sheet_row = ctk.CTkFrame(load_card, fg_color="transparent")
         sheet_row.pack(fill="x", padx=16, pady=(0, 12))
 
         ctk.CTkLabel(sheet_row, text="Sheet:", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
+                     font=_pal.font(12)).pack(side="left")
 
         self.sheet_menu = ctk.CTkOptionMenu(
             sheet_row, values=["-"], variable=self.selected_sheet,
@@ -144,19 +153,28 @@ class AnalysisWindow(ctk.CTkToplevel):
         )
         self.sheet_menu.pack(side="right")
 
+        col_row = ctk.CTkFrame(load_card, fg_color="transparent")
+        col_row.pack(fill="x", padx=16, pady=(0, 12))
+        ctk.CTkLabel(col_row, text="Column:", text_color=self.text_secondary,
+                     font=_pal.font(12)).pack(side="left")
+        self.selected_ycol = tk.StringVar(value="-")
+        self.ycol_menu = ctk.CTkOptionMenu(col_row, values=["-"], variable=self.selected_ycol, width=200,
+                                           command=lambda _v: None)
+        self.ycol_menu.pack(side="right")
+
         self.btn_load = ctk.CTkButton(
             load_card, text="Load & Plot", command=self.load_data_from_ui,
-            corner_radius=12, height=42, fg_color=self.accent_blue,
-            hover_color="#2563EB", font=("Segoe UI", 14),
+            corner_radius=_pal.R_CARD, height=30, fg_color=self.accent_blue,
+            hover_color=_pal.ACCENT_HOV, font=_pal.font(11),
             state="disabled"
         )
         self.btn_load.pack(pady=(0, 16), padx=16, fill="x")
 
         # ---- Analysis Card ----
-        ana_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        ana_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         ana_card.pack(pady=8, padx=12, fill="x")
 
-        ctk.CTkLabel(ana_card, text="Analysis Settings", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(ana_card, text="Analysis Settings", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 12), padx=16, anchor="w")
 
         # Bandgap type
@@ -164,12 +182,12 @@ class AnalysisWindow(ctk.CTkToplevel):
         bg_row.pack(fill="x", padx=16, pady=(0, 10))
 
         ctk.CTkLabel(bg_row, text="Mode", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
+                     font=_pal.font(12)).pack(side="left")
 
         self.mode_btn = ctk.CTkSegmentedButton(
             bg_row, values=["Direct", "Indirect"],
             command=self.on_mode_change,
-            font=("Segoe UI", 12),
+            font=_pal.font(12),
             width=200
         )
         self.mode_btn.set("Direct")
@@ -182,19 +200,19 @@ class AnalysisWindow(ctk.CTkToplevel):
         basis_row = ctk.CTkFrame(ana_card, fg_color="transparent")
         basis_row.pack(fill="x", padx=16, pady=(0, 8))
         ctk.CTkLabel(basis_row, text="Y basis", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
+                     font=_pal.font(12)).pack(side="left")
         self.tauc_basis = ctk.CTkSegmentedButton(
             basis_row, values=["A", "alpha"], command=self._on_basis_change,
-            font=("Segoe UI", 12), width=140)
+            font=_pal.font(12), width=140)
         self.tauc_basis.set("A")
         self.tauc_basis.pack(side="right")
 
         thick_row = ctk.CTkFrame(ana_card, fg_color="transparent")
         thick_row.pack(fill="x", padx=16, pady=(0, 8))
         ctk.CTkLabel(thick_row, text="Film thickness (nm)", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
-        self.entry_thickness = ctk.CTkEntry(thick_row, width=80, height=32,
-                                            font=("Segoe UI", 12),
+                     font=_pal.font(12)).pack(side="left")
+        self.entry_thickness = ctk.CTkEntry(thick_row, width=80, height=26,
+                                            font=_pal.font(12),
                                             placeholder_text="e.g. 100")
         self.entry_thickness.pack(side="right")
 
@@ -202,14 +220,14 @@ class AnalysisWindow(ctk.CTkToplevel):
         eg_row = ctk.CTkFrame(ana_card, fg_color="transparent")
         eg_row.pack(fill="x", padx=16, pady=(0, 10))
         ctk.CTkLabel(eg_row, text="Expected Eg (eV)", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
-        self.entry_expected_eg = ctk.CTkEntry(eg_row, width=70, height=32,
-                                              font=("Segoe UI", 12),
-                                              placeholder_text="1.55")
+                     font=_pal.font(12)).pack(side="left")
+        self.entry_expected_eg = ctk.CTkEntry(eg_row, width=70, height=26,
+                                              font=_pal.font(12),
+                                              placeholder_text="optional")
         self.entry_expected_eg.pack(side="right")
-        ctk.CTkButton(ana_card, text="⚡ Auto Fit (Expected Eg)", height=36,
-                      fg_color="#252525", hover_color="#303030",
-                      font=("Segoe UI", 13, "bold"), corner_radius=8,
+        ctk.CTkButton(ana_card, text="Auto fit (expected Eg)", height=28,
+                      fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                      font=_pal.font(13, "bold"), corner_radius=_pal.R_PILL,
                       command=self.auto_fit_expected).pack(fill="x", padx=16, pady=(0, 10))
 
         # X range
@@ -217,24 +235,24 @@ class AnalysisWindow(ctk.CTkToplevel):
         xr_row.pack(fill="x", padx=16, pady=(0, 16))
 
         ctk.CTkLabel(xr_row, text="X (eV)", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
+                     font=_pal.font(12)).pack(side="left")
 
         x_inputs = ctk.CTkFrame(xr_row, fg_color="transparent")
         x_inputs.pack(side="right")
 
-        self.entry_xmin = ctk.CTkEntry(x_inputs, width=70, height=32, font=("Segoe UI", 12),
+        self.entry_xmin = ctk.CTkEntry(x_inputs, width=70, height=26, font=_pal.font(12),
                                        textvariable=self.x_min)
         self.entry_xmin.pack(side="left", padx=(0, 6))
         ctk.CTkLabel(x_inputs, text="~", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
-        self.entry_xmax = ctk.CTkEntry(x_inputs, width=70, height=32, font=("Segoe UI", 12),
+                     font=_pal.font(12)).pack(side="left")
+        self.entry_xmax = ctk.CTkEntry(x_inputs, width=70, height=26, font=_pal.font(12),
                                        textvariable=self.x_max)
         self.entry_xmax.pack(side="left", padx=(6, 0))
 
         self.btn_apply_view = ctk.CTkButton(
             ana_card, text="Apply View Range", command=self.apply_view_range,
-            fg_color="#3D3D3D", hover_color="#3D3D3D",
-            corner_radius=10, height=40, font=("Segoe UI", 13),
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+            corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
             state="disabled"
         )
         self.btn_apply_view.pack(pady=(0, 16), padx=16, fill="x")\
@@ -244,33 +262,33 @@ class AnalysisWindow(ctk.CTkToplevel):
         
 
         # ---- Actions Card ----
-        act_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        act_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         act_card.pack(pady=8, padx=12, fill="x")
 
-        ctk.CTkLabel(act_card, text="Actions", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(act_card, text="Actions", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         self.btn_export_excel = ctk.CTkButton(
             act_card, text="Save Excel", command=self.save_to_excel,
-            fg_color="#252525", hover_color="#303030",
-            corner_radius=10, height=40, font=("Segoe UI", 13),
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+            corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
             state="disabled"
         )
         self.btn_export_excel.pack(padx=16, pady=4, fill="x")
 
         self.btn_export_origin = ctk.CTkButton(
             act_card, text="Send to Origin", command=self.send_to_origin,
-            fg_color="#252525", hover_color="#303030",
-            corner_radius=10, height=40, font=("Segoe UI", 13),
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+            corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
             state="disabled"
         )
         self.btn_export_origin.pack(padx=16, pady=(0, 16), fill="x")
 
         # ---- Status Card ----
-        status_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        status_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         status_card.pack(pady=(8, 16), padx=12, fill="x")
 
-        ctk.CTkLabel(status_card, text="Status", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(status_card, text="Status", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         self.progress_bar = ctk.CTkProgressBar(status_card, height=6, corner_radius=3,
@@ -279,11 +297,11 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.progress_bar.pack(padx=16, fill="x")
 
         self.lbl_status = ctk.CTkLabel(status_card, text="Ready",
-                                       text_color=self.text_secondary, font=("Segoe UI", 12))
+                                       text_color=self.text_secondary, font=_pal.font(12))
         self.lbl_status.pack(pady=(8, 16))
 
     def create_center_panel(self):
-        self.center_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="#0A0A0A")
+        self.center_frame = ctk.CTkFrame(self, corner_radius=0, fg_color=_pal.BG_WINDOW)
         self.center_frame.grid(row=0, column=1, sticky="nsew")
 
         # Vertical split: top(graph) : bottom(spare) = 1:1 -> graph gets half height
@@ -292,12 +310,12 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.center_frame.grid_columnconfigure(0, weight=1)
 
         # --------- TOP: Plot container (height ~ 50%) ----------
-        plot_container = ctk.CTkFrame(self.center_frame, corner_radius=12, fg_color="#1E1E1E")
+        plot_container = ctk.CTkFrame(self.center_frame, corner_radius=_pal.R_CARD, fg_color=_pal.BG_CARD)
         plot_container.grid(row=0, column=0, sticky="nsew", padx=8, pady=(8, 4))
         plot_container.grid_rowconfigure(0, weight=1)
         plot_container.grid_columnconfigure(0, weight=1)
 
-        self.fig = Figure(figsize=(10, 6), dpi=100, facecolor="#1E1E1E")
+        self.fig = Figure(figsize=(10, 6), dpi=100, facecolor=_pal.BG_CARD)
         self.ax_abs = self.fig.add_subplot(1, 2, 1)
         self.ax_tauc = self.fig.add_subplot(1, 2, 2)
         self._style_axes(self.ax_abs)
@@ -316,72 +334,74 @@ class AnalysisWindow(ctk.CTkToplevel):
             print(f"plot interactions skip: {_pe}")
 
         self.ax_abs.text(0.5, 0.5, "Load Excel to preview",
-                        ha="center", va="center", color="#3D3D3D",
+                        ha="center", va="center", color=_pal.BORDER_HI,
                         transform=self.ax_abs.transAxes, fontsize=14)
         self.canvas.draw()
 
-        # --------- BOTTOM: placeholder panel (height ~ 50%) ----------
-        bottom_panel = ctk.CTkFrame(self.center_frame, corner_radius=12, fg_color="#141414")
+        # --------- BOTTOM: result table ----------
+        self.center_frame.grid_rowconfigure(0, weight=3)
+        self.center_frame.grid_rowconfigure(1, weight=0)
+        bottom_panel = ctk.CTkFrame(self.center_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         bottom_panel.grid(row=1, column=0, sticky="nsew", padx=8, pady=(4, 8))
-
-        # Left empty for now; can hold a table / extra plot / fit result / metadata later
-        ctk.CTkLabel(bottom_panel, text="(space) Add table / notes / extra plot here",
-                    text_color="#666666", font=("Segoe UI", 13)).pack(pady=20)
+        ctk.CTkLabel(bottom_panel, text="Band-gap results", font=_pal.font(12, "bold"),
+                     text_color=self.text_primary).pack(anchor="w", padx=12, pady=(8, 2))
+        self.result_tree = _theme.kv_table(bottom_panel, height=7, key_width=260)
+        self.result_tree.pack(fill="x", padx=12, pady=(0, 10))
 
     def _style_axes(self, ax):
-        ax.set_facecolor("#1E1E1E")
-        ax.tick_params(colors="#AAAAAA", labelsize=10)
+        ax.set_facecolor(_pal.BG_CARD)
+        ax.tick_params(colors=_pal.PLOT_TICK, labelsize=10)
         for spine in ax.spines.values():
-            spine.set_color("#2D2D2D")
-        ax.xaxis.label.set_color("#FFFFFF")
-        ax.yaxis.label.set_color("#FFFFFF")
-        ax.title.set_color("#FFFFFF")
+            spine.set_color(_pal.BORDER)
+        ax.xaxis.label.set_color(_pal.TXT)
+        ax.yaxis.label.set_color(_pal.TXT)
+        ax.title.set_color(_pal.TXT)
 
     def create_right_panel(self):
-        self.right_frame = ctk.CTkFrame(self, width=330, corner_radius=0, fg_color="#141414")
+        self.right_frame = ctk.CTkFrame(self, width=330, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.right_frame.grid(row=0, column=2, sticky="nsew")
         self.right_frame.grid_rowconfigure(1, weight=1)
 
         # ---- Stats Card ----
-        stats_card = ctk.CTkFrame(self.right_frame, corner_radius=16, fg_color=self.card_bg)
+        stats_card = ctk.CTkFrame(self.right_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         stats_card.grid(row=0, column=0, sticky="ew", padx=12, pady=(16, 8))
 
-        ctk.CTkLabel(stats_card, text="Fit Summary", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(stats_card, text="Fit Summary", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         self.lbl_file = ctk.CTkLabel(stats_card, text="",
-                                     text_color=self.accent_blue, font=("Segoe UI", 12))
+                                     text_color=self.accent_blue, font=_pal.font(12))
         self.lbl_file.pack(padx=16, anchor="w")
 
         grid = ctk.CTkFrame(stats_card, fg_color="transparent")
         grid.pack(fill="x", padx=16, pady=(8, 16))
 
-        self.lbl_eg = ctk.CTkLabel(grid, text="Eg: - eV", font=("Segoe UI", 16, "bold"),
+        self.lbl_eg = ctk.CTkLabel(grid, text="Eg: - eV", font=_pal.font(12, "bold"),
                                    text_color=self.accent_orange)
         self.lbl_eg.pack(anchor="w")
 
-        self.lbl_r2 = ctk.CTkLabel(grid, text="R²: -", font=("Segoe UI", 13),
+        self.lbl_r2 = ctk.CTkLabel(grid, text="R²: -", font=_pal.font(11),
                                    text_color=self.text_secondary)
         self.lbl_r2.pack(anchor="w", pady=(4, 0))
 
-        self.lbl_mode = ctk.CTkLabel(grid, text="Mode: Direct", font=("Segoe UI", 13),
+        self.lbl_mode = ctk.CTkLabel(grid, text="Mode: Direct", font=_pal.font(11),
                                      text_color=self.text_secondary)
         self.lbl_mode.pack(anchor="w", pady=(4, 0))
 
-        self.lbl_fit_range = ctk.CTkLabel(grid, text="Fit: - ~ - eV", font=("Segoe UI", 13),
+        self.lbl_fit_range = ctk.CTkLabel(grid, text="Fit: - ~ - eV", font=_pal.font(11),
                                           text_color=self.text_secondary)
         self.lbl_fit_range.pack(anchor="w", pady=(4, 0))
 
         # ---- Log Card ----
-        log_card = ctk.CTkFrame(self.right_frame, corner_radius=16, fg_color=self.card_bg)
+        log_card = ctk.CTkFrame(self.right_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         log_card.grid(row=1, column=0, sticky="nsew", padx=12, pady=(8, 16))
         log_card.grid_rowconfigure(0, weight=1)
         log_card.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(log_card, text="Log", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(log_card, text="Log", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
-        self.log_text = ctk.CTkTextbox(log_card, font=("Consolas", 11))
+        self.log_text = ctk.CTkTextbox(log_card, font=_pal.mono(11))
         self.log_text.pack(fill="both", expand=True, padx=12, pady=(0, 16))
         self.log_text.configure(state="disabled")
 
@@ -442,15 +462,25 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.df = pd.read_excel(self.target_file, sheet_name=sheet)
             self.sheet_name = sheet
 
-            # Assume col0: wavelength(nm), col1: absorbance
-            self.raw_x = self.df.iloc[:, 0].to_numpy(dtype=float)
-            self.raw_y = self.df.iloc[:, 1].to_numpy(dtype=float)
+            # col0: wavelength (nm); Y: the chosen column (default: the first numeric one after it)
+            cols = [str(c) for c in self.df.columns]
+            self.df.columns = cols
+            ycols = [c for c in cols[1:] if pd.to_numeric(self.df[c], errors="coerce").notna().sum() > 3]
+            if not ycols:
+                raise ValueError("No numeric absorbance column found after the wavelength column.")
+            chosen = self.selected_ycol.get() if self.selected_ycol.get() in ycols else ycols[0]
+            self.ycol_menu.configure(values=ycols)
+            self.selected_ycol.set(chosen)
+            self.raw_x = pd.to_numeric(self.df.iloc[:, 0], errors="coerce").to_numpy(dtype=float)
+            self.raw_y = pd.to_numeric(self.df[chosen], errors="coerce").to_numpy(dtype=float)
+            ok = np.isfinite(self.raw_x) & np.isfinite(self.raw_y) & (self.raw_x > 0)
+            self.raw_x, self.raw_y = self.raw_x[ok], self.raw_y[ok]
 
             self.hv = 1239.842 /self.raw_x
             self.absorbance = self.raw_y
 
-            self.log(f"Loaded sheet: {sheet}")
-            self.lbl_file.configure(text=f"{self.target_file.name} | {sheet}")
+            self.log(f"Loaded sheet: {sheet}, column: {chosen}")
+            self.lbl_file.configure(text=f"{self.target_file.name} | {sheet} | {chosen}")
 
             self.init_plot()
             self.apply_view_range()  # set xlim based on entry
@@ -506,7 +536,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         )
         self.ax_tauc.set_xlabel("hν (eV)")
         self.ax_tauc.set_ylabel(self.data_state["y_label"])
-        self.title_text = self.ax_tauc.set_title("Drag range to Fit", color="#3182F6", fontweight="bold")
+        self.title_text = self.ax_tauc.set_title("Drag range to Fit", color=_pal.ACCENT, fontweight="bold")
         self.ax_tauc.grid(True, linestyle="--", alpha=0.35)
 
         # fit visuals
@@ -648,7 +678,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.v1.set_xdata([np.nan, np.nan])
         self.v2.set_xdata([np.nan, np.nan])
         self.title_text.set_text("Drag range to Fit")
-        self.title_text.set_color("#3182F6")
+        self.title_text.set_color(_pal.ACCENT)
         self.fit_result = None
 
         self._autoscale_y()
@@ -702,61 +732,33 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.ax_tauc.set_ylim(0, 1.1 * ymax if ymax > 0 else 1.0)
 
     def auto_fit_expected(self):
-        """Auto-fit by finding the steepest linear region (absorption edge) of the Tauc curve near the expected Eg.
-        Physics: from the Tauc relation (alpha*hv)^n proportional to (hv - Eg), extrapolating the linear edge region gives Eg."""
+        """Select the linear Tauc region automatically (abs_core.auto_linear_region):
+        steepest locally linear stretch of the edge, grown while the slope stays
+        above 60% of its maximum and trimmed to R^2 >= 0.98. The expected Eg,
+        if given, restricts the search to +-0.6 eV around it."""
         if self.data_state.get("x") is None:
             messagebox.showwarning("Warning", "Load data first.")
             return
-        try:
-            eg_exp = float(self.entry_expected_eg.get())
-        except (ValueError, TypeError):
-            messagebox.showwarning("Warning", "Enter expected Eg as a number. (e.g. 1.55)")
-            return
-
+        txt = self.entry_expected_eg.get().strip()
+        eg_exp = None
+        if txt:
+            try:
+                eg_exp = float(txt)
+            except ValueError:
+                messagebox.showwarning("Warning", "Expected Eg must be a number (eV) or empty.")
+                return
         x = np.asarray(self.data_state["x"], dtype=float)
         y = np.asarray(self.data_state["y"], dtype=float)
-        # Absorption edge appears above Eg, so search within [Eg-0.3, Eg+0.6]
-        m_win = (x >= eg_exp - 0.3) & (x <= eg_exp + 0.6) & np.isfinite(y)
-        if np.sum(m_win) < 8:
-            messagebox.showwarning("Warning", "Not enough data near the expected Eg.")
+        reg = abs_core.auto_linear_region(x, y, expected_eg=eg_exp)
+        if not np.isfinite(reg["Eg"]):
+            messagebox.showwarning("Auto fit", "No linear edge region found. Check the transition type or the data range.")
             return
-        xs, ys = x[m_win], y[m_win]
-        order = np.argsort(xs)
-        xs, ys = xs[order], ys[order]
-
-        # Local slope (moving-window linear regression, window = 7 points)
-        k = 7
-        slopes = np.full(len(xs), np.nan)
-        for i in range(len(xs) - k + 1):
-            seg_x, seg_y = xs[i:i+k], ys[i:i+k]
-            if np.ptp(seg_x) <= 0:
-                continue
-            slopes[i + k//2] = np.polyfit(seg_x, seg_y, 1)[0]
-        if not np.any(np.isfinite(slopes)):
-            messagebox.showwarning("Warning", "Cannot compute slope.")
-            return
-        i_max = int(np.nanargmax(slopes))
-        s_max = slopes[i_max]
-
-        # Use the contiguous region where slope stays above 60% of max as the fit range
-        thr = 0.6 * s_max
-        lo = i_max
-        while lo > 0 and np.isfinite(slopes[lo-1]) and slopes[lo-1] >= thr:
-            lo -= 1
-        hi = i_max
-        while hi < len(xs)-1 and np.isfinite(slopes[hi+1]) and slopes[hi+1] >= thr:
-            hi += 1
-        fit_min, fit_max = float(xs[max(lo - k//2, 0)]), float(xs[min(hi + k//2, len(xs)-1)])
-        if fit_max - fit_min < 0.02:
-            fit_min, fit_max = float(xs[i_max]) - 0.05, float(xs[i_max]) + 0.05
-
-        self._on_span_select(fit_min, fit_max)
+        self._on_span_select(reg["lo"], reg["hi"])
         if self.fit_result:
-            eg_fit = self.fit_result["Eg"]
-            self.log(f"[AutoFit] expected {eg_exp:.3f} eV -> fit {eg_fit:.4f} eV "
-                     f"(range {fit_min:.3f}-{fit_max:.3f} eV, R2={self.fit_result['R2']:.4f})")
-            if abs(eg_fit - eg_exp) > 0.3:
-                self.log("[AutoFit] differs from expected by >0.3 eV - check mode (Direct/Indirect) or range.")
+            self.log(f"[Auto fit] region {reg['lo']:.3f}-{reg['hi']:.3f} eV -> Eg = {self.fit_result['Eg']:.4f} eV "
+                     f"(R² = {self.fit_result['R2']:.4f}, {reg['n_points']} points)")
+            if eg_exp is not None and abs(self.fit_result["Eg"] - eg_exp) > 0.3:
+                self.log("[Auto fit] differs from the expected value by more than 0.3 eV - check Direct/Indirect.")
 
     def _on_span_select(self, xmin, xmax):
         if xmin == xmax:
@@ -792,10 +794,19 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.v2.set_xdata([fitMax, fitMax])
 
         self.title_text.set_text(f"Eg = {Eg:.4f} eV  |  R² = {R2:.4f}")
-        self.title_text.set_color("#F87171")
+        self.title_text.set_color(_pal.RED)
 
+        lin = abs_core.linear_fit(x, y, fitMin, fitMax)
+        urb = abs_core.urbach_from_absorbance(self.raw_x, self.raw_y - float(np.nanmin(self.raw_y)),
+                                              float(Eg) - 0.25, float(Eg) - 0.02)
+        eg_der = abs_core.derivative_bandgap(self.raw_x, self.raw_y)
         self.fit_result = {
             "Eg": float(Eg),
+            "Eg_err": float(lin["Eg_err"]),
+            "Eu_meV": float(urb["Eu_meV"]),
+            "Eu_R2": float(urb["R2"]),
+            "Eg_derivative": float(eg_der),
+            "n_points": int(lin["n_points"]),
             "R2": float(R2) if np.isfinite(R2) else np.nan,
             "m": float(m),
             "b": float(b),
@@ -813,9 +824,54 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         self.canvas.draw_idle()
         self._update_stats_panel()
+        self._update_result_table()
 
         self.btn_export_excel.configure(state="normal")
         self.btn_export_origin.configure(state="normal")
+
+    def _update_result_table(self):
+        if not hasattr(self, "result_tree"):
+            return
+        r = self.fit_result
+        if not r:
+            _theme.fill_kv(self.result_tree, [("Drag a range on the Tauc plot or use Auto fit", "")])
+            return
+        basis = getattr(self, "tauc_basis", None)
+        basis = basis.get() if basis is not None else "A"
+        d_nm = self._thickness_nm()
+        items = [("Transition", f"{r['mode']} (Tauc exponent {'2' if r['mode'] == 'Direct' else '1/2'})"),
+                 ("Y basis", "alpha = 2.303 A / d" + (f", d = {d_nm:g} nm" if basis == "alpha" and d_nm else "") if basis == "alpha" and d_nm else "absorbance A"),
+                 ("Eg, Tauc intercept (eV)", r["Eg"], ".4f"),
+                 ("Standard error of Eg (eV)", r.get("Eg_err", float('nan')), ".4f"),
+                 ("Linear region (eV)", f"{r['fitMin']:.3f} - {r['fitMax']:.3f}  ({r.get('n_points', 0)} points)"),
+                 ("R² of the linear fit", r["R2"], ".4f"),
+                 ("Eg, derivative dA/dE maximum (eV)", r.get("Eg_derivative", float('nan')), ".4f"),
+                 ("Urbach energy below the edge (meV)", r.get("Eu_meV", float('nan')), ".1f"),
+                 ("Urbach fit R²", r.get("Eu_R2", float('nan')), ".4f")]
+        _theme.fill_kv(self.result_tree, items)
+
+    def export_report(self):
+        if not self.fit_result:
+            messagebox.showwarning("Report", "Fit first.")
+            return
+        path = _report.ask_report_path(self, f"{self.target_file.stem if self.target_file else 'Abs'}_report.md")
+        if not path:
+            return
+        r = self.fit_result
+        table = {"Transition": r["mode"], "Eg Tauc (eV)": r["Eg"], "Eg standard error (eV)": r.get("Eg_err"),
+                 "Linear region (eV)": f"{r['fitMin']:.3f}-{r['fitMax']:.3f}", "R2": r["R2"],
+                 "Eg derivative (eV)": r.get("Eg_derivative"), "Urbach energy (meV)": r.get("Eu_meV"),
+                 "Urbach R2": r.get("Eu_R2")}
+        notes = ("Tauc: (alpha h nu)^(1/r) = B (h nu - Eg), r = 1/2 direct, 2 indirect; Eg is the x-intercept of the "
+                 "straight line through the selected region. Urbach energy from ln A vs E just below the edge "
+                 "(baseline = minimum absorbance subtracted). Derivative band gap = energy of maximum dA/dE.")
+        try:
+            _report.write_markdown_report(path, f"Absorbance / Tauc analysis: {self.target_file.name if self.target_file else ''}",
+                                          [("Results", table)], figure=self.fig,
+                                          inputs=[str(self.target_file)] if self.target_file else None, notes=notes)
+            self.log(f"Report saved: {path}")
+        except Exception as ex:
+            messagebox.showerror("Report", str(ex))
 
     def _update_stats_panel(self, clear=False):
         if clear or not self.fit_result:
@@ -823,10 +879,13 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.lbl_r2.configure(text="R²: -")
             self.lbl_mode.configure(text=f"Mode: {self.mode_btn.get()}")
             self.lbl_fit_range.configure(text="Fit: - ~ - eV")
+            if hasattr(self, "result_tree"):
+                self._update_result_table()
             return
 
         r = self.fit_result
-        self.lbl_eg.configure(text=f"Eg: {r['Eg']:.4f} eV")
+        err = f" ± {r['Eg_err']:.4f}" if np.isfinite(r.get("Eg_err", float("nan"))) else ""
+        self.lbl_eg.configure(text=f"Eg: {r['Eg']:.4f}{err} eV")
         self.lbl_r2.configure(text=f"R²: {r['R2']:.4f}" if np.isfinite(r["R2"]) else "R²: -")
         self.lbl_mode.configure(text=f"Mode: {r['mode']}")
         self.lbl_fit_range.configure(text=f"Fit: {r['fitMin']:.3f} ~ {r['fitMax']:.3f} eV")
@@ -852,6 +911,10 @@ class AnalysisWindow(ctk.CTkToplevel):
             "Bandgap Mode": res["mode"],
             "Fit Min (eV)": res["fitMin"],
             "Fit Max (eV)": res["fitMax"],
+            "Eg std error (eV)": res.get("Eg_err"),
+            "Eg derivative (eV)": res.get("Eg_derivative"),
+            "Urbach energy (meV)": res.get("Eu_meV"),
+            "Urbach R2": res.get("Eu_R2"),
         }])
 
         df_uvvis = pd.DataFrame({

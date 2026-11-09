@@ -14,6 +14,9 @@ import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from scripts.common import palette as _pal
+from scripts.common import theme as _theme
+from scripts.common import report as _report
 
 # Import core logic
 try:
@@ -45,7 +48,7 @@ except ImportError:
         plot_box_to_origin,
     )
 
-# AI Assistant Integration
+# Interpretation (Gemini) Integration
 AI_AVAILABLE = False
 MODEL_OPTIONS = ["gemini-2.0-flash"]
 JVAIIntegration = None
@@ -99,7 +102,7 @@ class AIResultDialog(ctk.CTkToplevel):
         self.resizable(True, True)
 
         # Dark theme colors
-        self.card_bg = "#1E1E1E"
+        self.card_bg = _pal.BG_CARD
 
         # Center on parent
         self.transient(parent)
@@ -122,9 +125,9 @@ class AIResultDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             header_frame,
-            text="AI Analysis Result",
-            font=("Segoe UI", 18, "bold"),
-            text_color="#FFFFFF"
+            text="Interpretation result",
+            font=_pal.font(13, "bold"),
+            text_color=_pal.TXT
         ).pack(side="left")
 
         # Copy button
@@ -132,9 +135,9 @@ class AIResultDialog(ctk.CTkToplevel):
             header_frame,
             text="Copy All",
             width=80,
-            height=32,
-            fg_color="#3182F6",
-            hover_color="#2563EB",
+            height=26,
+            fg_color=_pal.ACCENT,
+            hover_color=_pal.ACCENT_HOV,
             command=self._copy_content
         )
         self.btn_copy.pack(side="right")
@@ -142,10 +145,10 @@ class AIResultDialog(ctk.CTkToplevel):
         # Text display (scrollable, selectable)
         self.text_display = ctk.CTkTextbox(
             main_frame,
-            font=("Consolas", 12),
-            fg_color="#252525",
-            text_color="#DDDDDD",
-            corner_radius=8,
+            font=_pal.mono(11),
+            fg_color=_pal.BG_SUB,
+            text_color=_pal.TXT_MUTED,
+            corner_radius=_pal.R_PILL,
             wrap="word"
         )
         self.text_display.pack(fill="both", expand=True, padx=16, pady=(8, 8))
@@ -160,8 +163,8 @@ class AIResultDialog(ctk.CTkToplevel):
         self.lbl_status = ctk.CTkLabel(
             btn_frame,
             text="",
-            text_color="#8B8B8B",
-            font=("Segoe UI", 11)
+            text_color=_pal.TXT_SUB,
+            font=_pal.font(11)
         )
         self.lbl_status.pack(side="left")
 
@@ -169,9 +172,9 @@ class AIResultDialog(ctk.CTkToplevel):
             btn_frame,
             text="Close",
             width=80,
-            height=32,
-            fg_color="#3D3D3D",
-            hover_color="#666666",
+            height=26,
+            fg_color=_pal.BG_SUB,
+            hover_color=_pal.TXT_DIM,
             command=self.destroy
         ).pack(side="right")
 
@@ -180,7 +183,7 @@ class AIResultDialog(ctk.CTkToplevel):
         content = self.text_display.get("1.0", "end-1c")
         self.clipboard_clear()
         self.clipboard_append(content)
-        self.lbl_status.configure(text="Copied to clipboard!", text_color="#10B981")
+        self.lbl_status.configure(text="Copied to clipboard!", text_color=_pal.GREEN)
         self.after(2000, lambda: self.lbl_status.configure(text=""))
 
 
@@ -262,15 +265,17 @@ class AnalysisWindow(ctk.CTkToplevel):
         if _shell is not None:
             try:
                 _shell.attach_chrome(self, "J-V Curve Analysis", {
-                    "open": [("📁 Open", self.browse_folder),
-                             ("＋ Add", self.add_folder),
-                             ("🕘 Recent", self.open_recent_menu)],
-                    "run": ("▶ Process", self.start_processing),
+                    "open": [("Open", self.browse_folder),
+                             ("Add folder", self.add_folder),
+                             ("Recent", self.open_recent_menu)],
+                    "run": ("Process", self.start_processing),
                     "excel": ("Excel", self.open_excel),
                     "png": True,
+                    "report": ("Report", self.export_report),
                     "origin": [("Origin J-V", self.send_iv_to_origin), ("Origin Box", self.send_box_to_origin)],
-                    "ai": ("🤖 AI", self._open_ai_window)
-                }, hints="Open -> Process -> Fit -> Export  |  shared toolbar across all tools")
+                    "ai": ("Interpretation", self._open_ai_window)
+                }, hints="Wheel: zoom (Ctrl = x only, Shift = y only)  |  Drag: pan  |  Double-click: auto range  |  "
+                         "F2: rename condition  |  Right-click: table and plot menus")
             except Exception as _ce:
                 print(f"shell skip: {_ce}")
 
@@ -335,111 +340,110 @@ class AnalysisWindow(ctk.CTkToplevel):
     # UI Creation
     # =====================
     def create_left_panel(self):
-        # Toss style colors
-        self.card_bg = "#1E1E1E"
-        self.card_border = "#2D2D2D"
-        self.accent_blue = "#3182F6"
-        self.accent_orange = "#F59E0B"
-        self.accent_green = "#10B981"
-        self.accent_purple = "#8B5CF6"
-        self.accent_pink = "#EC4899"
-        self.accent_red = "#EF4444"
-        self.text_primary = "#FFFFFF"
-        self.text_secondary = "#8B8B8B"
+        self.card_bg = _pal.BG_CARD
+        self.card_border = _pal.BORDER
+        self.accent_blue = _pal.ACCENT
+        self.accent_orange = _pal.ORANGE
+        self.accent_green = _pal.GREEN
+        self.accent_purple = _pal.PURPLE
+        self.accent_pink = _pal.PINK
+        self.accent_red = _pal.RED
+        self.text_primary = _pal.TXT
+        self.text_secondary = _pal.TXT_SUB
 
-        self.left_frame = ctk.CTkFrame(self, width=280, corner_radius=0, fg_color="#141414")
+        self.left_frame = ctk.CTkFrame(self, width=280, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.left_frame.grid(row=0, column=0, sticky="nsew")
 
         # 1. Load Data Card
-        load_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        load_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         load_card.pack(pady=(16, 8), padx=12, fill="x")
 
-        ctk.CTkLabel(load_card, text="Load Data", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(load_card, text="Load Data", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         folder_frame = ctk.CTkFrame(load_card, fg_color="transparent")
         folder_frame.pack(fill="x", padx=16, pady=(0, 8))
 
         self.entry_folder = ctk.CTkEntry(folder_frame, textvariable=self.directory_path,
-                                          placeholder_text="Select folder...", height=36)
+                                          placeholder_text="Select folder...", height=28)
         self.entry_folder.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
-        ctk.CTkButton(folder_frame, text="...", width=40, height=36,
-                      command=self.browse_folder, corner_radius=8).pack(side="right")
+        ctk.CTkButton(folder_frame, text="...", width=40, height=28,
+                      command=self.browse_folder, corner_radius=_pal.R_PILL).pack(side="right")
 
         self.btn_process = ctk.CTkButton(load_card, text="Process Data", command=self.start_processing,
-                                          corner_radius=12, height=42, fg_color=self.accent_blue,
-                                          hover_color="#2563EB", font=("Segoe UI", 14))
+                                          corner_radius=_pal.R_CARD, height=30, fg_color=self.accent_blue,
+                                          hover_color=_pal.ACCENT_HOV, font=_pal.font(11))
         self.btn_process.pack(pady=(0, 16), padx=16, fill="x")
 
         # 2. Axis Settings Card
-        axis_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        axis_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         axis_card.pack(pady=8, padx=12, fill="x")
 
-        ctk.CTkLabel(axis_card, text="Axis Settings", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(axis_card, text="Axis Settings", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 12), padx=16, anchor="w")
 
         # X Axis
         x_frame = ctk.CTkFrame(axis_card, fg_color="transparent")
         x_frame.pack(fill="x", padx=16, pady=4)
         ctk.CTkLabel(x_frame, text="X:", text_color=self.text_secondary,
-                     font=("Segoe UI", 13), width=30).pack(side="left")
-        ctk.CTkEntry(x_frame, textvariable=self.x_min, width=70, height=32, font=("Segoe UI", 12)).pack(side="left", padx=4)
-        ctk.CTkLabel(x_frame, text="~", text_color=self.text_secondary, font=("Segoe UI", 13)).pack(side="left")
-        ctk.CTkEntry(x_frame, textvariable=self.x_max, width=70, height=32, font=("Segoe UI", 12)).pack(side="left", padx=4)
-        ctk.CTkLabel(x_frame, text="V", text_color=self.text_secondary, font=("Segoe UI", 13)).pack(side="left")
+                     font=_pal.font(11), width=30).pack(side="left")
+        ctk.CTkEntry(x_frame, textvariable=self.x_min, width=70, height=26, font=_pal.font(12)).pack(side="left", padx=4)
+        ctk.CTkLabel(x_frame, text="~", text_color=self.text_secondary, font=_pal.font(11)).pack(side="left")
+        ctk.CTkEntry(x_frame, textvariable=self.x_max, width=70, height=26, font=_pal.font(12)).pack(side="left", padx=4)
+        ctk.CTkLabel(x_frame, text="V", text_color=self.text_secondary, font=_pal.font(11)).pack(side="left")
 
         # Y Axis
         y_frame = ctk.CTkFrame(axis_card, fg_color="transparent")
         y_frame.pack(fill="x", padx=16, pady=(4, 16))
         ctk.CTkLabel(y_frame, text="Y:", text_color=self.text_secondary,
-                     font=("Segoe UI", 13), width=30).pack(side="left")
-        ctk.CTkEntry(y_frame, textvariable=self.y_min, width=70, height=32, font=("Segoe UI", 12)).pack(side="left", padx=4)
-        ctk.CTkLabel(y_frame, text="~", text_color=self.text_secondary, font=("Segoe UI", 13)).pack(side="left")
-        ctk.CTkEntry(y_frame, textvariable=self.y_max, width=70, height=32, font=("Segoe UI", 12)).pack(side="left", padx=4)
-        ctk.CTkLabel(y_frame, text="mA/cm²", text_color=self.text_secondary, font=("Segoe UI", 13)).pack(side="left")
+                     font=_pal.font(11), width=30).pack(side="left")
+        ctk.CTkEntry(y_frame, textvariable=self.y_min, width=70, height=26, font=_pal.font(12)).pack(side="left", padx=4)
+        ctk.CTkLabel(y_frame, text="~", text_color=self.text_secondary, font=_pal.font(11)).pack(side="left")
+        ctk.CTkEntry(y_frame, textvariable=self.y_max, width=70, height=26, font=_pal.font(12)).pack(side="left", padx=4)
+        ctk.CTkLabel(y_frame, text="mA/cm²", text_color=self.text_secondary, font=_pal.font(11)).pack(side="left")
 
         # 3. Actions Card
-        actions_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        actions_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         actions_card.pack(pady=8, padx=12, fill="x")
 
-        ctk.CTkLabel(actions_card, text="Actions", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(actions_card, text="Actions", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         btn_frame = ctk.CTkFrame(actions_card, fg_color="transparent")
         btn_frame.pack(fill="x", padx=12, pady=(0, 12))
 
         self.btn_open_excel = ctk.CTkButton(btn_frame, text="Open Excel", command=self.open_excel,
-                                             fg_color="#252525", hover_color="#303030",
-                                             corner_radius=10, height=40, font=("Segoe UI", 13),
+                                             fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                                             corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
                                              state="disabled")
         self.btn_open_excel.pack(fill="x", pady=3)
 
         self.btn_origin_iv = ctk.CTkButton(btn_frame, text="Send J-V to Origin", command=self.send_iv_to_origin,
-                                            fg_color="#252525", hover_color="#303030",
-                                            corner_radius=10, height=40, font=("Segoe UI", 13),
+                                            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                                            corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
                                             state="disabled")
         self.btn_origin_iv.pack(fill="x", pady=3)
 
         self.btn_origin_box = ctk.CTkButton(btn_frame, text="Send Box to Origin", command=self.send_box_to_origin,
-                                             fg_color="#252525", hover_color="#303030",
-                                             corner_radius=10, height=40, font=("Segoe UI", 13),
+                                             fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                                             corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
                                              state="disabled")
         self.btn_origin_box.pack(fill="x", pady=3)
 
-        # 4. AI Assistant Card
+        # 4. Interpretation (Gemini) Card
         if AI_AVAILABLE:
-            ai_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+            ai_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
             ai_card.pack(pady=8, padx=12, fill="x")
 
-            ctk.CTkLabel(ai_card, text="AI Assistant", font=("Segoe UI", 16, "bold"),
+            ctk.CTkLabel(ai_card, text="Interpretation (Gemini)", font=_pal.font(12, "bold"),
                          text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
             # Model Selection
             model_frame = ctk.CTkFrame(ai_card, fg_color="transparent")
             model_frame.pack(fill="x", padx=16, pady=(0, 8))
             
-            ctk.CTkLabel(model_frame, text="Model:", font=("Segoe UI", 12), 
+            ctk.CTkLabel(model_frame, text="Model:", font=_pal.font(12), 
                          text_color=self.text_secondary).pack(side="left", padx=(0, 5))
             
             self.combo_ai_model = ctk.CTkComboBox(model_frame, values=MODEL_OPTIONS, 
@@ -450,30 +454,30 @@ class AnalysisWindow(ctk.CTkToplevel):
             ai_btn_frame = ctk.CTkFrame(ai_card, fg_color="transparent")
             ai_btn_frame.pack(fill="x", padx=12, pady=(0, 12))
 
-            self.btn_quick_ai = ctk.CTkButton(ai_btn_frame, text="Quick Analysis",
+            self.btn_quick_ai = ctk.CTkButton(ai_btn_frame, text="Quick interpretation",
                                                command=self._run_quick_ai_analysis,
-                                               fg_color="#252525", hover_color="#303030",
-                                               corner_radius=10, height=36, font=("Segoe UI", 12),
+                                               fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                                               corner_radius=_pal.R_PILL, height=28, font=_pal.font(12),
                                                state="disabled")
             self.btn_quick_ai.pack(fill="x", pady=3)
 
-            self.btn_ai_panel = ctk.CTkButton(ai_btn_frame, text="Open AI Assistant",
+            self.btn_ai_panel = ctk.CTkButton(ai_btn_frame, text="Open Interpretation (Gemini)",
                                                command=self._open_ai_window,
-                                               fg_color="#252525", hover_color="#303030",
-                                               corner_radius=10, height=36, font=("Segoe UI", 12))
+                                               fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                                               corner_radius=_pal.R_PILL, height=28, font=_pal.font(12))
             self.btn_ai_panel.pack(fill="x", pady=3)
 
             # AI Status
             self.lbl_ai_status = ctk.CTkLabel(ai_card, text="", text_color=self.text_secondary,
-                                               font=("Segoe UI", 11))
+                                               font=_pal.font(11))
             self.lbl_ai_status.pack(pady=(0, 12))
             self._update_ai_status()
 
         # 6. Status Card
-        status_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        status_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         status_card.pack(pady=8, padx=12, fill="x")
 
-        ctk.CTkLabel(status_card, text="Status", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(status_card, text="Status", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         self.progress_bar = ctk.CTkProgressBar(status_card, height=6, corner_radius=3,
@@ -482,7 +486,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.progress_bar.pack(padx=16, fill="x")
 
         self.lbl_status = ctk.CTkLabel(status_card, text="Ready", text_color=self.text_secondary,
-                                        font=("Segoe UI", 12))
+                                        font=_pal.font(12))
         self.lbl_status.pack(pady=(8, 16))
 
         # Spacer
@@ -490,23 +494,23 @@ class AnalysisWindow(ctk.CTkToplevel):
         spacer.pack(fill="both", expand=True)
 
         # 7. Plot Selection Card (bottom)
-        plot_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        plot_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         plot_card.pack(pady=(8, 16), padx=12, fill="x")
 
-        ctk.CTkLabel(plot_card, text="Preview", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(plot_card, text="Preview", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         self.plot_selector = ctk.CTkSegmentedButton(
             plot_card,
             values=["J-V", "Voc", "Jsc", "FF", "PCE"],
             command=self.on_plot_select,
-            font=("Segoe UI", 12)
+            font=_pal.font(12)
         )
         self.plot_selector.set("J-V")
         self.plot_selector.pack(padx=16, pady=(0, 16), fill="x")
 
     def create_center_panel(self):
-        self.center_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="#0A0A0A")
+        self.center_frame = ctk.CTkFrame(self, corner_radius=0, fg_color=_pal.BG_WINDOW)
         self.center_frame.grid(row=0, column=1, sticky="nsew")
         self.center_frame.grid_rowconfigure(1, weight=1)
         self.center_frame.grid_columnconfigure(0, weight=1)
@@ -519,20 +523,20 @@ class AnalysisWindow(ctk.CTkToplevel):
             toggle_frame,
             values=["J-V Curve", "Box Plot"],
             command=self._on_center_plot_toggle,
-            font=("Segoe UI", 13),
+            font=_pal.font(11),
             width=220
         )
         self.plot_toggle_btn.set("J-V Curve")
         self.plot_toggle_btn.pack(anchor="center")
 
         # Plot container
-        plot_container = ctk.CTkFrame(self.center_frame, corner_radius=12, fg_color="#1E1E1E")
+        plot_container = ctk.CTkFrame(self.center_frame, corner_radius=_pal.R_CARD, fg_color=_pal.BG_CARD)
         plot_container.grid(row=1, column=0, sticky="nsew", padx=8, pady=8)
         plot_container.grid_rowconfigure(0, weight=1)
         plot_container.grid_columnconfigure(0, weight=1)
 
         # Matplotlib figure
-        self.fig = Figure(figsize=(8, 6), dpi=100, facecolor='#1E1E1E')
+        self.fig = Figure(figsize=(8, 6), dpi=100, facecolor=_pal.BG_CARD)
         self.ax = self.fig.add_subplot(111)
         self._style_axes(self.ax)
 
@@ -551,7 +555,7 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         # Initial empty state
         self.ax.text(0.5, 0.5, "Load data to preview plot",
-                     ha='center', va='center', fontsize=14, color='#3D3D3D',
+                     ha='center', va='center', fontsize=14, color=_pal.BORDER_HI,
                      transform=self.ax.transAxes)
         self.canvas_plot.draw()
 
@@ -577,16 +581,16 @@ class AnalysisWindow(ctk.CTkToplevel):
 
     def _style_axes(self, ax):
         """Apply dark theme styling to axes."""
-        ax.set_facecolor('#1E1E1E')
-        ax.tick_params(colors='#AAAAAA', labelsize=10)
+        ax.set_facecolor(_pal.BG_CARD)
+        ax.tick_params(colors=_pal.PLOT_TICK, labelsize=10)
         for spine in ax.spines.values():
-            spine.set_color('#2D2D2D')
-        ax.xaxis.label.set_color('#FFFFFF')
-        ax.yaxis.label.set_color('#FFFFFF')
-        ax.title.set_color('#FFFFFF')
+            spine.set_color(_pal.BORDER)
+        ax.xaxis.label.set_color(_pal.TXT)
+        ax.yaxis.label.set_color(_pal.TXT)
+        ax.title.set_color(_pal.TXT)
 
     def create_right_panel(self):
-        self.right_frame = ctk.CTkFrame(self, width=320, corner_radius=0, fg_color="#141414")
+        self.right_frame = ctk.CTkFrame(self, width=320, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.right_frame.grid(row=0, column=2, sticky="nsew")
         self.right_frame.grid_rowconfigure(1, weight=1)
 
@@ -594,17 +598,17 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.selected_box_param = "PCE (%)"
 
         # Statistics Card
-        stats_card = ctk.CTkFrame(self.right_frame, corner_radius=16, fg_color=self.card_bg)
+        stats_card = ctk.CTkFrame(self.right_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         stats_card.grid(row=0, column=0, sticky="ew", padx=12, pady=(16, 8))
 
         # Statistics header with sample name
         stats_header = ctk.CTkFrame(stats_card, fg_color="transparent")
         stats_header.pack(fill="x", padx=16, pady=(16, 8))
 
-        ctk.CTkLabel(stats_header, text="Statistics", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(stats_header, text="Statistics", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(side="left")
 
-        self.lbl_selected_sample = ctk.CTkLabel(stats_header, text="", font=("Segoe UI", 12),
+        self.lbl_selected_sample = ctk.CTkLabel(stats_header, text="", font=_pal.font(12),
                                                  text_color=self.accent_blue)
         self.lbl_selected_sample.pack(side="right")
 
@@ -616,17 +620,17 @@ class AnalysisWindow(ctk.CTkToplevel):
         row1.pack(fill="x", pady=4)
 
         # Voc button - green color (swapped with PCE)
-        self.btn_voc = ctk.CTkButton(row1, text="", corner_radius=10, fg_color="#252525",
-                                      hover_color="#303030", command=lambda: self._select_box_param("Voc V"),
+        self.btn_voc = ctk.CTkButton(row1, text="", corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB,
+                                      hover_color=_pal.BG_HOVER, command=lambda: self._select_box_param("Voc V"),
                                       height=75, width=140)
         self.btn_voc.pack(side="left", expand=True, fill="x", padx=(0, 4))
         # Voc inner content
         voc_inner = ctk.CTkFrame(self.btn_voc, fg_color="transparent")
         voc_inner.place(relx=0.5, rely=0.5, anchor="center")
         voc_label = ctk.CTkLabel(voc_inner, text="Voc", text_color=self.text_secondary,
-                     font=("Segoe UI", 12))
+                     font=_pal.font(12))
         voc_label.pack()
-        self.lbl_stats_voc = ctk.CTkLabel(voc_inner, text="- V", font=("Segoe UI", 16, "bold"),
+        self.lbl_stats_voc = ctk.CTkLabel(voc_inner, text="- V", font=_pal.font(12, "bold"),
                                            text_color=self.accent_green)
         self.lbl_stats_voc.pack()
         # Bind click events to inner widgets
@@ -634,17 +638,17 @@ class AnalysisWindow(ctk.CTkToplevel):
             widget.bind("<Button-1>", lambda e: self._select_box_param("Voc V"))
 
         # Jsc button
-        self.btn_jsc = ctk.CTkButton(row1, text="", corner_radius=10, fg_color="#252525",
-                                      hover_color="#303030", command=lambda: self._select_box_param("Jsc mA/cm2"),
+        self.btn_jsc = ctk.CTkButton(row1, text="", corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB,
+                                      hover_color=_pal.BG_HOVER, command=lambda: self._select_box_param("Jsc mA/cm2"),
                                       height=75, width=140)
         self.btn_jsc.pack(side="right", expand=True, fill="x", padx=(4, 0))
         # Jsc inner content
         jsc_inner = ctk.CTkFrame(self.btn_jsc, fg_color="transparent")
         jsc_inner.place(relx=0.5, rely=0.5, anchor="center")
         jsc_label = ctk.CTkLabel(jsc_inner, text="Jsc", text_color=self.text_secondary,
-                     font=("Segoe UI", 12))
+                     font=_pal.font(12))
         jsc_label.pack()
-        self.lbl_stats_jsc = ctk.CTkLabel(jsc_inner, text="- mA/cm²", font=("Segoe UI", 16, "bold"),
+        self.lbl_stats_jsc = ctk.CTkLabel(jsc_inner, text="- mA/cm²", font=_pal.font(12, "bold"),
                                            text_color=self.accent_blue)
         self.lbl_stats_jsc.pack()
         # Bind click events to inner widgets
@@ -656,17 +660,17 @@ class AnalysisWindow(ctk.CTkToplevel):
         row2.pack(fill="x", pady=4)
 
         # FF button
-        self.btn_ff = ctk.CTkButton(row2, text="", corner_radius=10, fg_color="#252525",
-                                     hover_color="#303030", command=lambda: self._select_box_param("Fill Factor"),
+        self.btn_ff = ctk.CTkButton(row2, text="", corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB,
+                                     hover_color=_pal.BG_HOVER, command=lambda: self._select_box_param("Fill Factor"),
                                      height=75, width=140)
         self.btn_ff.pack(side="left", expand=True, fill="x", padx=(0, 4))
         # FF inner content
         ff_inner = ctk.CTkFrame(self.btn_ff, fg_color="transparent")
         ff_inner.place(relx=0.5, rely=0.5, anchor="center")
         ff_label = ctk.CTkLabel(ff_inner, text="FF", text_color=self.text_secondary,
-                     font=("Segoe UI", 12))
+                     font=_pal.font(12))
         ff_label.pack()
-        self.lbl_stats_ff = ctk.CTkLabel(ff_inner, text="- %", font=("Segoe UI", 16, "bold"),
+        self.lbl_stats_ff = ctk.CTkLabel(ff_inner, text="- %", font=_pal.font(12, "bold"),
                                           text_color=self.accent_purple)
         self.lbl_stats_ff.pack()
         # Bind click events to inner widgets
@@ -674,17 +678,17 @@ class AnalysisWindow(ctk.CTkToplevel):
             widget.bind("<Button-1>", lambda e: self._select_box_param("Fill Factor"))
 
         # PCE button - orange color (swapped with Voc)
-        self.btn_pce = ctk.CTkButton(row2, text="", corner_radius=10, fg_color="#303030",
-                                      hover_color="#303030", command=lambda: self._select_box_param("PCE (%)"),
+        self.btn_pce = ctk.CTkButton(row2, text="", corner_radius=_pal.R_PILL, fg_color=_pal.BG_HOVER,
+                                      hover_color=_pal.BG_HOVER, command=lambda: self._select_box_param("PCE (%)"),
                                       height=75, width=140, border_width=2, border_color=self.accent_orange)
         self.btn_pce.pack(side="right", expand=True, fill="x", padx=(4, 0))
         # PCE inner content
         pce_inner = ctk.CTkFrame(self.btn_pce, fg_color="transparent")
         pce_inner.place(relx=0.5, rely=0.5, anchor="center")
         pce_label = ctk.CTkLabel(pce_inner, text="PCE", text_color=self.text_secondary,
-                     font=("Segoe UI", 12))
+                     font=_pal.font(12))
         pce_label.pack()
-        self.lbl_stats_pce = ctk.CTkLabel(pce_inner, text="- %", font=("Segoe UI", 16, "bold"),
+        self.lbl_stats_pce = ctk.CTkLabel(pce_inner, text="- %", font=_pal.font(12, "bold"),
                                            text_color=self.accent_orange)
         self.lbl_stats_pce.pack()
         # Bind click events to inner widgets
@@ -706,7 +710,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         }
 
         # Results Table Card
-        results_card = ctk.CTkFrame(self.right_frame, corner_radius=16, fg_color=self.card_bg)
+        results_card = ctk.CTkFrame(self.right_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         results_card.grid(row=1, column=0, sticky="nsew", padx=12, pady=8)
         results_card.grid_rowconfigure(1, weight=1)
         results_card.grid_columnconfigure(0, weight=1)
@@ -715,32 +719,17 @@ class AnalysisWindow(ctk.CTkToplevel):
         header_frame = ctk.CTkFrame(results_card, fg_color="transparent")
         header_frame.grid(row=0, column=0, pady=(16, 8), padx=16, sticky="ew")
 
-        ctk.CTkLabel(header_frame, text="Best Performers", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(header_frame, text="Best device per condition", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(side="left")
 
         self.btn_deselect_all = ctk.CTkButton(
             header_frame, text="Clear", width=50, height=26,
-            corner_radius=6, fg_color="#3D3D3D", hover_color="#3D3D3D",
-            font=("Segoe UI", 11), command=self._deselect_all
+            corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+            font=_pal.font(11), command=self._deselect_all
         )
         self.btn_deselect_all.pack(side="right")
 
-        # Table style
-        style = ttk.Style()
-        style.theme_use("clam")
-        style.configure("Treeview",
-                        background="#1E1E1E",
-                        foreground="white",
-                        fieldbackground="#1E1E1E",
-                        borderwidth=0,
-                        rowheight=30,
-                        font=("Segoe UI", 11))
-        style.configure("Treeview.Heading",
-                        background="#252525",
-                        foreground="white",
-                        borderwidth=0,
-                        font=("Segoe UI", 11, "bold"))
-        style.map("Treeview", background=[("selected", "#3182F6")])
+        _theme.style_treeview(rowheight=24)
 
         tree_frame = ctk.CTkFrame(results_card, fg_color="transparent")
         tree_frame.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
@@ -783,15 +772,29 @@ class AnalysisWindow(ctk.CTkToplevel):
         except Exception as _pe:
             print(f"tree menu skip: {_pe}")
 
-        # Log Card
-        log_card = ctk.CTkFrame(self.right_frame, corner_radius=16, fg_color=self.card_bg)
-        log_card.grid(row=2, column=0, sticky="nsew", padx=12, pady=(8, 16))
-        self.right_frame.grid_rowconfigure(2, weight=1)
+        # Device analysis card: one-diode fit and scan hysteresis of the selected device
+        detail_card = ctk.CTkFrame(self.right_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
+        detail_card.grid(row=2, column=0, sticky="nsew", padx=12, pady=8)
+        head = ctk.CTkFrame(detail_card, fg_color="transparent")
+        head.pack(fill="x", padx=12, pady=(10, 4))
+        ctk.CTkLabel(head, text="Device analysis", font=_pal.font(12, "bold"),
+                     text_color=self.text_primary).pack(side="left")
+        self.var_fit_overlay = tk.BooleanVar(value=True)
+        ctk.CTkCheckBox(head, text="Overlay diode fit", variable=self.var_fit_overlay, font=_pal.font(10),
+                        text_color=self.text_secondary, checkbox_width=16, checkbox_height=16,
+                        command=self._update_plot).pack(side="right")
+        self.detail_tree = _theme.kv_table(detail_card, height=9)
+        self.detail_tree.pack(fill="x", padx=12, pady=(0, 10))
 
-        ctk.CTkLabel(log_card, text="Log", font=("Segoe UI", 16, "bold"),
+        # Log Card
+        log_card = ctk.CTkFrame(self.right_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
+        log_card.grid(row=3, column=0, sticky="nsew", padx=12, pady=(8, 16))
+        self.right_frame.grid_rowconfigure(3, weight=1)
+
+        ctk.CTkLabel(log_card, text="Log", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
-        self.log_text = ctk.CTkTextbox(log_card, height=120, font=("Consolas", 11))
+        self.log_text = ctk.CTkTextbox(log_card, height=120, font=_pal.mono(11))
         self.log_text.pack(fill="both", expand=True, padx=12, pady=(0, 16))
         self.log_text.configure(state="disabled")
 
@@ -802,9 +805,9 @@ class AnalysisWindow(ctk.CTkToplevel):
         """Initialize statistics button highlighting on startup"""
         for p, btn in self.stats_buttons.items():
             if p == self.selected_box_param:
-                btn.configure(fg_color="#303030", border_width=2, border_color=self.stats_colors[p])
+                btn.configure(fg_color=_pal.BG_HOVER, border_width=2, border_color=self.stats_colors[p])
             else:
-                btn.configure(fg_color="#252525", border_width=0)
+                btn.configure(fg_color=_pal.BG_SUB, border_width=0)
 
     def _deselect_all(self):
         """Clear all selections - show all samples (no filter)"""
@@ -832,9 +835,9 @@ class AnalysisWindow(ctk.CTkToplevel):
         # Update button highlighting
         for p, btn in self.stats_buttons.items():
             if p == param:
-                btn.configure(fg_color="#303030", border_width=2, border_color=self.stats_colors[p])
+                btn.configure(fg_color=_pal.BG_HOVER, border_width=2, border_color=self.stats_colors[p])
             else:
-                btn.configure(fg_color="#252525", border_width=0)
+                btn.configure(fg_color=_pal.BG_SUB, border_width=0)
 
     def _select_box_param(self, param):
         """Handle statistics button click for box plot parameter selection"""
@@ -843,9 +846,9 @@ class AnalysisWindow(ctk.CTkToplevel):
         # Update button highlighting
         for p, btn in self.stats_buttons.items():
             if p == param:
-                btn.configure(fg_color="#303030", border_width=2, border_color=self.stats_colors[p])
+                btn.configure(fg_color=_pal.BG_HOVER, border_width=2, border_color=self.stats_colors[p])
             else:
-                btn.configure(fg_color="#252525", border_width=0)
+                btn.configure(fg_color=_pal.BG_SUB, border_width=0)
 
         # Switch to Box mode and update center panel toggle
         self.center_plot_mode = "Box"
@@ -924,13 +927,63 @@ class AnalysisWindow(ctk.CTkToplevel):
                     self.lbl_stats_pce.configure(text="- %")
 
             # Update plot to show selected samples
+            self._update_detail()
             self._update_plot()
         else:
             self.selected_sample = None
             self.selected_samples = []
             self.lbl_selected_sample.configure(text="")
             self._update_statistics()
+            self._update_detail()
             self._update_plot()
+
+    def _original_name(self, group_name):
+        """Best device (file name) behind a condition/group name."""
+        if not self.processed_data:
+            return None
+        bp = self.processed_data.get('best_performance')
+        if bp is None or 'Original_Filename' not in bp.columns:
+            return None
+        hit = bp.loc[bp['Filename'] == group_name, 'Original_Filename']
+        return str(hit.iloc[0]) if len(hit) else None
+
+    def _update_detail(self):
+        """Fill the device-analysis table for the selected condition."""
+        if not hasattr(self, "detail_tree"):
+            return
+        if not self.processed_data or not self.selected_sample:
+            if self.processed_data and len(self.selected_samples) > 1:
+                _theme.fill_kv(self.detail_tree, [("Selection", f"{len(self.selected_samples)} conditions")])
+            else:
+                _theme.fill_kv(self.detail_tree, [("Select one condition", "")])
+            return
+        orig = self._original_name(self.selected_sample)
+        items = [("Best device", orig or "-")]
+        ca = self.processed_data.get('curve_analysis')
+        if ca is not None and orig is not None and 'Filename' in ca.columns:
+            row = ca.loc[ca['Filename'] == orig]
+            if len(row):
+                r = row.iloc[0]
+                items += [("Voc from curve (V)", r.get("Voc (V)"), ".4f"),
+                          ("Jsc from curve (mA/cm²)", r.get("Jsc (mA/cm2)"), ".3f"),
+                          ("FF from curve (%)", r.get("FF (%)"), ".2f"),
+                          ("Rs, slope at Voc (Ω cm²)", r.get("Rs (Ohm cm2)"), ".2f"),
+                          ("Rsh, slope at Jsc (Ω cm²)", r.get("Rsh (Ohm cm2)"), ".1f")]
+                if "n (diode fit)" in ca.columns and pd.notna(r.get("n (diode fit)")):
+                    items += [("Ideality n (diode fit)", r.get("n (diode fit)"), ".3f"),
+                              ("J0 (mA/cm²)", r.get("J0 fit (mA/cm2)"), ".3e"),
+                              ("Rs (diode fit, Ω cm²)", r.get("Rs fit (Ohm cm2)"), ".3f"),
+                              ("Rsh (diode fit, Ω cm²)", r.get("Rsh fit (Ohm cm2)"), ".1f"),
+                              ("Diode fit R²", r.get("Diode fit R2"), ".5f")]
+        hy = self.processed_data.get('hysteresis_df')
+        if hy is not None and orig is not None and not hy.empty:
+            row = hy.loc[hy['Filename'] == orig]
+            if len(row):
+                r = row.iloc[0]
+                items += [("PCE forward / reverse (%)", f"{r['PCE fwd (%)']:.2f} / {r['PCE rev (%)']:.2f}"),
+                          ("Hysteresis index (%)", r.get("HI (%)"), ".2f"),
+                          ("Voc fwd / rev (V)", f"{r['Voc fwd (V)']:.3f} / {r['Voc rev (V)']:.3f}")]
+        _theme.fill_kv(self.detail_tree, items)
 
     # =====================
     # Logging
@@ -1131,6 +1184,7 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         # Update statistics
         self._update_statistics()
+        self._update_detail()
 
         # Update table
         self._update_table()
@@ -1263,6 +1317,14 @@ class AnalysisWindow(ctk.CTkToplevel):
                 # Single sample selected
                 create_single_iv_plot(self.ax, self.processed_data['best_combined_data'],
                                        self.selected_sample, self.settings)
+                if getattr(self, "var_fit_overlay", None) is not None and self.var_fit_overlay.get():
+                    orig = self._original_name(self.selected_sample)
+                    fit = (self.processed_data.get('diode_fits') or {}).get(orig)
+                    if fit and fit.get("y_fit") is not None:
+                        self.ax.plot(fit["voltage"], fit["y_fit"], "--", color=_pal.RED, linewidth=1.3,
+                                     label=f"one-diode fit (n = {fit['n']:.2f}, Rs = {fit['Rs']:.2f} Ω cm²)")
+                        from scripts.common.plot_interactions import smart_legend
+                        smart_legend(self.ax)
             else:
                 # No selection - show all samples
                 create_iv_plot(self.ax, self.processed_data['best_combined_data'], self.settings)
@@ -1309,9 +1371,38 @@ class AnalysisWindow(ctk.CTkToplevel):
     # =====================
     # Actions
     # =====================
+    def export_report(self):
+        """Markdown report: statistics, best devices, curve analysis, hysteresis, figure."""
+        if not self.processed_data:
+            messagebox.showwarning("Report", "Process a folder first.")
+            return
+        folder = self.directory_path.get()
+        default = f"{os.path.basename(folder) or 'JV'}_report.md"
+        path = _report.ask_report_path(self, default)
+        if not path:
+            return
+        d = self.processed_data
+        sections = [("Group statistics (mean, std, best; all devices)", d.get("statistics_df")),
+                    ("Best device per condition (instrument summary)", d.get("best_performance")),
+                    ("Curve-derived parameters and one-diode fit", d.get("curve_analysis"))]
+        hy = d.get("hysteresis_df")
+        if hy is not None and not hy.empty:
+            sections.append(("Scan hysteresis (forward vs reverse)", hy))
+        notes = (f"Cell area {d.get('cell_area_cm2', 0):g} cm²; irradiance 100 mW/cm² assumed. "
+                 "Curve parameters are computed from the measured points; the one-diode fit uses the explicit "
+                 "Lambert-W solution of J = Jph - J0[exp((V + J Rs)/(n kT/q)) - 1] - (V + J Rs)/Rsh at 298.15 K. "
+                 "HI = (PCE_rev - PCE_fwd)/PCE_rev.")
+        try:
+            _report.write_markdown_report(path, f"J-V analysis: {os.path.basename(folder)}", sections, figure=self.fig,
+                                          inputs=[folder] + list(self.extra_dirs), notes=notes)
+            self.log(f"Report saved: {path}")
+            _shell.set_status(self, f"Report saved: {os.path.basename(path)}") if _shell else None
+        except Exception as e:
+            messagebox.showerror("Report", str(e))
+
     def open_excel(self):
         if self.excel_file_path and os.path.exists(self.excel_file_path):
-            os.startfile(self.excel_file_path)
+            _report.open_path(self.excel_file_path)
             self.log(f"Opening: {self.excel_file_path}")
         else:
             messagebox.showwarning("Warning", "Excel file not found.")
@@ -1429,7 +1520,7 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.after(0, lambda: self.btn_origin_box.configure(state="normal"))
 
     # =====================
-    # AI Assistant Methods
+    # Interpretation (Gemini) Methods
     # =====================
     def _on_ai_model_change(self, selected_model: str):
         """AI model change handler"""
@@ -1451,25 +1542,25 @@ class AnalysisWindow(ctk.CTkToplevel):
             return
 
         if self.ai_integration and self.ai_integration.is_ready():
-            self.lbl_ai_status.configure(text="API Connected ✓", text_color="#10B981")
+            self.lbl_ai_status.configure(text="API key configured", text_color=_pal.GREEN)
         else:
             # Check whether the API key file exists
             if os.path.exists(AI_CONFIG_FILE):
-                self.lbl_ai_status.configure(text="API Key found (not loaded)", text_color="#F59E0B")
+                self.lbl_ai_status.configure(text="API Key found (not loaded)", text_color=_pal.ORANGE)
             else:
-                self.lbl_ai_status.configure(text="API Key: Not configured", text_color="#EF4444")
+                self.lbl_ai_status.configure(text="API Key: Not configured", text_color=_pal.RED)
 
 
     def _set_ai_activity_status(self, state: str):
         if state == "running":
             if self._ai_status_prev is None:
                 self._ai_status_prev = self.lbl_status.cget("text")
-            self.lbl_status.configure(text="AI Analysis: Running...")
+            self.lbl_status.configure(text="Interpretation: Running...")
         elif state == "done":
-            self.lbl_status.configure(text="AI Analysis: Complete")
+            self.lbl_status.configure(text="Interpretation: Complete")
             self.after(2000, self._clear_ai_activity_status)
         elif state == "error":
-            self.lbl_status.configure(text="AI Analysis: Error")
+            self.lbl_status.configure(text="Interpretation: Error")
             self.after(3000, self._clear_ai_activity_status)
         elif state == "idle":
             self._clear_ai_activity_status()
@@ -1515,7 +1606,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                     error_msg = result['error']
                     def show_error(msg=error_msg):
                         self.log(f"[AI Error] {msg}")
-                        error_content = f"AI Analysis Error\n\n{msg}\n\nPlease check:\n- API key is valid\n- Internet connection\n- Gemini API status"
+                        error_content = f"Interpretation Error\n\n{msg}\n\nPlease check:\n- API key is valid\n- Internet connection\n- Gemini API status"
                         AIResultDialog(self, "AI Error", error_content)
                     self.after(0, show_error)
                     analysis_state["error"] = True
@@ -1531,7 +1622,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                 if not summary and quality_score is None and not anomalies and not next_priority:
                     def show_empty():
                         self.log("[AI] Analysis returned empty results. Check API connection.")
-                        messagebox.showwarning("AI Quick Analysis", "No analysis results. Check API key and connection.")
+                        messagebox.showwarning("Quick interpretation", "No analysis results. Check API key and connection.")
                     self.after(0, show_empty)
                     return
 
@@ -1605,7 +1696,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                 final_msg = "\n".join(msg_parts)
 
                 def show_result(msg=final_msg):
-                    AIResultDialog(self, "AI Quick Analysis", msg)
+                    AIResultDialog(self, "Quick interpretation", msg)
                 self.after(0, show_result)
 
             except Exception as e:
@@ -1613,13 +1704,13 @@ class AnalysisWindow(ctk.CTkToplevel):
                 analysis_state["error"] = True
                 def show_error(err=error_str):
                     self.log(f"[AI Error] {err}")
-                    error_content = f"AI Analysis Error\n\n{err}\n\nPlease check:\n- API key is valid\n- Internet connection\n- Gemini API status"
+                    error_content = f"Interpretation Error\n\n{err}\n\nPlease check:\n- API key is valid\n- Internet connection\n- Gemini API status"
                     AIResultDialog(self, "AI Error", error_content)
                 self.after(0, show_error)
 
             finally:
                 def reset_button():
-                    self.btn_quick_ai.configure(state="normal", text="Quick Analysis")
+                    self.btn_quick_ai.configure(state="normal", text="Quick interpretation")
                     self.progress_bar.stop()
                     self.progress_bar.configure(mode="determinate")
                     self.progress_bar.set(1.0)
@@ -1633,7 +1724,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         thread.start()
 
     def _open_ai_window(self):
-        """Open AI Assistant window"""
+        """Open Interpretation (Gemini) window"""
         if not AI_AVAILABLE or AIWindow is None:
             messagebox.showwarning("Warning", "AI features not available.\nInstall: pip install google-generativeai")
             return
@@ -1660,7 +1751,7 @@ class AnalysisWindow(ctk.CTkToplevel):
 # Standalone Entry Point
 # =========================
 def main():
-    ctk.set_appearance_mode("Dark")
+    ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
     ctk.set_default_color_theme("blue")
 
     root = ctk.CTk()

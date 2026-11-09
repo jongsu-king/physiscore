@@ -1,6 +1,6 @@
 # app.py
 # ------------------------------------------------------------
-# Spectra Processor - unified App (XRD Dashboard + PL)
+# Auto-fit - unified App (XRD Dashboard + PL)
 # - Supports start_tab argument: "XRD" | "PL"
 # ------------------------------------------------------------
 
@@ -11,6 +11,7 @@ import customtkinter as ctk
 from spectra.core.config import PipelineConfig
 from spectra.gui.tab_dashboard import SpectraDashboardTab
 from spectra.gui.tab_pl import PLAnalysisTab
+from scripts.common import palette as _pal
 
 
 def build_default_configs():
@@ -54,13 +55,13 @@ class App(ctk.CTk):
         super().__init__()
 
         # ---- Global UI theme ----
-        ctk.set_appearance_mode("Dark")       # "Dark" | "Light" | "System"
+        ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")       # "Dark" | "Light" | "System"
         ctk.set_default_color_theme("blue")   # built-in theme
 
         st = (start_tab or "PL").upper()
         
         # Set window title based on selected tab
-        self.title(f"Spectra Processor - {st} Analysis")
+        self.title(f"Auto-fit - {st} Analysis")
         
         self.geometry("1500x900")
         self.minsize(1250, 780)

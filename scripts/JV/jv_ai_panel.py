@@ -14,6 +14,7 @@ from tkinter import messagebox, scrolledtext
 from typing import Optional, Dict, Any, Callable
 
 import customtkinter as ctk
+from scripts.common import palette as _pal
 
 # Import AI assistant
 try:
@@ -100,7 +101,7 @@ class AISettingsDialog(ctk.CTkToplevel):
             main_frame,
             text="Get your API key from: https://aistudio.google.com/apikey",
             font=("Arial", 10),
-            text_color="#888888"
+            text_color=_pal.TXT_DIM
         ).pack(pady=10)
 
         # Buttons
@@ -109,7 +110,7 @@ class AISettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             btn_frame, text="Cancel", width=100,
-            fg_color="#555555", hover_color="#666666",
+            fg_color=_pal.PLOT_REF, hover_color=_pal.TXT_DIM,
             command=self.destroy
         ).pack(side="right", padx=5)
 
@@ -151,7 +152,7 @@ class AIChatPanel(ctk.CTkFrame):
     def _create_widgets(self):
         # Chat display
         self.chat_display = ctk.CTkTextbox(
-            self, height=300, font=("Consolas", 11),
+            self, height=300, font=_pal.mono(11),
             state="disabled"
         )
         self.chat_display.pack(fill="both", expand=True, padx=8, pady=(8, 4))
@@ -162,13 +163,13 @@ class AIChatPanel(ctk.CTkFrame):
 
         self.entry_message = ctk.CTkEntry(
             input_frame, placeholder_text="Type a message...",
-            height=36
+            height=28
         )
         self.entry_message.pack(side="left", fill="x", expand=True, padx=(0, 8))
         self.entry_message.bind("<Return>", lambda e: self._send_message())
 
         self.btn_send = ctk.CTkButton(
-            input_frame, text="Send", width=60, height=36,
+            input_frame, text="Send", width=60, height=28,
             command=self._send_message
         )
         self.btn_send.pack(side="right")
@@ -271,7 +272,7 @@ class AIAnalysisPanel(ctk.CTkFrame):
         header.pack(fill="x", padx=8, pady=8)
 
         ctk.CTkLabel(
-            header, text="AI Analysis",
+            header, text="Interpretation",
             font=("Arial", 14, "bold")
         ).pack(side="left")
 
@@ -286,7 +287,7 @@ class AIAnalysisPanel(ctk.CTkFrame):
 
         # Results display
         self.results_display = ctk.CTkTextbox(
-            self, font=("Consolas", 11), state="disabled"
+            self, font=_pal.mono(11), state="disabled"
         )
         self.results_display.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
@@ -296,20 +297,20 @@ class AIAnalysisPanel(ctk.CTkFrame):
 
         self.btn_analyze = ctk.CTkButton(
             btn_frame, text="Analyze", command=self._run_analysis,
-            fg_color="#10B981", hover_color="#059669"
+            fg_color=_pal.GREEN, hover_color=_pal.GREEN_HOV
         )
         self.btn_analyze.pack(side="left", padx=(0, 8))
 
         self.btn_copy = ctk.CTkButton(
             btn_frame, text="Copy", width=60,
-            fg_color="#6366F1", hover_color="#4F46E5",
+            fg_color=_pal.ACCENT, hover_color=_pal.ACCENT_HOV,
             command=self._copy_results
         )
         self.btn_copy.pack(side="left")
 
         # Status
         self.lbl_status = ctk.CTkLabel(
-            btn_frame, text="", text_color="#888888"
+            btn_frame, text="", text_color=_pal.TXT_DIM
         )
         self.lbl_status.pack(side="right")
 
@@ -418,7 +419,7 @@ class AIWindow(ctk.CTkToplevel):
         activity_callback: Optional[Callable[[str], None]] = None
     ):
         super().__init__(parent)
-        self.title("J-V AI Assistant")
+        self.title("J-V Interpretation (Gemini)")
         self.geometry("900x700")
 
         self.api_key = api_key
@@ -430,8 +431,8 @@ class AIWindow(ctk.CTkToplevel):
         self.ai = JVAIIntegration(db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "jv_ai_history.db"))
 
         # Colors
-        self.card_bg = "#1E1E1E"
-        self.accent_blue = "#3182F6"
+        self.card_bg = _pal.BG_CARD
+        self.accent_blue = _pal.ACCENT
 
         self._create_widgets()
         self._load_config()
@@ -461,14 +462,14 @@ class AIWindow(ctk.CTkToplevel):
         header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=8)
 
         ctk.CTkLabel(
-            header, text="J-V AI Assistant",
+            header, text="J-V Interpretation (Gemini)",
             font=("Arial", 18, "bold")
         ).pack(side="left", padx=16, pady=12)
 
         # Settings button
         btn_settings = ctk.CTkButton(
             header, text="Settings", width=80,
-            fg_color="#555555", hover_color="#666666",
+            fg_color=_pal.PLOT_REF, hover_color=_pal.TXT_DIM,
             command=self._open_settings
         )
         btn_settings.pack(side="right", padx=16, pady=12)
@@ -476,20 +477,20 @@ class AIWindow(ctk.CTkToplevel):
         # Status indicator
         self.lbl_api_status = ctk.CTkLabel(
             header, text="API: Not configured",
-            text_color="#EF4444"
+            text_color=_pal.RED
         )
         self.lbl_api_status.pack(side="right", padx=8)
         self._update_api_status()
 
         self.lbl_api_activity = ctk.CTkLabel(
             header, text="Request: Idle",
-            text_color="#888888"
+            text_color=_pal.TXT_DIM
         )
         self.lbl_api_activity.pack(side="right", padx=8)
         self._set_activity_status("idle")
 
         # Left panel - Analysis
-        left_frame = ctk.CTkFrame(self, corner_radius=12, fg_color=self.card_bg)
+        left_frame = ctk.CTkFrame(self, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         left_frame.grid(row=1, column=0, sticky="nsew", padx=(8, 4), pady=(0, 8))
 
         self.analysis_panel = AIAnalysisPanel(
@@ -501,7 +502,7 @@ class AIWindow(ctk.CTkToplevel):
         self.analysis_panel.pack(fill="both", expand=True)
 
         # Right panel - Chat
-        right_frame = ctk.CTkFrame(self, corner_radius=12, fg_color=self.card_bg)
+        right_frame = ctk.CTkFrame(self, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         right_frame.grid(row=1, column=1, sticky="nsew", padx=(4, 8), pady=(0, 8))
 
         # Chat header
@@ -515,7 +516,7 @@ class AIWindow(ctk.CTkToplevel):
 
         ctk.CTkButton(
             chat_header, text="Clear", width=50,
-            fg_color="#555555", hover_color="#666666",
+            fg_color=_pal.PLOT_REF, hover_color=_pal.TXT_DIM,
             command=lambda: self.chat_panel.clear_chat()
         ).pack(side="right")
 
@@ -528,7 +529,7 @@ class AIWindow(ctk.CTkToplevel):
         self.chat_panel.pack(fill="both", expand=True)
 
         # Bottom panel - Statistics
-        bottom_frame = ctk.CTkFrame(self, height=80, corner_radius=12, fg_color=self.card_bg)
+        bottom_frame = ctk.CTkFrame(self, height=80, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         bottom_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
 
         self._create_stats_panel(bottom_frame)
@@ -541,17 +542,17 @@ class AIWindow(ctk.CTkToplevel):
         # Statistics labels
         self.stat_labels = {}
         stats = [
-            ("Total Samples", "total_samples", "#3182F6"),
-            ("Avg PCE", "avg_pce", "#10B981"),
-            ("Max PCE", "max_pce", "#F59E0B"),
-            ("Avg FF", "avg_ff", "#8B5CF6"),
+            ("Total Samples", "total_samples", _pal.ACCENT),
+            ("Avg PCE", "avg_pce", _pal.GREEN),
+            ("Max PCE", "max_pce", _pal.ORANGE),
+            ("Avg FF", "avg_ff", _pal.PURPLE),
         ]
 
         for i, (label, key, color) in enumerate(stats):
-            frame = ctk.CTkFrame(stats_frame, fg_color="#252525", corner_radius=8)
+            frame = ctk.CTkFrame(stats_frame, fg_color=_pal.BG_SUB, corner_radius=_pal.R_PILL)
             frame.pack(side="left", expand=True, fill="x", padx=4)
 
-            ctk.CTkLabel(frame, text=label, text_color="#888888",
+            ctk.CTkLabel(frame, text=label, text_color=_pal.TXT_DIM,
                         font=("Arial", 11)).pack(pady=(8, 2))
             self.stat_labels[key] = ctk.CTkLabel(
                 frame, text="-", font=("Arial", 16, "bold"),
@@ -562,7 +563,7 @@ class AIWindow(ctk.CTkToplevel):
         # Refresh button
         ctk.CTkButton(
             stats_frame, text="Refresh", width=70,
-            fg_color="#555555", hover_color="#666666",
+            fg_color=_pal.PLOT_REF, hover_color=_pal.TXT_DIM,
             command=self._refresh_statistics
         ).pack(side="right", padx=(8, 0))
 
@@ -591,27 +592,27 @@ class AIWindow(ctk.CTkToplevel):
         if self.ai.is_ready():
             self.lbl_api_status.configure(
                 text="API: Connected",
-                text_color="#10B981"
+                text_color=_pal.GREEN
             )
         else:
             self.lbl_api_status.configure(
                 text="API: Not configured",
-                text_color="#EF4444"
+                text_color=_pal.RED
             )
 
     def _set_activity_status(self, state: str):
         if state == "running":
             text = "Request: Running"
-            color = "#3182F6"
+            color = _pal.ACCENT
         elif state == "done":
             text = "Request: Done"
-            color = "#10B981"
+            color = _pal.GREEN
         elif state == "error":
             text = "Request: Error"
-            color = "#EF4444"
+            color = _pal.RED
         else:
             text = "Request: Idle"
-            color = "#888888"
+            color = _pal.TXT_DIM
 
         self.lbl_api_activity.configure(text=text, text_color=color)
         if self.activity_callback:
@@ -685,13 +686,13 @@ def add_ai_button_to_jv_window(parent_window, left_frame, processed_data_getter,
         return None
 
     # AI Card
-    ai_card = ctk.CTkFrame(left_frame, corner_radius=16, fg_color="#1E1E1E")
+    ai_card = ctk.CTkFrame(left_frame, corner_radius=_pal.R_CARD, fg_color=_pal.BG_CARD)
     ai_card.pack(pady=8, padx=12, fill="x")
 
     ctk.CTkLabel(
-        ai_card, text="AI Assistant",
+        ai_card, text="Interpretation (Gemini)",
         font=("Arial", 16, "bold"),
-        text_color="#FFFFFF"
+        text_color=_pal.TXT
     ).pack(pady=(16, 8), padx=16, anchor="w")
 
     ai_window = [None]  # Use list for closure
@@ -708,10 +709,10 @@ def add_ai_button_to_jv_window(parent_window, left_frame, processed_data_getter,
             ai_window[0].focus()
 
     btn_ai = ctk.CTkButton(
-        ai_card, text="Open AI Assistant",
+        ai_card, text="Open Interpretation (Gemini)",
         command=open_ai_window,
-        fg_color="#8B5CF6", hover_color="#7C3AED",
-        corner_radius=10, height=40, font=("Arial", 13)
+        fg_color=_pal.PURPLE, hover_color=_pal.PURPLE,
+        corner_radius=_pal.R_PILL, height=28, font=("Arial", 13)
     )
     btn_ai.pack(pady=(0, 16), padx=16, fill="x")
 
@@ -723,7 +724,7 @@ def add_ai_button_to_jv_window(parent_window, left_frame, processed_data_getter,
 # =========================
 def main():
     """Standalone run for testing"""
-    ctk.set_appearance_mode("Dark")
+    ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
     ctk.set_default_color_theme("blue")
 
     root = ctk.CTk()

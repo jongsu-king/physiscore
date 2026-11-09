@@ -1,4 +1,5 @@
 import os
+import os
 import sys
 
 # Add script directory to path for local imports
@@ -18,6 +19,10 @@ import numpy as np
 import re
 import threading
 import customtkinter as ctk
+from scripts.common import palette as _pal
+from scripts.common import theme as _theme
+from scripts.common import report as _report
+from scripts.common import vibrational as _vib
 try:
     from . import ftir_core
 except ImportError:
@@ -30,29 +35,26 @@ except Exception:
     _shell = None
 
 # Extended color palette (10 colors)
-LAYER_COLORS = [
-    '#3182F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', 
-    '#EC4899', '#6366F1', '#14B8A6', '#F97316', '#84CC16'
-]
+LAYER_COLORS = list(_pal.SERIES_COLORS)
 
 class AIConfigDialog(ctk.CTkToplevel):
     def __init__(self, parent, api_key, on_confirm):
         super().__init__(parent)
-        self.title("AI Analysis Configuration")
+        self.title("Interpretation settings")
         self.geometry("500x400")
         self.api_key = api_key
         self.on_confirm = on_confirm
         self.attributes('-topmost', True)
         
-        ctk.CTkLabel(self, text="Select Gemini Model:", font=("Segoe UI", 14, "bold")).pack(pady=(20, 5))
+        ctk.CTkLabel(self, text="Select Gemini Model:", font=_pal.font(12, "bold")).pack(pady=(20, 5))
         self.combo_model = ctk.CTkComboBox(self, values=["Fetching models..."], width=300)
         self.combo_model.pack(pady=5)
         
-        ctk.CTkLabel(self, text="Sample Context / Additional Info:", font=("Segoe UI", 14, "bold")).pack(pady=(15, 5))
+        ctk.CTkLabel(self, text="Sample Context / Additional Info:", font=_pal.font(12, "bold")).pack(pady=(15, 5))
         self.txt_context = ctk.CTkTextbox(self, width=400, height=150)
         self.txt_context.pack(pady=5)
         
-        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color="#252525", width=200, height=40).pack(pady=20)
+        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28).pack(pady=20)
         
         threading.Thread(target=self.fetch_models, daemon=True).start()
         
@@ -100,10 +102,10 @@ class LoadingPopup(ctk.CTkToplevel):
         x = parent.winfo_x() + (parent.winfo_width() // 2) - 150
         y = parent.winfo_y() + (parent.winfo_height() // 2) - 60
         self.geometry(f"+{x}+{y}")
-        self.frame = ctk.CTkFrame(self, fg_color="#303030", border_width=2, border_color="#3182F6")
+        self.frame = ctk.CTkFrame(self, fg_color=_pal.BG_HOVER, border_width=2, border_color=_pal.ACCENT)
         self.frame.pack(fill="both", expand=True)
-        ctk.CTkLabel(self.frame, text="AI Analyzing...", font=("Segoe UI", 16, "bold"), text_color="white").pack(pady=(25, 10))
-        self.bar = ctk.CTkProgressBar(self.frame, width=220, mode="indeterminate", progress_color="#3182F6")
+        ctk.CTkLabel(self.frame, text="Working...", font=_pal.font(12, "bold"), text_color="white").pack(pady=(25, 10))
+        self.bar = ctk.CTkProgressBar(self.frame, width=220, mode="indeterminate", progress_color=_pal.ACCENT)
         self.bar.pack(pady=10)
         self.bar.start()
 
@@ -118,11 +120,11 @@ class ResultPopup(ctk.CTkToplevel):
         self.geometry(f"+{x}+{y}")
         self.save_data = save_data
         
-        header = ctk.CTkFrame(self, height=50, fg_color="#1E1E1E")
+        header = ctk.CTkFrame(self, height=50, fg_color=_pal.BG_CARD)
         header.pack(fill="x")
-        ctk.CTkLabel(header, text=title, font=("Segoe UI", 20, "bold"), text_color="#3182F6").pack(pady=10)
+        ctk.CTkLabel(header, text=title, font=_pal.font(13, "bold"), text_color=_pal.ACCENT).pack(pady=10)
         
-        self.textbox = ctk.CTkTextbox(self, font=("Segoe UI", 14), fg_color="#252525", text_color="#DDDDDD")
+        self.textbox = ctk.CTkTextbox(self, font=_pal.font(11), fg_color=_pal.BG_SUB, text_color=_pal.TXT_MUTED)
         self.textbox.pack(fill="both", expand=True, padx=20, pady=20)
         self.textbox.insert("1.0", content)
         self.textbox.configure(state="disabled")
@@ -131,9 +133,9 @@ class ResultPopup(ctk.CTkToplevel):
         btn_frame.pack(fill="x", padx=20, pady=(0, 20))
         
         if self.save_data:
-            ctk.CTkButton(btn_frame, text="Save to Excel", command=self.save_excel, height=40, fg_color="#252525").pack(side="left", fill="x", expand=True, padx=(0, 10))
+            ctk.CTkButton(btn_frame, text="Save to Excel", command=self.save_excel, height=28, fg_color=_pal.BG_SUB).pack(side="left", fill="x", expand=True, padx=(0, 10))
             
-        ctk.CTkButton(btn_frame, text="Close", command=self.destroy, height=40, fg_color="#3D3D3D").pack(side="right", fill="x", expand=True, padx=(10, 0))
+        ctk.CTkButton(btn_frame, text="Close", command=self.destroy, height=28, fg_color=_pal.BG_SUB).pack(side="right", fill="x", expand=True, padx=(10, 0))
 
     def save_excel(self):
         path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")])
@@ -150,9 +152,9 @@ class PeakListPopup(ctk.CTkToplevel):
         # Treeview style (dark theme)
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("Treeview", background="#252525", foreground="white", fieldbackground="#252525", borderwidth=0)
-        style.map('Treeview', background=[('selected', '#3182F6')])
-        style.configure("Treeview.Heading", background="#444444", foreground="white", relief="flat")
+        style.configure("Treeview", background=_pal.BG_SUB, foreground="white", fieldbackground=_pal.BG_SUB, borderwidth=0)
+        style.map('Treeview', background=[('selected', _pal.ACCENT)])
+        style.configure("Treeview.Heading", background=_pal.PLOT_SPINE, foreground="white", relief="flat")
 
         # Column definitions
         columns = ("pos", "assign", "mat")
@@ -185,7 +187,7 @@ class PeakListPopup(ctk.CTkToplevel):
 class AnalysisWindow(ctk.CTkToplevel):
     def __init__(self, parent, origin_path, api_key):
         super().__init__(parent)
-        self.title("FTIR Analyzer Pro")
+        self.title("FTIR Analysis")
         self.geometry("1600x950")
         self.origin_path = origin_path
         
@@ -214,7 +216,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.load_config()
         self.after(10, self.center_window)
 
-        self.paned_window = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashwidth=5, bg="#252525", bd=0)
+        self.paned_window = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashwidth=5, bg=_pal.BG_SUB, bd=0)
         self.paned_window.pack(fill="both", expand=True)
 
         self.create_left_panel()
@@ -226,13 +228,16 @@ class AnalysisWindow(ctk.CTkToplevel):
         if _shell is not None:
             try:
                 _shell.attach_chrome(self, "FTIR Analysis", {
-                    "open": ("📁 Open", self.load_data),
-                    "run": ("▶ Auto Compare", self.run_auto_compare),
+                    "open": ("Open", self.load_data),
+                    "run": ("Detect bands", self.run_auto_compare),
+                    "fit": [("Fit bands", self.fit_target_bands), ("Peak shifts", self.shift_table_all)],
                     "excel": ("Excel", self.save_all_results),
                     "png": True,
+                    "report": ("Report", self.export_report),
                     "origin": ("Origin", self.plot_to_origin),
-                    "ai": ("🤖 AI Compare", self.run_ai_compare)
-                }, hints="Open -> Process -> Fit -> Export  |  shared toolbar across all tools")
+                    "ai": ("Interpretation", self.run_ai_compare)
+                }, hints="Keys 1-9: show one layer  |  Left/Right: step through bands  |  R: reset view  |  "
+                         "Ctrl+wheel: zoom  |  Ctrl+drag: pan  |  Enter: confirm an added band")
             except Exception as _ce:
                 print(f"shell skip: {_ce}")
 
@@ -262,58 +267,84 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.bind(str((i + 1) % 10), lambda e, idx=i: self.set_target_layer(idx))
 
     def create_left_panel(self):
-        self.left_frame = ctk.CTkFrame(self.paned_window, width=320, corner_radius=0, fg_color="#141414")
+        self.left_frame = ctk.CTkFrame(self.paned_window, width=320, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.paned_window.add(self.left_frame, minsize=300)
         self.left_scroll = ctk.CTkScrollableFrame(self.left_frame, fg_color="transparent")
         self.left_scroll.pack(fill="both", expand=True, padx=5, pady=5)
 
         self.add_card_label("Data & Target Layer")
-        ctk.CTkButton(self.left_scroll, text="Load File (Max 10)", command=self.load_data, fg_color="#3182F6").pack(fill="x", padx=10, pady=5)
+        ctk.CTkButton(self.left_scroll, text="Load file (up to 10 columns)", command=self.load_data, fg_color=_pal.ACCENT).pack(fill="x", padx=10, pady=5)
         
-        ctk.CTkLabel(self.left_scroll, text="Target (Edit/Info):", text_color="#8B8B8B", font=("Segoe UI", 11)).pack(anchor="w", padx=10)
+        ctk.CTkLabel(self.left_scroll, text="Target (Edit/Info):", text_color=_pal.TXT_SUB, font=_pal.font(11)).pack(anchor="w", padx=10)
         self.combo_target = ctk.CTkComboBox(self.left_scroll, command=self.on_target_change)
         self.combo_target.pack(fill="x", padx=10, pady=(0, 10))
         
-        ctk.CTkLabel(self.left_scroll, text="Sample Info (Context):", text_color="#8B8B8B", font=("Segoe UI", 11)).pack(anchor="w", padx=10)
+        ctk.CTkLabel(self.left_scroll, text="Sample Info (Context):", text_color=_pal.TXT_SUB, font=_pal.font(11)).pack(anchor="w", padx=10)
         self.entry_context = ctk.CTkEntry(self.left_scroll)
         self.entry_context.pack(fill="x", padx=10, pady=(0, 10))
         self.entry_context.bind("<KeyRelease>", self.save_context_info)
 
-        ctk.CTkLabel(self.left_scroll, text="Reference Layer:", text_color="#8B8B8B", font=("Segoe UI", 11)).pack(anchor="w", padx=10)
+        ctk.CTkLabel(self.left_scroll, text="Reference Layer:", text_color=_pal.TXT_SUB, font=_pal.font(11)).pack(anchor="w", padx=10)
         self.combo_ref = ctk.CTkComboBox(self.left_scroll, command=self.on_ref_change)
         self.combo_ref.pack(fill="x", padx=10, pady=(0, 10))
+
+        self.add_card_label("Processing")
+        proc = ctk.CTkFrame(self.left_scroll, fg_color="transparent")
+        proc.pack(fill="x", padx=10, pady=(0, 6))
+        proc.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(proc, text="Baseline", font=_pal.font(10), text_color=_pal.TXT_SUB).grid(row=0, column=0, sticky="w")
+        self.var_baseline = ctk.StringVar(value="arpls")
+        ctk.CTkOptionMenu(proc, values=["arpls", "als", "linear", "min", "none"], variable=self.var_baseline, width=110,
+                          height=24, font=_pal.font(10)).grid(row=0, column=1, sticky="e", pady=2)
+        ctk.CTkLabel(proc, text="log10 λ (stiffness)", font=_pal.font(10), text_color=_pal.TXT_SUB).grid(row=1, column=0, sticky="w")
+        self.ent_lam = _theme.entry(proc, width=70, height=24); self.ent_lam.insert(0, "5")
+        self.ent_lam.grid(row=1, column=1, sticky="e", pady=2)
+        ctk.CTkLabel(proc, text="Smoothing window", font=_pal.font(10), text_color=_pal.TXT_SUB).grid(row=2, column=0, sticky="w")
+        self.ent_smooth = _theme.entry(proc, width=70, height=24); self.ent_smooth.insert(0, "0")
+        self.ent_smooth.grid(row=2, column=1, sticky="e", pady=2)
+        ctk.CTkLabel(proc, text="Detection prominence (%)", font=_pal.font(10), text_color=_pal.TXT_SUB).grid(row=3, column=0, sticky="w")
+        self.ent_prom = _theme.entry(proc, width=70, height=24); self.ent_prom.insert(0, "1")
+        self.ent_prom.grid(row=3, column=1, sticky="e", pady=2)
+        self.var_to_abs = tk.BooleanVar(value=False)
+        ctk.CTkCheckBox(proc, text="Transmittance -> absorbance", variable=self.var_to_abs, font=_pal.font(10), text_color=_pal.TXT, checkbox_width=16, checkbox_height=16).grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        ctk.CTkButton(self.left_scroll, text="Apply processing", command=self.reprocess_layers, fg_color=_pal.BG_SUB,
+                      hover_color=_pal.BG_HOVER, text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI,
+                      font=_pal.font(11), height=26, corner_radius=_pal.R_PILL).pack(fill="x", padx=10, pady=(0, 6))
+        ctk.CTkButton(self.left_scroll, text="Fit bands (target)", command=self.fit_target_bands, fg_color=_pal.BG_SUB,
+                      hover_color=_pal.BG_HOVER, text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI,
+                      font=_pal.font(11), height=26, corner_radius=_pal.R_PILL).pack(fill="x", padx=10, pady=(0, 10))
 
         self.add_card_label("Edit Peaks")
         edit_frame = ctk.CTkFrame(self.left_scroll, fg_color="transparent")
         edit_frame.pack(fill="x", padx=10, pady=5)
-        self.btn_add = ctk.CTkButton(edit_frame, text="Add Peak", command=self.toggle_add_mode, fg_color="#252525")
+        self.btn_add = ctk.CTkButton(edit_frame, text="Add Peak", command=self.toggle_add_mode, fg_color=_pal.BG_SUB)
         self.btn_add.pack(fill="x", pady=(0, 5))
-        self.btn_del = ctk.CTkButton(edit_frame, text="Delete Peak", command=self.toggle_delete_mode, fg_color="#252525")
+        self.btn_del = ctk.CTkButton(edit_frame, text="Delete Peak", command=self.toggle_delete_mode, fg_color=_pal.BG_SUB)
         self.btn_del.pack(fill="x")
-        self.lbl_edit_status = ctk.CTkLabel(self.left_scroll, text="Ready", text_color="#8B8B8B", font=("Segoe UI", 11))
+        self.lbl_edit_status = ctk.CTkLabel(self.left_scroll, text="Ready", text_color=_pal.TXT_SUB, font=_pal.font(11))
         self.lbl_edit_status.pack(pady=(0, 10))
 
         self.add_card_label("Analysis (Target Layer)")
-        self.btn_ai = ctk.CTkButton(self.left_scroll, text="Analyze Target Peaks", command=self.analyze_target_thread, fg_color="#252525")
+        self.btn_ai = ctk.CTkButton(self.left_scroll, text="Assign peaks (Gemini)", command=self.analyze_target_thread, fg_color=_pal.BG_SUB)
         self.btn_ai.pack(fill="x", padx=10, pady=5)
-        ctk.CTkButton(self.left_scroll, text="View Peak List (Table)", command=self.show_peak_list, fg_color="#252525").pack(fill="x", padx=10, pady=5)
-        self.btn_origin = ctk.CTkButton(self.left_scroll, text="Plot to Origin", command=self.plot_to_origin, fg_color="#252525")
+        ctk.CTkButton(self.left_scroll, text="View Peak List (Table)", command=self.show_peak_list, fg_color=_pal.BG_SUB).pack(fill="x", padx=10, pady=5)
+        self.btn_origin = ctk.CTkButton(self.left_scroll, text="Plot to Origin", command=self.plot_to_origin, fg_color=_pal.BG_SUB)
         self.btn_origin.pack(fill="x", padx=10, pady=5)
-        ctk.CTkButton(self.left_scroll, text="Save All Layers (Excel)", command=self.save_all_results, fg_color="#252525").pack(fill="x", padx=10, pady=10)
+        ctk.CTkButton(self.left_scroll, text="Save All Layers (Excel)", command=self.save_all_results, fg_color=_pal.BG_SUB).pack(fill="x", padx=10, pady=10)
 
         self.add_card_label("Compare vs Ref")
         comp_frame = ctk.CTkFrame(self.left_scroll, fg_color="transparent")
         comp_frame.pack(fill="x", padx=10, pady=5)
         
-        self.btn_compare = ctk.CTkButton(self.left_scroll, text="1. Find Peaks (Python)", command=self.run_auto_compare, fg_color="#252525")
+        self.btn_compare = ctk.CTkButton(self.left_scroll, text="1. Find Peaks (Python)", command=self.run_auto_compare, fg_color=_pal.BG_SUB)
         self.btn_compare.pack(fill="x", padx=10, pady=(5, 5))
         
-        self.btn_ai_compare = ctk.CTkButton(self.left_scroll, text="2. AI Compare", command=self.run_ai_compare, fg_color="#3182F6", state="disabled")
+        self.btn_ai_compare = ctk.CTkButton(self.left_scroll, text="2. Compare (Gemini)", command=self.run_ai_compare, fg_color=_pal.ACCENT, state="disabled")
         self.btn_ai_compare.pack(fill="x", padx=10, pady=(0, 20))
         
-        ctk.CTkButton(self.left_scroll, text="Batch Compare (All vs Ref)", command=self.batch_compare_all, fg_color="#252525").pack(fill="x", padx=10, pady=(0, 20))
+        ctk.CTkButton(self.left_scroll, text="Peak-shift table (all vs reference)", command=self.batch_compare_all, fg_color=_pal.BG_SUB).pack(fill="x", padx=10, pady=(0, 20))
         
-        self.lbl_status = ctk.CTkLabel(self.left_scroll, text="Ready", text_color="#8B8B8B")
+        self.lbl_status = ctk.CTkLabel(self.left_scroll, text="Ready", text_color=_pal.TXT_SUB)
         self.lbl_status.pack()
 
         # Edit Mode Variables
@@ -322,44 +353,44 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.temp_marker = None
 
     def add_card_label(self, text):
-        f = ctk.CTkFrame(self.left_scroll, fg_color="#1E1E1E", corner_radius=6)
+        f = ctk.CTkFrame(self.left_scroll, fg_color=_pal.BG_CARD, corner_radius=_pal.R_PILL)
         f.pack(fill="x", padx=5, pady=(10, 5))
-        ctk.CTkLabel(f, text=text, font=("Segoe UI", 13, "bold"), text_color="white").pack(anchor="w", padx=10, pady=5)
+        ctk.CTkLabel(f, text=text, font=_pal.font(13, "bold"), text_color="white").pack(anchor="w", padx=10, pady=5)
 
     def create_center_panel(self):
-        self.center_frame = ctk.CTkFrame(self.paned_window, corner_radius=0, fg_color="#0A0A0A")
+        self.center_frame = ctk.CTkFrame(self.paned_window, corner_radius=0, fg_color=_pal.BG_WINDOW)
         self.paned_window.add(self.center_frame, minsize=500, stretch="always")
         
         # Layer Bar area
-        self.layer_bar = ctk.CTkFrame(self.center_frame, fg_color="transparent", height=40)
+        self.layer_bar = ctk.CTkFrame(self.center_frame, fg_color="transparent", height=28)
         self.layer_bar.pack(side="top", fill="x", padx=10, pady=5)
         
         # [NEW] Reset View button (right-aligned)
-        self.btn_reset_view = ctk.CTkButton(self.layer_bar, text="⟲ Reset View", width=100, height=28,
-                                            font=("Segoe UI", 12), fg_color="#444444", 
+        self.btn_reset_view = ctk.CTkButton(self.layer_bar, text="Reset view", width=100, height=28,
+                                            font=_pal.font(12), fg_color=_pal.PLOT_SPINE, 
                                             command=self.reset_view_action)
         self.btn_reset_view.pack(side="right", padx=5)
 
         self.fig, self.ax = plt.subplots(figsize=(8, 5))
-        self.fig.patch.set_facecolor('#1E1E1E') 
-        self.ax.set_facecolor('#1E1E1E')
-        for spine in self.ax.spines.values(): spine.set_color('white')
-        self.ax.tick_params(colors='white')
-        self.ax.xaxis.label.set_color('white')
-        self.ax.yaxis.label.set_color('white')
-        self.ax.title.set_color('white')
+        self.fig.patch.set_facecolor(_pal.BG_CARD) 
+        self.ax.set_facecolor(_pal.BG_CARD)
+        for spine in self.ax.spines.values(): spine.set_color(_pal.PLOT_FG)
+        self.ax.tick_params(colors=_pal.PLOT_FG)
+        self.ax.xaxis.label.set_color(_pal.PLOT_FG)
+        self.ax.yaxis.label.set_color(_pal.PLOT_FG)
+        self.ax.title.set_color(_pal.PLOT_FG)
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.center_frame)
         self.canvas.draw()
         
         # Add toolbar and set style
         self.toolbar = NavigationToolbar2Tk(self.canvas, self.center_frame)
-        self.toolbar.config(background='#303030')
+        self.toolbar.config(background=_pal.BG_HOVER)
         
         for widget in self.toolbar.winfo_children():
             try:
-                widget.config(background='#303030')
-                widget.config(activebackground='#3D3D3D')
+                widget.config(background=_pal.BG_HOVER)
+                widget.config(activebackground=_pal.BORDER_HI)
             except tk.TclError:
                 pass
         
@@ -384,14 +415,14 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
 
     def create_right_panel(self):
-        self.right_frame = ctk.CTkFrame(self.paned_window, width=350, corner_radius=0, fg_color="#141414")
+        self.right_frame = ctk.CTkFrame(self.paned_window, width=350, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.paned_window.add(self.right_frame, minsize=300)
         
-        ctk.CTkLabel(self.right_frame, text="Peak Detail (Target Layer)", text_color="white", font=("Segoe UI", 14, "bold")).pack(pady=10)
+        ctk.CTkLabel(self.right_frame, text="Peak Detail (Target Layer)", text_color="white", font=_pal.font(12, "bold")).pack(pady=10)
         self.lbl_peak_pos = ctk.CTkLabel(self.right_frame, text="-", text_color="white")
         self.lbl_peak_pos.pack(pady=5)
         
-        self.txt_peak_desc = ctk.CTkTextbox(self.right_frame, font=("Segoe UI", 12), fg_color="#252525", text_color="white")
+        self.txt_peak_desc = ctk.CTkTextbox(self.right_frame, font=_pal.font(12), fg_color=_pal.BG_SUB, text_color="white")
         self.txt_peak_desc.pack(fill="both", expand=True, padx=10, pady=10)
 
     # ==========================================
@@ -406,8 +437,8 @@ class AnalysisWindow(ctk.CTkToplevel):
             names = []
             
             for i, d in enumerate(raw_data):
-                wn, inte = d['wavenumbers'], d['intensities']
-                peaks, indices = ftir_core.detect_peaks(wn, inte)
+                wn, raw = d['wavenumbers'], d['intensities']
+                wn, inte, peaks, indices = self._process_layer(wn, raw)
                 
                 # Use context name if available
                 layer_name = d.get('context', '').strip()
@@ -421,9 +452,11 @@ class AnalysisWindow(ctk.CTkToplevel):
                     'context': d.get('context', ''),
                     'peak_data': {},
                     'wavenumbers': wn,
+                    'raw': np.asarray(raw, dtype=float),
                     'intensities': inte,
                     'peaks': peaks,
-                    'indices': indices
+                    'indices': indices,
+                    'fits': None,
                 })
                 names.append(layer_name)
 
@@ -445,6 +478,149 @@ class AnalysisWindow(ctk.CTkToplevel):
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
+    def _processing_options(self):
+        try:
+            lam = 10 ** float(self.ent_lam.get())
+        except (ValueError, AttributeError):
+            lam = 1e5
+        try:
+            sm = int(float(self.ent_smooth.get()))
+        except (ValueError, AttributeError):
+            sm = 0
+        try:
+            prom = float(self.ent_prom.get()) / 100.0
+        except (ValueError, AttributeError):
+            prom = 0.01
+        return self.var_baseline.get() if hasattr(self, "var_baseline") else "arpls", lam, sm, prom
+
+    def _process_layer(self, wn, raw):
+        """Baseline, smoothing and band detection of one layer (scripts.common.vibrational)."""
+        baseline, lam, sm, prom = self._processing_options()
+        y = np.asarray(raw, dtype=float)
+        dips = True
+        if getattr(self, 'var_to_abs', None) is not None and self.var_to_abs.get():
+            y = _vib.transmittance_to_absorbance(y)
+            dips = False
+        prep = _vib.preprocess(wn, y, baseline=baseline, lam=lam, smooth_window=sm, dips=dips)
+        corrected = prep["corrected"]
+        peaks, indices, _prom = _vib.detect_bands(prep["x"], corrected, prominence_frac=prom)
+        return prep["x"], corrected, peaks, indices
+
+    def reprocess_layers(self):
+        """Re-run baseline/detection on every layer with the current options; keeps names and roles."""
+        if not self.layers:
+            return
+        for L in self.layers:
+            wn, inte, peaks, indices = self._process_layer(L['wavenumbers'] if 'raw' not in L else L['wavenumbers'], L.get('raw', L['intensities']))
+            L['wavenumbers'], L['intensities'], L['peaks'], L['indices'] = wn, inte, peaks, indices
+            L['fits'] = None
+        self.force_reset_view = True
+        self.redraw_graph()
+        self.lbl_status.configure(text="Processing applied to all layers")
+
+    def fit_target_bands(self):
+        """Lorentzian fit of the detected bands of the target layer (overlapping bands together)."""
+        if not self.layers:
+            return
+        L = self.layers[self.target_layer_idx]
+        if len(L['peaks']) == 0:
+            messagebox.showinfo("Fit bands", "No bands detected in the target layer.")
+            return
+        shape = "gaussian"
+        try:
+            fits = _vib.fit_bands(L['wavenumbers'], L['intensities'], L['peaks'], shape=shape)
+        except Exception as ex:
+            messagebox.showerror("Fit bands", str(ex))
+            return
+        L['fits'] = fits
+        self.redraw_graph()
+        self._show_table(f"Band fit - {L['name']}", fits.round(4), f"{L['name']}_bands.xlsx")
+        if self.current_peak_idx != -1 and self.current_peak_idx < len(L['peaks']):
+            self.show_peak_info(L['peaks'][self.current_peak_idx])
+
+    def _show_table(self, title, df, default_name):
+        win = ctk.CTkToplevel(self)
+        win.title(title)
+        win.geometry("760x420")
+        win.configure(fg_color=_pal.BG_WINDOW)
+        _theme.style_treeview(rowheight=22)
+        cols = [str(c) for c in df.columns]
+        tree = ttk.Treeview(win, columns=cols, show="headings")
+        for c in cols:
+            tree.heading(c, text=c)
+            tree.column(c, width=max(70, int(760 / max(len(cols), 1)) - 8), anchor="center")
+        for _, row in df.iterrows():
+            tree.insert("", "end", values=[("" if (isinstance(v, float) and np.isnan(v)) else v) for v in row.tolist()])
+        tree.pack(fill="both", expand=True, padx=10, pady=10)
+        try:
+            from scripts.common import plot_interactions as _pi
+            _pi.attach_tree_context_menu(win, tree)
+        except Exception:
+            pass
+
+        def save():
+            path = filedialog.asksaveasfilename(parent=win, defaultextension=".xlsx", initialfile=default_name,
+                                                filetypes=[("Excel", "*.xlsx"), ("CSV", "*.csv")])
+            if not path:
+                return
+            if path.lower().endswith(".csv"):
+                df.to_csv(path, index=False)
+            else:
+                df.to_excel(path, index=False)
+            self.lbl_status.configure(text=f"Saved {os.path.basename(path)}")
+
+        ctk.CTkButton(win, text="Save table...", command=save, height=26, fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                      text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI, font=_pal.font(11),
+                      corner_radius=_pal.R_PILL).pack(pady=(0, 10))
+        return win
+
+    def shift_table_all(self):
+        """Peak-shift table of every layer against the reference layer (no network needed)."""
+        if not self.layers:
+            return
+        ref = self.layers[self.ref_layer_idx]
+        frames = []
+        for L in self.layers:
+            if L is ref:
+                continue
+            frames.append(_vib.peak_shift_table(ref['peaks'], L['peaks'], tolerance=8.0,
+                                                reference_name=ref['name'], sample_name=L['name']))
+        if not frames:
+            messagebox.showinfo("Peak shifts", "Load at least two layers.")
+            return
+        df = pd.concat(frames, ignore_index=True)
+        self.last_shift_table = df
+        self._show_table(f"Peak shifts vs {ref['name']} (cm⁻¹, tolerance 8)", df.round(2), "peak_shifts.xlsx")
+
+    def export_report(self):
+        if not self.layers:
+            messagebox.showwarning("Report", "Load data first.")
+            return
+        path = _report.ask_report_path(self, "FTIR_report.md")
+        if not path:
+            return
+        sections = []
+        for L in self.layers:
+            pos = pd.DataFrame({"band (cm-1)": np.round(L['peaks'], 1)})
+            if L.get('fits') is not None and not L['fits'].empty:
+                sections.append((f"{L['name']}: fitted bands", L['fits'].round(4)))
+            else:
+                sections.append((f"{L['name']}: detected bands", pos))
+            if len(L['peaks']):
+                sections.append((f"{L['name']}: library suggestions (indicative)",
+                                 _vib.assign_bands(L['peaks'], "ftir", max_suggestions=1)))
+        if getattr(self, "last_shift_table", None) is not None:
+            sections.append(("Peak shifts vs reference", self.last_shift_table.round(2)))
+        baseline, lam, sm, prom = self._processing_options()
+        notes = (f"Baseline: {baseline} (lambda = {lam:g}), smoothing window {sm}, detection prominence {100 * prom:g}% of range. "
+                 "Band fits: Gaussian profiles, overlapping bands fitted together. Library "
+                 "assignments are typical literature positions and must be confirmed for the material at hand.")
+        try:
+            _report.write_markdown_report(path, "FTIR analysis", sections, figure=self.fig, notes=notes)
+            self.lbl_status.configure(text=f"Report saved: {os.path.basename(path)}")
+        except Exception as ex:
+            messagebox.showerror("Report", str(ex))
+
     def rebuild_layer_buttons(self):
         for btn in self.layer_buttons:
             btn.destroy()
@@ -452,7 +628,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         
         for i in range(len(self.layers)):
             btn = ctk.CTkButton(self.layer_bar, text=str(i+1), width=35, height=28,
-                                font=("Segoe UI", 12, "bold"), fg_color="#252525", 
+                                font=_pal.font(12, "bold"), fg_color=_pal.BG_SUB, 
                                 command=lambda x=i: self.toggle_layer_visibility(x))
             btn.pack(side="left", padx=3)
             self.layer_buttons.append(btn)
@@ -463,8 +639,8 @@ class AnalysisWindow(ctk.CTkToplevel):
         for i, btn in enumerate(self.layer_buttons):
             is_vis = self.layers[i]['visible']
             color = LAYER_COLORS[i % len(LAYER_COLORS)]
-            btn.configure(fg_color=color if is_vis else "#303030", 
-                          text_color="white" if is_vis else "#8B8B8B")
+            btn.configure(fg_color=color if is_vis else _pal.BG_HOVER, 
+                          text_color="white" if is_vis else _pal.TXT_SUB)
 
     def toggle_layer_visibility(self, idx):
         if idx >= len(self.layers): return
@@ -536,9 +712,9 @@ class AnalysisWindow(ctk.CTkToplevel):
              saved_ylim = self.ax.get_ylim()
 
         self.ax.clear()
-        self.ax.set_title("FTIR Spectrum", color='white', fontsize=14, fontweight='bold')
-        self.ax.set_xlabel("Wavenumber (cm-1)", color='white', fontsize=12)
-        self.ax.set_ylabel("Transmittance", color='white', fontsize=12)
+        self.ax.set_title("FTIR Spectrum", color=_pal.PLOT_FG, fontsize=14, fontweight='bold')
+        self.ax.set_xlabel("Wavenumber (cm-1)", color=_pal.PLOT_FG, fontsize=12)
+        self.ax.set_ylabel("Transmittance", color=_pal.PLOT_FG, fontsize=12)
         self.ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.3)
         self.ax.tick_params(axis='both', which='major', labelsize=10)
 
@@ -579,6 +755,14 @@ class AnalysisWindow(ctk.CTkToplevel):
             
             style = '--' if idx == self.ref_layer_idx else '-'
             self.ax.plot(L['wavenumbers'], L['intensities'], color=c, alpha=alpha, label=label, linestyle=style)
+            if is_target and L.get('fits') is not None and not L['fits'].empty:
+                from scripts.common import spectral as _sp
+                env = np.zeros_like(L['wavenumbers'], dtype=float)
+                for _, fr in L['fits'].iterrows():
+                    if fr.get('fitted', False) and np.isfinite(fr['height']):
+                        fn = _sp.gaussian if fr['shape'] == 'gaussian' else _sp.lorentzian
+                        env += fn(L['wavenumbers'], fr['height'], fr['center'], fr['fwhm'])
+                self.ax.plot(L['wavenumbers'], env, ':', color=_pal.RED, linewidth=1.1, label='band fit')
             
             picker = 5 if (is_target or self.compare_mode) else False
             
@@ -707,7 +891,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         if not self.layers: return
         L = self.layers[self.target_layer_idx]
         if not L['peak_data']:
-            messagebox.showinfo("Info", "No analysis data yet. Please run 'Analyze Target Peaks' first.")
+            messagebox.showinfo("Info", "No analysis data yet. Please run 'Assign peaks (Gemini)' first.")
             return
         PeakListPopup(self, L['name'], L['peak_data'])
 
@@ -802,7 +986,23 @@ class AnalysisWindow(ctk.CTkToplevel):
             
             self.txt_peak_desc.insert("1.0", text)
         else:
-            self.txt_peak_desc.insert("1.0", "No analysis data.")
+            lines = []
+            fits = L.get('fits')
+            if fits is not None and not fits.empty:
+                row = fits.iloc[(fits['center'] - wn).abs().argmin()]
+                if abs(row['center'] - wn) < 10:
+                    lines.append(f"Fitted ({row['shape']}): centre {row['center']:.2f} cm⁻¹, FWHM {row['fwhm']:.2f} cm⁻¹, "
+                                 f"area {row['area']:.4g}, R² {row['r2']:.4f}\n")
+            sugg = _vib.assign_bands([wn], "ftir")
+            hits = sugg[sugg['note'] != 'no library match']
+            if len(hits):
+                lines.append("Library suggestions (indicative; verify against the literature):")
+                for _, r in hits.iterrows():
+                    lines.append(f"  - {r['assignment']} [{r['material']}] at {r['library_position']:.0f} cm⁻¹ "
+                                 f"({r['distance']:+.0f})" + (f" - {r['note']}" if r['note'] else ""))
+            else:
+                lines.append("No library match within tolerance.")
+            self.txt_peak_desc.insert("1.0", "\n".join(lines))
         self.txt_peak_desc.configure(state="disabled")
 
     # ==========================================
@@ -824,7 +1024,8 @@ class AnalysisWindow(ctk.CTkToplevel):
             for idx in [self.target_layer_idx, self.ref_layer_idx]:
                 L = self.layers[idx]
                 # Re-detect peaks using core logic
-                peaks, indices = ftir_core.detect_peaks(L['wavenumbers'], L['intensities'])
+                _b, _l, _s, prom = self._processing_options()
+                peaks, indices, _pr = _vib.detect_bands(L['wavenumbers'], L['intensities'], prominence_frac=prom)
                 L['peaks'] = peaks
                 L['indices'] = indices
             
@@ -876,7 +1077,7 @@ class AnalysisWindow(ctk.CTkToplevel):
              self.analyze_single_peak_thread()
 
     def run_compare_thread(self):
-        self.btn_ai_compare.configure(text="Analyzing...", fg_color="#252525")
+        self.btn_ai_compare.configure(text="Analyzing...", fg_color=_pal.BG_SUB)
         api_key = self.api_key_var.get()
         model = self.model_var.get()
         threading.Thread(target=self._run_compare, args=(api_key, model), daemon=True).start()
@@ -906,7 +1107,7 @@ class AnalysisWindow(ctk.CTkToplevel):
 
     def show_compare_result(self, res):
         self.hide_loading()
-        self.btn_ai_compare.configure(text="2. AI Compare", fg_color="#3182F6", text_color="white")
+        self.btn_ai_compare.configure(text="2. Compare (Gemini)", fg_color=_pal.ACCENT, text_color="white")
         self.lbl_status.configure(text="Ready")
         
         # Format JSON result to text
@@ -920,10 +1121,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         ResultPopup(self, "Comparison Result", content, save_data=res)
         
     def batch_compare_all(self):
-        if not self.layers: return
-        ref_layer = self.layers[self.ref_layer_idx]
-        msg = f"Batch comparing all layers against {ref_layer['name']}...\n(Feature placeholder)"
-        messagebox.showinfo("Info", msg)
+        self.shift_table_all()
 
     def get_idx(self, combo):
         return int(combo.get().split(" ")[1]) - 1
@@ -963,15 +1161,15 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.update_mode_ui()
 
     def update_mode_ui(self):
-        self.btn_add.configure(fg_color="#10B981" if self.edit_mode == 'add' else "#8B8B8B")
-        self.btn_del.configure(fg_color="#EF4444" if self.edit_mode == 'delete' else "#8B8B8B")
+        self.btn_add.configure(fg_color=_pal.GREEN if self.edit_mode == 'add' else _pal.TXT_SUB)
+        self.btn_del.configure(fg_color=_pal.RED if self.edit_mode == 'delete' else _pal.TXT_SUB)
         
         if self.edit_mode == 'add':
-            self.lbl_edit_status.configure(text="Click graph to add peak (Arrow keys to adjust, Enter to save)", text_color="#10B981")
+            self.lbl_edit_status.configure(text="Click graph to add peak (Arrow keys to adjust, Enter to save)", text_color=_pal.GREEN)
         elif self.edit_mode == 'delete':
-            self.lbl_edit_status.configure(text="Click peak marker to delete", text_color="#EF4444")
+            self.lbl_edit_status.configure(text="Click peak marker to delete", text_color=_pal.RED)
         else:
-            self.lbl_edit_status.configure(text="Ready", text_color="#8B8B8B")
+            self.lbl_edit_status.configure(text="Ready", text_color=_pal.TXT_SUB)
 
     def on_key_press(self, event):
         if self.edit_mode == 'add' and self.temp_peak_idx is not None:
@@ -1010,7 +1208,7 @@ class AnalysisWindow(ctk.CTkToplevel):
             if L['intensities'][idx] < L['intensities'][idx-1] and L['intensities'][idx] < L['intensities'][idx+1]:
                 is_dip = True
         
-        color = '#00FF00' if is_dip else '#FF00FF' 
+        color = _pal.GREEN if is_dip else _pal.PINK 
         marker = 'v' if is_dip else 'x'
         
         self.temp_marker, = self.ax.plot(x, y, marker=marker, color=color, ms=12, markeredgewidth=2)

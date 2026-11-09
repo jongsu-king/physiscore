@@ -32,7 +32,7 @@ def run_pl_pipeline(x, y, outdir, cfg: PipelineConfig, log_cb=None):
     widths_pts = widths_res[0]  # width in number of samples
     
     if len(peaks) == 0:
-        log("⚠ No peaks found")
+        log("No peaks found")
         proc = pd.DataFrame({"x": x, "y_raw": y})
         proc.to_csv(os.path.join(outdir, "processed.csv"), index=False)
         return proc, pd.DataFrame(), pd.DataFrame()
@@ -67,7 +67,7 @@ def run_pl_pipeline(x, y, outdir, cfg: PipelineConfig, log_cb=None):
     
     # Store main peak info
     if not fitted.empty:
-        log(f"✓ Peak at {fitted.iloc[0]['center']:.1f}nm (E={fitted.iloc[0]['bandgap_eV']:.2f}eV)")
+        log(f"Peak at {fitted.iloc[0]['center']:.1f}nm (E={fitted.iloc[0]['bandgap_eV']:.2f}eV)")
     
     # Save outputs
     proc = pd.DataFrame({"x": x, "y_raw": y})

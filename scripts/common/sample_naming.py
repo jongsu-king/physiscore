@@ -17,6 +17,7 @@ from tkinter import simpledialog, messagebox
 import customtkinter as ctk
 
 from scripts.common import app_config
+from scripts.common import palette as _pal
 
 
 # ------------------------------------------------------------
@@ -108,7 +109,7 @@ class _Renamer:
 # ------------------------------------------------------------
 # Dialogs (dark theme, JV exe style)
 # ------------------------------------------------------------
-_D_BG, _D_CARD, _D_SUB, _D_ACC = "#0A0A0A", "#1E1E1E", "#252525", "#3182F6"
+_D_BG, _D_CARD, _D_SUB, _D_ACC = _pal.BG_WINDOW, _pal.BG_CARD, _pal.BG_SUB, _pal.ACCENT
 
 
 class BatchRenameDialog(ctk.CTkToplevel):
@@ -137,19 +138,19 @@ class BatchRenameDialog(ctk.CTkToplevel):
         btns = ctk.CTkFrame(self, fg_color="transparent")
         btns.pack(fill="x", padx=14, pady=4)
         ctk.CTkButton(btns, text="Strip common prefix", height=28, fg_color=_D_SUB,
-                      hover_color="#303030",
+                      hover_color=_pal.BG_HOVER,
                       command=self._fill_common_prefix).pack(side="left")
         ctk.CTkLabel(btns, text="(preview updates as you type)",
-                     text_color="#8B8B8B").pack(side="right")
+                     text_color=_pal.TXT_SUB).pack(side="right")
 
-        self.preview = ctk.CTkTextbox(self, font=("Consolas", 12), fg_color=_D_CARD)
+        self.preview = ctk.CTkTextbox(self, font=_pal.mono(11), fg_color=_D_CARD)
         self.preview.pack(fill="both", expand=True, padx=14, pady=8)
 
         act = ctk.CTkFrame(self, fg_color="transparent")
         act.pack(fill="x", padx=14, pady=(0, 14))
-        ctk.CTkButton(act, text="Apply", height=36, fg_color=_D_ACC, hover_color="#2563EB",
+        ctk.CTkButton(act, text="Apply", height=28, fg_color=_D_ACC, hover_color=_pal.ACCENT_HOV,
                       command=self._apply).pack(side="right")
-        ctk.CTkButton(act, text="Cancel", height=36, fg_color=_D_SUB, hover_color="#303030",
+        ctk.CTkButton(act, text="Cancel", height=28, fg_color=_D_SUB, hover_color=_pal.BG_HOVER,
                       command=self.destroy).pack(side="right", padx=8)
 
         self.e_find.bind("<KeyRelease>", lambda e: self._update_preview())
@@ -223,8 +224,8 @@ class PresetEditDialog(ctk.CTkToplevel):
         self.configure(fg_color=_D_BG)
         self.transient(parent)
 
-        self.lst = tk.Listbox(self, bg=_D_CARD, fg="#E8E8E8", selectbackground=_D_ACC,
-                              relief="flat", font=("Segoe UI", 11), activestyle="none")
+        self.lst = tk.Listbox(self, bg=_D_CARD, fg=_pal.TXT, selectbackground=_D_ACC,
+                              relief="flat", font=_pal.font(11), activestyle="none")
         self.lst.pack(fill="both", expand=True, padx=14, pady=(14, 6))
         for p in load_presets():
             self.lst.insert("end", p)
@@ -234,15 +235,15 @@ class PresetEditDialog(ctk.CTkToplevel):
         self.e_new = ctk.CTkEntry(row, placeholder_text="new preset...")
         self.e_new.pack(side="left", fill="x", expand=True, padx=(0, 6))
         ctk.CTkButton(row, text="Add", width=70, height=28, fg_color=_D_SUB,
-                      hover_color="#303030", command=self._add).pack(side="left")
+                      hover_color=_pal.BG_HOVER, command=self._add).pack(side="left")
         ctk.CTkButton(row, text="Remove", width=70, height=28, fg_color=_D_SUB,
-                      hover_color="#303030", command=self._remove).pack(side="left", padx=(6, 0))
+                      hover_color=_pal.BG_HOVER, command=self._remove).pack(side="left", padx=(6, 0))
 
         act = ctk.CTkFrame(self, fg_color="transparent")
         act.pack(fill="x", padx=14, pady=(4, 14))
-        ctk.CTkButton(act, text="Save", height=36, fg_color=_D_ACC, hover_color="#2563EB",
+        ctk.CTkButton(act, text="Save", height=28, fg_color=_D_ACC, hover_color=_pal.ACCENT_HOV,
                       command=self._save).pack(side="right")
-        ctk.CTkButton(act, text="Cancel", height=36, fg_color=_D_SUB, hover_color="#303030",
+        ctk.CTkButton(act, text="Cancel", height=28, fg_color=_D_SUB, hover_color=_pal.BG_HOVER,
                       command=self.destroy).pack(side="right", padx=8)
 
     def _add(self):
@@ -273,9 +274,9 @@ class ComposeDialog(ctk.CTkToplevel):
         self.target = target_name
 
         ctk.CTkLabel(self, text=f"Target: {target_name}",
-                     text_color="#8B8B8B").pack(anchor="w", padx=14, pady=(12, 2))
-        self.lst = tk.Listbox(self, bg=_D_CARD, fg="#E8E8E8", selectbackground=_D_ACC,
-                              relief="flat", font=("Segoe UI", 11), activestyle="none",
+                     text_color=_pal.TXT_SUB).pack(anchor="w", padx=14, pady=(12, 2))
+        self.lst = tk.Listbox(self, bg=_D_CARD, fg=_pal.TXT, selectbackground=_D_ACC,
+                              relief="flat", font=_pal.font(11), activestyle="none",
                               selectmode="extended")
         self.lst.pack(fill="both", expand=True, padx=14, pady=6)
         for p in load_presets():
@@ -287,9 +288,9 @@ class ComposeDialog(ctk.CTkToplevel):
 
         act = ctk.CTkFrame(self, fg_color="transparent")
         act.pack(fill="x", padx=14, pady=(4, 14))
-        ctk.CTkButton(act, text="Apply", height=36, fg_color=_D_ACC, hover_color="#2563EB",
+        ctk.CTkButton(act, text="Apply", height=28, fg_color=_D_ACC, hover_color=_pal.ACCENT_HOV,
                       command=self._apply).pack(side="right")
-        ctk.CTkButton(act, text="Cancel", height=36, fg_color=_D_SUB, hover_color="#303030",
+        ctk.CTkButton(act, text="Cancel", height=28, fg_color=_D_SUB, hover_color=_pal.BG_HOVER,
                       command=self.destroy).pack(side="right", padx=8)
 
     def _compose(self, _e=None):

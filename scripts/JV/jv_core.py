@@ -17,6 +17,7 @@ from scripts.common.naming import (base_name as _base_name,
                                    cell_number as _cell_number,
                                    display_name_from_path, natural_sort_key)
 from scripts.common.origin import WIN32COM_AVAILABLE, connect_to_origin
+from scripts.common import palette as _pal
 
 # =========================
 # Constants & Settings
@@ -581,15 +582,14 @@ def create_iv_plot(ax, best_combined_data: pd.DataFrame, settings: JVSettings):
     ax.clear()
 
     if best_combined_data.empty:
-        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color='#888888')
+        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     # Plot each sample
     voltage_col = 'Voltage (V)'
     sample_cols = [col for col in best_combined_data.columns if col != voltage_col]
 
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-              '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    colors = _pal.SERIES_COLORS
 
     for i, col in enumerate(sample_cols):
         color = colors[i % len(colors)]
@@ -597,14 +597,14 @@ def create_iv_plot(ax, best_combined_data: pd.DataFrame, settings: JVSettings):
                 '-', linewidth=2, label=col, color=color)
 
     # Style - white labels
-    ax.set_xlabel("Voltage (V)", fontsize=12, color='white')
-    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color='white')
+    ax.set_xlabel("Voltage (V)", fontsize=12, color=_pal.PLOT_FG)
+    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color=_pal.PLOT_FG)
     ax.set_xlim(settings.x_min, settings.x_max)
     ax.set_ylim(settings.y_min, settings.y_max)
 
     # Reference lines
-    ax.axhline(y=0, color='#555555', linewidth=0.8, linestyle='-')
-    ax.axvline(x=0, color='#555555', linewidth=0.8, linestyle='-')
+    ax.axhline(y=0, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
+    ax.axvline(x=0, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
 
     # Grid
     ax.grid(True, alpha=0.3, linestyle='--')
@@ -620,7 +620,7 @@ def create_single_iv_plot(ax, best_combined_data: pd.DataFrame, sample_name: str
     ax.clear()
 
     if best_combined_data.empty:
-        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color='#888888')
+        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     voltage_col = 'Voltage (V)'
@@ -634,23 +634,23 @@ def create_single_iv_plot(ax, best_combined_data: pd.DataFrame, sample_name: str
 
     if matching_col is None:
         ax.text(0.5, 0.5, f"Sample '{sample_name}' not found",
-                ha='center', va='center', fontsize=14, color='#888888')
+                ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     # Plot selected sample
     ax.plot(best_combined_data[voltage_col], best_combined_data[matching_col],
-            '-', linewidth=2.5, label=matching_col, color='#3182F6')
+            '-', linewidth=2.5, label=matching_col, color=_pal.ACCENT)
 
     # Style - white labels
-    ax.set_xlabel("Voltage (V)", fontsize=12, color='white')
-    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color='white')
+    ax.set_xlabel("Voltage (V)", fontsize=12, color=_pal.PLOT_FG)
+    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color=_pal.PLOT_FG)
     ax.set_xlim(settings.x_min, settings.x_max)
     ax.set_ylim(settings.y_min, settings.y_max)
-    ax.set_title(f"{sample_name}", fontsize=14, color='white')
+    ax.set_title(f"{sample_name}", fontsize=14, color=_pal.PLOT_FG)
 
     # Reference lines
-    ax.axhline(y=0, color='#555555', linewidth=0.8, linestyle='-')
-    ax.axvline(x=0, color='#555555', linewidth=0.8, linestyle='-')
+    ax.axhline(y=0, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
+    ax.axvline(x=0, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
 
     # Grid
     ax.grid(True, alpha=0.3, linestyle='--')
@@ -664,13 +664,12 @@ def create_multi_iv_plot(ax, best_combined_data: pd.DataFrame, sample_names: Lis
     ax.clear()
 
     if best_combined_data.empty:
-        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color='#888888')
+        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     voltage_col = 'Voltage (V)'
 
-    colors = ['#3182F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-              '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16']
+    colors = _pal.SERIES_COLORS
 
     plotted = False
     for i, sample_name in enumerate(sample_names):
@@ -689,23 +688,23 @@ def create_multi_iv_plot(ax, best_combined_data: pd.DataFrame, sample_names: Lis
 
     if not plotted:
         ax.text(0.5, 0.5, "No matching samples found",
-                ha='center', va='center', fontsize=14, color='#888888')
+                ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     # Style - white labels
-    ax.set_xlabel("Voltage (V)", fontsize=12, color='white')
-    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color='white')
+    ax.set_xlabel("Voltage (V)", fontsize=12, color=_pal.PLOT_FG)
+    ax.set_ylabel("Current Density (mA/cm²)", fontsize=12, color=_pal.PLOT_FG)
     ax.set_xlim(settings.x_min, settings.x_max)
     ax.set_ylim(settings.y_min, settings.y_max)
 
     if len(sample_names) <= 3:
-        ax.set_title(", ".join(sample_names), fontsize=12, color='white')
+        ax.set_title(", ".join(sample_names), fontsize=12, color=_pal.PLOT_FG)
     else:
-        ax.set_title(f"Multiple Samples ({len(sample_names)})", fontsize=12, color='white')
+        ax.set_title(f"Multiple Samples ({len(sample_names)})", fontsize=12, color=_pal.PLOT_FG)
 
     # Reference lines
-    ax.axhline(y=0, color='#555555', linewidth=0.8, linestyle='-')
-    ax.axvline(x=0, color='#555555', linewidth=0.8, linestyle='-')
+    ax.axhline(y=0, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
+    ax.axvline(x=0, color=_pal.PLOT_REF, linewidth=0.8, linestyle='-')
 
     # Grid
     ax.grid(True, alpha=0.3, linestyle='--')
@@ -726,7 +725,7 @@ def create_box_plot(ax, box_df: pd.DataFrame, param_name: str, selected_samples:
     ax.clear()
 
     if box_df.empty:
-        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color='#888888')
+        ax.text(0.5, 0.5, "No Data", ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     # Filter columns if samples are selected
@@ -735,7 +734,7 @@ def create_box_plot(ax, box_df: pd.DataFrame, param_name: str, selected_samples:
         # Match selected sample names with box_df columns
         columns_to_plot = [col for col in box_df.columns if col in selected_samples]
         if not columns_to_plot:
-            ax.text(0.5, 0.5, "No matching samples", ha='center', va='center', fontsize=14, color='#888888')
+            ax.text(0.5, 0.5, "No matching samples", ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
             return
 
     # Convert to numeric
@@ -748,7 +747,7 @@ def create_box_plot(ax, box_df: pd.DataFrame, param_name: str, selected_samples:
             labels.append(col)
 
     if not data_for_plot:
-        ax.text(0.5, 0.5, "No Valid Data", ha='center', va='center', fontsize=14, color='#888888')
+        ax.text(0.5, 0.5, "No Valid Data", ha='center', va='center', fontsize=14, color=_pal.TXT_DIM)
         return
 
     # Create box plot
@@ -760,11 +759,11 @@ def create_box_plot(ax, box_df: pd.DataFrame, param_name: str, selected_samples:
         bp = ax.boxplot(data_for_plot, labels=labels, patch_artist=True)
 
     # Style boxes
-    colors = ['#3182F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6']
+    colors = _pal.SERIES_COLORS
     for i, (box, median) in enumerate(zip(bp['boxes'], bp['medians'])):
         box.set_facecolor(colors[i % len(colors)])
         box.set_alpha(0.7)
-        median.set_color('white')
+        median.set_color(_pal.PLOT_FG)
         median.set_linewidth(2)
 
     # Y-axis label - white color with display formatting
@@ -775,11 +774,11 @@ def create_box_plot(ax, box_df: pd.DataFrame, param_name: str, selected_samples:
         "PCE (%)": "PCE (%)"
     }
     ylabel = display_labels.get(param_name, param_name)
-    ax.set_ylabel(ylabel, fontsize=11, color='white')
+    ax.set_ylabel(ylabel, fontsize=11, color=_pal.PLOT_FG)
 
     # Rotate x labels
-    ax.tick_params(axis='x', rotation=45, colors='#AAAAAA')
-    ax.tick_params(axis='y', colors='#AAAAAA')
+    ax.tick_params(axis='x', rotation=45, colors=_pal.PLOT_TICK)
+    ax.tick_params(axis='y', colors=_pal.PLOT_TICK)
     ax.grid(True, axis='y', alpha=0.3, linestyle='--')
 
 

@@ -18,6 +18,9 @@ import pandas as pd
 import numpy as np
 import threading
 import re
+from scripts.common import palette as _pal
+from scripts.common import theme as _theme
+from scripts.common import report as _report
 try:
     from scripts.common import analysis_shell as _shell
 except Exception:
@@ -31,21 +34,21 @@ except ImportError:
 class AIConfigDialog(ctk.CTkToplevel):
     def __init__(self, parent, api_key, on_confirm):
         super().__init__(parent)
-        self.title("AI Analysis Configuration")
+        self.title("Interpretation settings")
         self.geometry("500x400")
         self.api_key = api_key
         self.on_confirm = on_confirm
         self.attributes('-topmost', True)
         
-        ctk.CTkLabel(self, text="Select Gemini Model:", font=("Segoe UI", 14, "bold")).pack(pady=(20, 5))
+        ctk.CTkLabel(self, text="Select Gemini Model:", font=_pal.font(12, "bold")).pack(pady=(20, 5))
         self.combo_model = ctk.CTkComboBox(self, values=["Fetching models..."], width=300)
         self.combo_model.pack(pady=5)
         
-        ctk.CTkLabel(self, text="Sample Context / Additional Info:", font=("Segoe UI", 14, "bold")).pack(pady=(15, 5))
+        ctk.CTkLabel(self, text="Sample Context / Additional Info:", font=_pal.font(12, "bold")).pack(pady=(15, 5))
         self.txt_context = ctk.CTkTextbox(self, width=400, height=150)
         self.txt_context.pack(pady=5)
         
-        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color="#252525", width=200, height=40).pack(pady=20)
+        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28).pack(pady=20)
         
         threading.Thread(target=self.fetch_models, daemon=True).start()
         
@@ -66,7 +69,7 @@ class AIConfigDialog(ctk.CTkToplevel):
 class PLAnalysisWindow(ctk.CTkToplevel):
     def __init__(self, parent, origin_path="", api_key=""):
         super().__init__(parent)
-        self.title("PL Analysis Pro (Final)")
+        self.title("PL Analysis")
         self.geometry("1400x900")
         self.origin_path = origin_path
         self.api_key = api_key
@@ -92,18 +95,18 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         self.var_unit = ctk.StringVar(value="nm")          # X-axis unit
 
         # Theme (match JV)
-        self.card_bg = "#1E1E1E"
-        self.card_border = "#2D2D2D"
-        self.panel_bg = "#141414"
-        self.center_bg = "#0A0A0A"
-        self.text_primary = "#FFFFFF"
-        self.text_secondary = "#8B8B8B"
-        self.accent_blue = "#3182F6"
-        self.accent_green = "#10B981"
-        self.accent_purple = "#8B5CF6"
-        self.accent_pink = "#EC4899"
-        self.accent_red = "#EF4444"
-        self.accent_orange = "#F59E0B"
+        self.card_bg = _pal.BG_CARD
+        self.card_border = _pal.BORDER
+        self.panel_bg = _pal.BG_PANEL
+        self.center_bg = _pal.BG_WINDOW
+        self.text_primary = _pal.TXT
+        self.text_secondary = _pal.TXT_SUB
+        self.accent_blue = _pal.ACCENT
+        self.accent_green = _pal.GREEN
+        self.accent_purple = _pal.PURPLE
+        self.accent_pink = _pal.PINK
+        self.accent_red = _pal.RED
+        self.accent_orange = _pal.ORANGE
 
         self.file_path_var = tk.StringVar()
         self.left_width = 280
@@ -120,13 +123,15 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         if _shell is not None:
             try:
                 _shell.attach_chrome(self, "PL Analysis", {
-                    "open": ("📁 Open", self.load_data),
-                    "run": ("▶ RUN Analysis", self.run_analysis),
+                    "open": ("Open", self.load_data),
+                    "run": ("Run analysis", self.run_analysis),
                     "excel": ("Excel", self.export_excel),
                     "png": True,
+                    "report": ("Report", self.export_report),
                     "origin": ("Origin", self.send_to_origin),
-                    "ai": ("🤖 AI", self.run_ai_analysis)
-                }, hints="Open -> Process -> Fit -> Export  |  shared toolbar across all tools")
+                    "ai": ("Interpretation", self.run_ai_analysis)
+                }, hints="Sliders update the preview live  |  Wheel: zoom (Ctrl = x, Shift = y)  |  Drag: pan  |  "
+                         "Double-click: auto range  |  Double-click a role row to cycle its role")
             except Exception as _ce:
                 print(f"shell skip: {_ce}")
 
@@ -148,69 +153,69 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         left_content = self.left_scroll
 
         # Header
-        ctk.CTkLabel(left_content, text="PL Analysis", font=("Segoe UI", 22, "bold"),
+        ctk.CTkLabel(left_content, text="PL Analysis", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(20, 10))
 
         # 1. Load Data Card
-        load_card = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        load_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         load_card.pack(fill="x", padx=12, pady=(8, 6))
 
-        ctk.CTkLabel(load_card, text="Load Data", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(load_card, text="Load Data", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         file_row = ctk.CTkFrame(load_card, fg_color="transparent")
         file_row.pack(fill="x", padx=16, pady=(0, 8))
 
         self.entry_file = ctk.CTkEntry(file_row, textvariable=self.file_path_var,
-                                       placeholder_text="Select file...", height=36)
+                                       placeholder_text="Select file...", height=28)
         self.entry_file.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
-        ctk.CTkButton(file_row, text="...", width=40, height=36,
-                      command=self.browse_file, corner_radius=8).pack(side="right")
+        ctk.CTkButton(file_row, text="...", width=40, height=28,
+                      command=self.browse_file, corner_radius=_pal.R_PILL).pack(side="right")
 
         self.btn_load = ctk.CTkButton(
-            load_card, text="Load Data (Auto Sheet)", command=self.load_data,
-            height=42, corner_radius=12, fg_color=self.accent_blue, hover_color="#2563EB",
-            font=("Segoe UI", 13)
+            load_card, text="Load data", command=self.load_data,
+            height=30, corner_radius=_pal.R_CARD, fg_color=self.accent_blue, hover_color=_pal.ACCENT_HOV,
+            font=_pal.font(11)
         )
         self.btn_load.pack(fill="x", padx=16, pady=(0, 16))
 
         # 2. Mode Card
-        mode_card = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        mode_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         mode_card.pack(fill="x", padx=12, pady=6)
 
-        ctk.CTkLabel(mode_card, text="Mode", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(mode_card, text="Mode", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
         ctk.CTkLabel(mode_card, text="Layer Mode:", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(anchor="w", padx=16)
+                     font=_pal.font(12)).pack(anchor="w", padx=16)
         self.seg_layer = ctk.CTkSegmentedButton(mode_card, values=["1 Layer", "2 Layer"],
                                                 variable=self.var_layer_mode, command=self.on_mode_change)
         self.seg_layer.pack(fill="x", padx=16, pady=(6, 16))
         self.seg_layer.set("1 Layer")
 
         # 3. Column Selection Card
-        self.frame_cols = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        self.frame_cols = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         self.frame_cols.pack(fill="x", padx=12, pady=6)
 
-        ctk.CTkLabel(self.frame_cols, text="Columns", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(self.frame_cols, text="Columns", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
         ctk.CTkLabel(self.frame_cols, text="Sample Column:", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(anchor="w", padx=16)
+                     font=_pal.font(12)).pack(anchor="w", padx=16)
         self.opt_sample = ctk.CTkOptionMenu(self.frame_cols, variable=self.var_sample_col, command=self.on_col_change)
         self.opt_sample.pack(fill="x", padx=16, pady=2)
 
         self.lbl_ref = ctk.CTkLabel(self.frame_cols, text="Reference Column:",
-                                    text_color=self.text_secondary, font=("Segoe UI", 12))
+                                    text_color=self.text_secondary, font=_pal.font(12))
         self.opt_ref = ctk.CTkOptionMenu(self.frame_cols, variable=self.var_ref_col, command=self.on_col_change)
 
         # 3.5 Sample Roles Card - assign Pristine/Bi-layer, exclude, average repeats
-        roles_card = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        roles_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         roles_card.pack(fill="x", padx=12, pady=6)
-        ctk.CTkLabel(roles_card, text="Sample Roles", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(roles_card, text="Sample Roles", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 2), padx=16, anchor="w")
         ctk.CTkLabel(roles_card,
                      text="Select columns, assign roles -> Apply.\nRepeated measurements of the same role are averaged automatically.",
-                     text_color=self.text_secondary, font=("Segoe UI", 11),
+                     text_color=self.text_secondary, font=_pal.font(11),
                      justify="left").pack(anchor="w", padx=16)
 
         tree_wrap = ctk.CTkFrame(roles_card, fg_color="transparent")
@@ -228,66 +233,80 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         rb_row = ctk.CTkFrame(roles_card, fg_color="transparent")
         rb_row.pack(fill="x", padx=16, pady=(2, 4))
         ctk.CTkButton(rb_row, text="Pristine", width=74, height=28,
-                      fg_color="#252525", hover_color="#303030",
-                      font=("Segoe UI", 11, "bold"),
+                      fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                      font=_pal.font(11, "bold"),
                       command=lambda: self._set_role("Pristine")).pack(side="left", padx=(0, 4))
         ctk.CTkButton(rb_row, text="Bi-layer", width=74, height=28,
-                      fg_color=self.accent_blue, hover_color="#2563EB",
-                      font=("Segoe UI", 11, "bold"),
+                      fg_color=self.accent_blue, hover_color=_pal.ACCENT_HOV,
+                      font=_pal.font(11, "bold"),
                       command=lambda: self._set_role("Bi-layer")).pack(side="left", padx=4)
         ctk.CTkButton(rb_row, text="Exclude", width=70, height=28,
-                      fg_color="#252525", hover_color="#303030",
-                      font=("Segoe UI", 11, "bold"),
+                      fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                      font=_pal.font(11, "bold"),
                       command=lambda: self._set_role("Exclude")).pack(side="left", padx=4)
-        ctk.CTkButton(roles_card, text="Apply Roles (create averages -> ready to analyze)", height=40,
-                      fg_color="#252525", hover_color="#303030",
-                      font=("Segoe UI", 12, "bold"),
+        ctk.CTkButton(roles_card, text="Apply Roles (create averages -> ready to analyze)", height=28,
+                      fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                      font=_pal.font(12, "bold"),
                       command=self._apply_roles).pack(fill="x", padx=16, pady=(2, 16))
 
         # 4. Parameters Card (Real-time Preview)
-        frame_params = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        frame_params = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         frame_params.pack(fill="x", padx=12, pady=6)
-        ctk.CTkLabel(frame_params, text="Parameters (Live Preview)", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(frame_params, text="Parameters (Live Preview)", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8))
 
         # Filter Width
         ctk.CTkLabel(frame_params, text="Filter Width (Smoothness)", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(anchor="w", padx=16)
+                     font=_pal.font(12)).pack(anchor="w", padx=16)
         self.sl_width = ctk.CTkSlider(frame_params, from_=0, to=101, number_of_steps=101, variable=self.var_filter_width)
         self.sl_width.pack(fill="x", padx=16, pady=2)
 
         # Baseline Rigidity
         ctk.CTkLabel(frame_params, text="Baseline Rigidity (Background)", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(anchor="w", padx=16)
+                     font=_pal.font(12)).pack(anchor="w", padx=16)
         self.sl_rigid = ctk.CTkSlider(frame_params, from_=0, to=9, number_of_steps=90, variable=self.var_rigidity)
         self.sl_rigid.pack(fill="x", padx=16, pady=2)
 
         # Peak Protection (Using slider for log/small scale visually)
         ctk.CTkLabel(frame_params, text="Peak Protection (Fit Sens)", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(anchor="w", padx=16)
+                     font=_pal.font(12)).pack(anchor="w", padx=16)
         self.sl_prot = ctk.CTkSlider(frame_params, from_=0, to=0.1, number_of_steps=100, variable=self.var_protection)
-        self.sl_prot.pack(fill="x", padx=16, pady=(2, 16))
+        self.sl_prot.pack(fill="x", padx=16, pady=(2, 10))
+
+        # X axis and fit model
+        ctk.CTkLabel(frame_params, text="X axis", text_color=self.text_secondary, font=_pal.font(12)).pack(anchor="w", padx=16)
+        self.var_axis = ctk.StringVar(value="Wavelength (nm)")
+        ctk.CTkSegmentedButton(frame_params, values=["Wavelength (nm)", "Energy (eV)"], variable=self.var_axis,
+                               command=lambda _v: self.schedule_preview(), height=26, font=_pal.font(10),
+                               selected_color=_pal.ACCENT, selected_hover_color=_pal.ACCENT_HOV,
+                               unselected_color=_pal.BG_SUB, unselected_hover_color=_pal.BG_HOVER,
+                               text_color=_pal.TXT, corner_radius=_pal.R_PILL).pack(fill="x", padx=16, pady=(2, 8))
+        ctk.CTkLabel(frame_params, text="Peak model", text_color=self.text_secondary, font=_pal.font(12)).pack(anchor="w", padx=16)
+        self.var_model = ctk.StringVar(value="Single Gaussian")
+        ctk.CTkOptionMenu(frame_params, values=["Single Gaussian", "Multi-component (AIC, up to 3)",
+                                                "Multi-component Voigt (AIC, up to 3)"],
+                          variable=self.var_model, height=26, font=_pal.font(10)).pack(fill="x", padx=16, pady=(2, 16))
 
         # 5. Actions Card
-        frame_action = ctk.CTkFrame(left_content, corner_radius=16, fg_color=self.card_bg)
+        frame_action = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         frame_action.pack(fill="x", padx=12, pady=6)
-        ctk.CTkLabel(frame_action, text="Actions", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(frame_action, text="Actions", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         self.btn_run = ctk.CTkButton(frame_action, text="RUN Analysis", command=self.run_analysis,
-                                     fg_color="#252525", hover_color="#303030",
-                                     height=40, font=("Segoe UI", 13, "bold"), state="disabled")
+                                     fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                                     height=28, font=_pal.font(13, "bold"), state="disabled")
         self.btn_run.pack(fill="x", padx=16, pady=4)
 
         self.btn_export = ctk.CTkButton(frame_action, text="Save Excel", command=self.export_excel, state="disabled")
         self.btn_export.pack(fill="x", padx=16, pady=4)
 
         self.btn_origin = ctk.CTkButton(frame_action, text="Plot to Origin", command=self.send_to_origin,
-                                        fg_color="#252525", hover_color="#303030", state="disabled")
+                                        fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, state="disabled")
         self.btn_origin.pack(fill="x", padx=16, pady=4)
 
-        self.btn_ai = ctk.CTkButton(frame_action, text="AI Analysis", command=self.run_ai_analysis,
-                                    fg_color="#252525", hover_color="#303030", state="disabled")
+        self.btn_ai = ctk.CTkButton(frame_action, text="Interpretation", command=self.run_ai_analysis,
+                                    fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, state="disabled")
         self.btn_ai.pack(fill="x", padx=16, pady=(4, 16))
 
         # Left resizer (drag bar)
@@ -303,7 +322,7 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         self.center_panel.grid_rowconfigure(0, weight=1)
         self.center_panel.grid_columnconfigure(0, weight=1)
 
-        plot_container = ctk.CTkFrame(self.center_panel, corner_radius=12, fg_color=self.card_bg)
+        plot_container = ctk.CTkFrame(self.center_panel, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         plot_container.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
         plot_container.grid_rowconfigure(0, weight=1)
         plot_container.grid_columnconfigure(0, weight=1)
@@ -330,10 +349,10 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         self.right_panel.grid(row=0, column=3, sticky="nsew")
         self.right_panel.grid_rowconfigure(1, weight=1)
 
-        results_card = ctk.CTkFrame(self.right_panel, corner_radius=16, fg_color=self.card_bg)
+        results_card = ctk.CTkFrame(self.right_panel, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         results_card.grid(row=0, column=0, sticky="nsew", padx=12, pady=(16, 8))
 
-        ctk.CTkLabel(results_card, text="Results", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(results_card, text="Results", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         tree_frame = ctk.CTkFrame(results_card, fg_color="transparent")
@@ -349,24 +368,24 @@ class PLAnalysisWindow(ctk.CTkToplevel):
 
         # Status Log (Left)
         self.lbl_status = ctk.CTkLabel(self.bottom_panel, text="Status: Ready", anchor="w", width=400,
-                                       text_color=self.text_secondary, font=("Segoe UI", 12))
+                                       text_color=self.text_secondary, font=_pal.font(12))
         self.lbl_status.pack(side="left", padx=16, fill="x", expand=True)
 
         # Parameter Guide Card (Right)
-        guide_frame = ctk.CTkFrame(self.bottom_panel, fg_color=self.card_bg, corner_radius=12)
+        guide_frame = ctk.CTkFrame(self.bottom_panel, fg_color=self.card_bg, corner_radius=_pal.R_CARD)
         guide_frame.pack(side="right", padx=12, pady=8, fill="y")
         guide_text = (
-            "Parameter Guide:\\n"
-            "Filter Width: Reduces noise (Larger = Smoother)\\n"
-            "Baseline Rigidity: Background stiffness (Larger = Straighter line)\\n"
-            "Peak Protection: Preserves peak shapes (Smaller = Stronger protection)"
+            "Filter width: Savitzky-Golay smoothing (larger = smoother)\n"
+            "Baseline rigidity: ALS stiffness, log10(lambda) (larger = straighter)\n"
+            "Peak protection: ALS asymmetry p (smaller = peaks protected)\n"
+            "Energy axis: I(E) = I(lambda) lambda^2 / hc (Jacobian applied)"
         )
         ctk.CTkLabel(guide_frame, text=guide_text, justify="left",
-                     text_color=self.text_secondary, font=("Consolas", 11)).pack(padx=10, pady=5)
+                     text_color=self.text_secondary, font=_pal.mono(11)).pack(padx=10, pady=5)
 
     def _style_axes(self, ax):
         ax.set_facecolor(self.card_bg)
-        ax.tick_params(colors="#AAAAAA", labelsize=10)
+        ax.tick_params(colors=_pal.PLOT_TICK, labelsize=10)
         for spine in ax.spines.values():
             spine.set_color(self.card_border)
         ax.xaxis.label.set_color(self.text_primary)
@@ -407,18 +426,18 @@ class PLAnalysisWindow(ctk.CTkToplevel):
             background=self.card_bg,
             foreground=self.text_primary,
             fieldbackground=self.card_bg,
-            font=("Segoe UI", 12),
+            font=_pal.font(12),
             rowheight=28,
         )
         style.configure(
             "Treeview.Heading",
-            background="#252525",
+            background=_pal.BG_SUB,
             foreground=self.text_primary,
-            font=("Segoe UI", 12, "bold"),
+            font=_pal.font(12, "bold"),
         )
 
-        cols = ["Sample", "Peak (nm)", "FWHM (nm)", "Max Intensity",
-                "Quench eta (peak)", "Quench eta (integral)"]
+        cols = ["Sample", "Peak (nm)", "Peak (eV)", "FWHM (nm)", "FWHM (meV)", "Area", "Max Intensity",
+                "Quench eta (peak)", "Quench eta (integral)", "Components"]
         self.results_tree.configure(columns=cols)
         for col in cols:
             self.results_tree.heading(col, text=col)
@@ -600,11 +619,16 @@ class PLAnalysisWindow(ctk.CTkToplevel):
             self._style_axes(self.ax)
             
             # 1. Plot Reference (Dashed)
+            energy_axis = getattr(self, "var_axis", None) is not None and self.var_axis.get().startswith("Energy")
+
+            def _xy(xx, yy):
+                return pl_core.to_energy_axis(xx, yy) if energy_axis else (xx, yy)
+
             ref_col = self.var_ref_col.get()
             if ref_col:
                 y_ref = self.df[ref_col].values
                 _, _, y_ref_c = pl_core.process_spectrum(x, y_ref, fw, rig, prot)
-                self.ax.plot(x, y_ref_c, color="#EC4899", linestyle="--", label=f"{ref_col} (Ref)", linewidth=2)
+                self.ax.plot(*_xy(x, y_ref_c), color=_pal.PINK, linestyle="--", label=f"{ref_col} (Ref)", linewidth=1.6)
             
             # 2. Plot Selected Sample (Solid) - Currently single select via OptionMenu
             # If you want multi-select, need to change UI to Listbox
@@ -612,11 +636,11 @@ class PLAnalysisWindow(ctk.CTkToplevel):
             if samp_col and samp_col != ref_col:
                 y_samp = self.df[samp_col].values
                 _, _, y_samp_c = pl_core.process_spectrum(x, y_samp, fw, rig, prot)
-                self.ax.plot(x, y_samp_c, color="#00E5FF", label=samp_col)
+                self.ax.plot(*_xy(x, y_samp_c), color=_pal.ACCENT, label=samp_col, linewidth=1.6)
 
             self.ax.legend(facecolor=self.card_bg, labelcolor=self.text_primary, fontsize=10, edgecolor=self.card_border)
-            self.ax.set_xlabel("Wavelength (nm)", fontsize=12)
-            self.ax.set_ylabel("Intensity", fontsize=12)
+            self.ax.set_xlabel("Energy (eV)" if energy_axis else "Wavelength (nm)", fontsize=11)
+            self.ax.set_ylabel("Intensity per eV (a.u.)" if energy_axis else "Intensity (a.u.)", fontsize=11)
             self.ax.grid(True, color=self.card_border)
             
             self.canvas.draw()
@@ -646,14 +670,43 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         results = []
         analyze_list = [c for c in self.df.columns if c != self.x_col]
         
+        model = self.var_model.get()
+        energy_axis = self.var_axis.get().startswith("Energy")
+        self.fit_curves = {}
+        samp_col = self.var_sample_col.get()
         for col in analyze_list:
             y_raw = self.df[col].values
             _, _, y_proc = pl_core.process_spectrum(x, y_raw, fw, rig, prot)
             self.processed_data[col] = y_proc
-            
-            # Fitting
-            fit_res = pl_core.fit_peak_gaussian(x, y_proc)
-            
+
+            # --- wavelength-domain fit (nm) and energy-domain fit (eV, Jacobian) ---
+            n_comp = 1
+            if model.startswith("Single"):
+                fit_res = pl_core.fit_peak_gaussian(x, y_proc)
+                peak_nm, fwhm_nm = fit_res["center"], fit_res["fwhm"]
+                comps_nm = [fit_res["y_fit"]] if fit_res["success"] else []
+            else:
+                shape = "voigt" if "Voigt" in model else "gaussian"
+                try:
+                    mres = pl_core.fit_multi_peak(x, y_proc, max_peaks=3, shape=shape)
+                    main = max(mres.peaks, key=lambda pk: pk.height) if mres.peaks else None
+                    peak_nm = main.center if main else float("nan")
+                    fwhm_nm = main.fwhm if main else float("nan")
+                    comps_nm = list(mres.components) if mres.success else []
+                    n_comp = len(mres.peaks)
+                except Exception as ex:
+                    self.log(f"Multi-component fit failed for {col}: {ex}")
+                    peak_nm = fwhm_nm = float("nan")
+                    comps_nm = []
+            try:
+                e_axis, y_e = pl_core.to_energy_axis(x, y_proc)
+                fe = pl_core.fit_peak_gaussian(e_axis, y_e)
+                peak_ev, fwhm_mev = fe["center"], 1000.0 * fe["fwhm"]
+            except Exception:
+                peak_ev = fwhm_mev = float("nan")
+            metrics = pl_core.peak_metrics(x, y_proc)
+            self.fit_curves[col] = comps_nm
+
             # Quenching efficiency: report BOTH peak-based and integral-based.
             #   peak:     eta = 1 - I_sample_max / I_ref_max
             #   integral: eta = 1 - (integral PL_sample) / (integral PL_ref)
@@ -668,17 +721,39 @@ class PLAnalysisWindow(ctk.CTkToplevel):
 
             results.append({
                 "Sample": col,
-                "Peak (nm)": f"{fit_res['center']:.1f}",
-                "FWHM (nm)": f"{fit_res['fwhm']:.2f}",
+                "Peak (nm)": f"{peak_nm:.1f}",
+                "Peak (eV)": f"{peak_ev:.4f}",
+                "FWHM (nm)": f"{fwhm_nm:.2f}",
+                "FWHM (meV)": f"{fwhm_mev:.1f}",
+                "Area": f"{metrics['area']:.4g}",
                 "Max Intensity": f"{i_max:.0f}",
                 "Quench eta (peak)": f"{eta_peak*100:.1f}%",
                 "Quench eta (integral)": f"{eta_int*100:.1f}%",
+                "Components": str(n_comp),
             })
-            
+
+        # redraw: processed spectra of the selected sample/reference with fit components
+        self.ax.clear()
+        self._style_axes(self.ax)
+        for col, color, style in ((ref_col, _pal.PINK, "--"), (samp_col, _pal.ACCENT, "-")):
+            if not col or col not in self.processed_data or (col == ref_col and samp_col == ref_col and style == "--"):
+                continue
+            yp = self.processed_data[col]
+            if energy_axis:
+                xe, ye = pl_core.to_energy_axis(x, yp)
+                self.ax.plot(xe, ye, color=color, linestyle=style, label=col, linewidth=1.6)
+                for comp in self.fit_curves.get(col, []):
+                    xe2, ce = pl_core.to_energy_axis(x, comp)
+                    self.ax.plot(xe2, ce, ":", color=_pal.RED, linewidth=1.1)
+            else:
+                self.ax.plot(x, yp, color=color, linestyle=style, label=col, linewidth=1.6)
+                for comp in self.fit_curves.get(col, []):
+                    self.ax.plot(x, comp, ":", color=_pal.RED, linewidth=1.1)
         self.ax.legend(facecolor=self.card_bg, labelcolor=self.text_primary, edgecolor=self.card_border)
-        self.ax.set_title("Analysis with Gaussian Fits (Red Dashed)", color=self.text_primary, fontsize=12)
-        self.ax.set_xlabel("Wavelength (nm)", color=self.text_primary, fontsize=12)
-        self.ax.set_ylabel("Intensity (a.u.)", color=self.text_primary, fontsize=12)
+        self.ax.set_title("Processed spectra and fit components (dotted)", color=self.text_primary, fontsize=11)
+        self.ax.set_xlabel("Energy (eV)" if energy_axis else "Wavelength (nm)", color=self.text_primary, fontsize=11)
+        self.ax.set_ylabel("Intensity (a.u.)" if not energy_axis else "Intensity per eV (a.u.)", color=self.text_primary, fontsize=11)
+        self.ax.grid(True, color=self.card_border)
         self.canvas.draw()
             
         self.last_results_df = pd.DataFrame(results)
@@ -700,14 +775,14 @@ class PLAnalysisWindow(ctk.CTkToplevel):
             background=self.card_bg,
             foreground=self.text_primary,
             fieldbackground=self.card_bg,
-            font=("Segoe UI", 12),
+            font=_pal.font(12),
             rowheight=28,
         )
         style.configure(
             "Treeview.Heading",
-            background="#252525",
+            background=_pal.BG_SUB,
             foreground=self.text_primary,
-            font=("Segoe UI", 12, "bold"),
+            font=_pal.font(12, "bold"),
         )
 
         # Rebuild columns
@@ -788,7 +863,7 @@ class PLAnalysisWindow(ctk.CTkToplevel):
             summary = last_results_df.to_string()
             response = pl_core.analyze_pl_with_gemini(api_key, model_name, context, summary)
             self.ai_result_text = response
-            self.after(0, lambda: self.show_result_popup(response, "AI Analysis Result"))
+            self.after(0, lambda: self.show_result_popup(response, "Interpretation result"))
         finally:
             self.after(0, lambda: self.btn_ai.configure(state="normal"))
 
@@ -797,9 +872,26 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         top.title(title)
         top.geometry("700x600")
         top.attributes("-topmost", True)
-        txt = ctk.CTkTextbox(top, font=("Segoe UI", 16))
+        txt = ctk.CTkTextbox(top, font=_pal.font(12))
         txt.pack(fill="both", expand=True, padx=10, pady=10)
         txt.insert("1.0", text)
+
+    def export_report(self):
+        if self.last_results_df is None:
+            messagebox.showwarning("Report", "Run the analysis first.", parent=self)
+            return
+        path = _report.ask_report_path(self, "PL_report.md")
+        if not path:
+            return
+        notes = ("Smoothing: Savitzky-Golay; baseline: asymmetric least squares (Eilers & Boelens 2005). "
+                 f"Peak model: {self.var_model.get()}. Energy-domain values use I(E) = I(lambda) lambda^2/hc "
+                 "(Jacobian) before fitting. Quenching eta = 1 - I_sample/I_reference (peak height and integrated area).")
+        try:
+            _report.write_markdown_report(path, "PL analysis", [("Results", self.last_results_df)], figure=self.fig,
+                                          inputs=[self.file_path_var.get()] if self.file_path_var.get() else None, notes=notes)
+            self.log(f"Report saved: {path}")
+        except Exception as ex:
+            messagebox.showerror("Report", str(ex), parent=self)
 
     def export_excel(self):
         if self.last_results_df is None:

@@ -33,6 +33,9 @@ from matplotlib.gridspec import GridSpec
 
 from scipy.signal import savgol_filter
 from scipy.constants import h, c, e
+from scripts.common import palette as _pal
+from scripts.common import theme as _theme
+from scripts.common import report as _report
 
 # Win32com check (Origin) - use JV's implementation for consistency
 try:
@@ -103,12 +106,12 @@ class EQEWindow(ctk.CTkToplevel):
         self.api_key = api_key  # stored for potential future use
 
         # colors
-        self.card_bg = "#1E1E1E"
-        self.accent_blue = "#3182F6"
-        self.accent_orange = "#F59E0B"
-        self.accent_green = "#10B981"
-        self.text_primary = "#FFFFFF"
-        self.text_secondary = "#8B8B8B"
+        self.card_bg = _pal.BG_CARD
+        self.accent_blue = _pal.ACCENT
+        self.accent_orange = _pal.ORANGE
+        self.accent_green = _pal.GREEN
+        self.text_primary = _pal.TXT
+        self.text_secondary = _pal.TXT_SUB
 
         # state
         self.target_file: Path | None = None
@@ -161,40 +164,42 @@ class EQEWindow(ctk.CTkToplevel):
         if _shell is not None:
             try:
                 _shell.attach_chrome(self, "EQE Analysis", {
-                    "open": ("📁 Open File", self._browse_file),
-                    "run": ("▶ Load & Plot", self._load_and_plot),
-                    "fit": ("⚡ Auto Fit", self._auto_fit_all),
+                    "open": ("Open file", self._browse_file),
+                    "run": ("Load and plot", self._load_and_plot),
+                    "fit": ("Auto fit", self._auto_fit_all),
                     "excel": ("Excel", self._save_excel),
                     "png": True,
+                    "report": ("Report", self._export_report),
                     "origin": ("Origin", self._send_origin)
-                }, hints="Open -> Process -> Fit -> Export  |  shared toolbar across all tools")
+                }, hints="Drag on ln(EQE): Urbach fit  |  Drag on EQE vs E: derivative band gap  |  "
+                         "Wheel: zoom (Ctrl = x, Shift = y)  |  Right-click: plot menu")
             except Exception as _ce:
                 print(f"shell skip: {_ce}")
 
     # ---------------- panels ----------------
     def _create_left_panel(self):
-        self.left_frame = ctk.CTkFrame(self, width=340, corner_radius=0, fg_color="#141414")
+        self.left_frame = ctk.CTkFrame(self, width=340, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.left_frame.grid(row=0, column=0, sticky="nsew")
 
         # Load card
-        load_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        load_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         load_card.pack(pady=(16, 8), padx=12, fill="x")
 
-        ctk.CTkLabel(load_card, text="Load Data", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(load_card, text="Load Data", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         row = ctk.CTkFrame(load_card, fg_color="transparent")
         row.pack(fill="x", padx=16, pady=(0, 8))
 
-        self.entry_file = ctk.CTkEntry(row, placeholder_text="Select EQE Excel/CSV...", height=36)
+        self.entry_file = ctk.CTkEntry(row, placeholder_text="Select EQE Excel/CSV...", height=28)
         self.entry_file.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        ctk.CTkButton(row, text="...", width=40, height=36,
-                      command=self._browse_file, corner_radius=8).pack(side="right")
+        ctk.CTkButton(row, text="...", width=40, height=28,
+                      command=self._browse_file, corner_radius=_pal.R_PILL).pack(side="right")
 
         sheet_row = ctk.CTkFrame(load_card, fg_color="transparent")
         sheet_row.pack(fill="x", padx=16, pady=(0, 12))
         ctk.CTkLabel(sheet_row, text="Sheet:", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
+                     font=_pal.font(12)).pack(side="left")
 
         self.sheet_menu = ctk.CTkOptionMenu(
             sheet_row, values=["-"], variable=self.selected_sheet,
@@ -204,119 +209,119 @@ class EQEWindow(ctk.CTkToplevel):
 
         self.btn_load = ctk.CTkButton(
             load_card, text="Load & Plot", command=self._load_and_plot,
-            corner_radius=12, height=42, fg_color=self.accent_blue,
-            hover_color="#2563EB", font=("Segoe UI", 14),
+            corner_radius=_pal.R_CARD, height=30, fg_color=self.accent_blue,
+            hover_color=_pal.ACCENT_HOV, font=_pal.font(11),
             state="disabled"
         )
         self.btn_load.pack(pady=(0, 16), padx=16, fill="x")
 
         # View card
-        set_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        set_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         set_card.pack(pady=8, padx=12, fill="x")
 
-        ctk.CTkLabel(set_card, text="View / Derivative", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(set_card, text="View / Derivative", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 12), padx=16, anchor="w")
 
         wl_row = ctk.CTkFrame(set_card, fg_color="transparent")
         wl_row.pack(fill="x", padx=16, pady=(0, 10))
         ctk.CTkLabel(wl_row, text="WL max (nm)", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
-        self.entry_wlmax = ctk.CTkEntry(wl_row, width=130, height=32,
-                                        font=("Segoe UI", 12), textvariable=self.wl_max)
+                     font=_pal.font(12)).pack(side="left")
+        self.entry_wlmax = ctk.CTkEntry(wl_row, width=130, height=26,
+                                        font=_pal.font(12), textvariable=self.wl_max)
         self.entry_wlmax.pack(side="right")
 
         e_row = ctk.CTkFrame(set_card, fg_color="transparent")
         e_row.pack(fill="x", padx=16, pady=(0, 10))
         ctk.CTkLabel(e_row, text="E view (eV)", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
+                     font=_pal.font(12)).pack(side="left")
 
         e_inputs = ctk.CTkFrame(e_row, fg_color="transparent")
         e_inputs.pack(side="right")
-        self.entry_emin = ctk.CTkEntry(e_inputs, width=70, height=32,
-                                       font=("Segoe UI", 12), textvariable=self.e_min)
+        self.entry_emin = ctk.CTkEntry(e_inputs, width=70, height=26,
+                                       font=_pal.font(12), textvariable=self.e_min)
         self.entry_emin.pack(side="left", padx=(0, 6))
         ctk.CTkLabel(e_inputs, text="~", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
-        self.entry_emax = ctk.CTkEntry(e_inputs, width=70, height=32,
-                                       font=("Segoe UI", 12), textvariable=self.e_max)
+                     font=_pal.font(12)).pack(side="left")
+        self.entry_emax = ctk.CTkEntry(e_inputs, width=70, height=26,
+                                       font=_pal.font(12), textvariable=self.e_max)
         self.entry_emax.pack(side="left", padx=(6, 0))
 
         sg_row = ctk.CTkFrame(set_card, fg_color="transparent")
         sg_row.pack(fill="x", padx=16, pady=(0, 10))
         ctk.CTkLabel(sg_row, text="Smooth window", text_color=self.text_secondary,
-                     font=("Segoe UI", 12)).pack(side="left")
-        self.entry_sg = ctk.CTkEntry(sg_row, width=130, height=32,
-                                     font=("Segoe UI", 12), textvariable=self.sg_window)
+                     font=_pal.font(12)).pack(side="left")
+        self.entry_sg = ctk.CTkEntry(sg_row, width=130, height=26,
+                                     font=_pal.font(12), textvariable=self.sg_window)
         self.entry_sg.pack(side="right")
 
         self.btn_apply = ctk.CTkButton(
             set_card, text="Apply View", command=self._apply_view,
-            fg_color="#3D3D3D", hover_color="#3D3D3D",
-            corner_radius=10, height=40, font=("Segoe UI", 13),
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+            corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
             state="disabled"
         )
         self.btn_apply.pack(pady=(0, 8), padx=16, fill="x")
 
         # One-click auto fit: auto-select absorption edge (derivative Eg) + Urbach tail (ln EQE)
         self.btn_autofit = ctk.CTkButton(
-            set_card, text="⚡ Auto Fit (Eg + Urbach)",
-            command=self._auto_fit_all, height=40,
-            fg_color="#252525", hover_color="#303030",
-            font=("Segoe UI", 13, "bold"), corner_radius=8, state="disabled")
+            set_card, text="Auto fit (Eg and Urbach)",
+            command=self._auto_fit_all, height=28,
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+            font=_pal.font(13, "bold"), corner_radius=_pal.R_PILL, state="disabled")
         self.btn_autofit.pack(pady=(0, 16), padx=16, fill="x")
 
         # Origin card
-        origin_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        origin_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         origin_card.pack(pady=8, padx=12, fill="x")
 
-        ctk.CTkLabel(origin_card, text="Origin", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(origin_card, text="Origin", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         op_row = ctk.CTkFrame(origin_card, fg_color="transparent")
         op_row.pack(fill="x", padx=16, pady=(0, 12))
-        self.entry_origin = ctk.CTkEntry(op_row, height=34, textvariable=self.origin_path_var)
+        self.entry_origin = ctk.CTkEntry(op_row, height=28, textvariable=self.origin_path_var)
         self.entry_origin.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        ctk.CTkButton(op_row, text="Browse", width=80, height=34, corner_radius=10,
+        ctk.CTkButton(op_row, text="Browse", width=80, height=28, corner_radius=_pal.R_PILL,
                       command=self._browse_origin).pack(side="right")
 
         # Actions card
-        act_card = ctk.CTkFrame(self.left_frame, corner_radius=16, fg_color=self.card_bg)
+        act_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         act_card.pack(pady=8, padx=12, fill="x")
 
-        ctk.CTkLabel(act_card, text="Actions", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(act_card, text="Actions", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         self.btn_excel = ctk.CTkButton(
             act_card, text="Save Excel", command=self._save_excel,
-            fg_color="#252525", hover_color="#303030",
-            corner_radius=10, height=40, font=("Segoe UI", 13),
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+            corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
             state="disabled"
         )
         self.btn_excel.pack(padx=16, pady=4, fill="x")
 
         self.btn_origin = ctk.CTkButton(
             act_card, text="Send to Origin", command=self._send_origin,
-            fg_color="#252525", hover_color="#303030",
-            corner_radius=10, height=40, font=("Segoe UI", 13),
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+            corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
             state="disabled"
         )
         self.btn_origin.pack(padx=16, pady=(0, 16), fill="x")
 
     def _create_center_panel(self):
-        self.center_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="#0A0A0A")
+        self.center_frame = ctk.CTkFrame(self, corner_radius=0, fg_color=_pal.BG_WINDOW)
         self.center_frame.grid(row=0, column=1, sticky="nsew")
         self.center_frame.grid_rowconfigure(0, weight=1)
         self.center_frame.grid_rowconfigure(1, weight=1)  # bottom placeholder
         self.center_frame.grid_columnconfigure(0, weight=1)
 
         # ---- plot container (top) ----
-        plot_container = ctk.CTkFrame(self.center_frame, corner_radius=12, fg_color="#1E1E1E")
+        plot_container = ctk.CTkFrame(self.center_frame, corner_radius=_pal.R_CARD, fg_color=_pal.BG_CARD)
         plot_container.grid(row=0, column=0, sticky="nsew", padx=8, pady=(8, 4))
         plot_container.grid_rowconfigure(0, weight=1)
         plot_container.grid_columnconfigure(0, weight=1)
 
         # ---- Figure + GridSpec (2x2, use 3) ----
-        self.fig = Figure(figsize=(10, 6), dpi=100, facecolor="#1E1E1E")
+        self.fig = Figure(figsize=(10, 6), dpi=100, facecolor=_pal.BG_CARD)
 
         gs = self.fig.add_gridspec(
             2, 2,
@@ -356,83 +361,113 @@ class EQEWindow(ctk.CTkToplevel):
         # Initial guide text (on EQE axis only)
         self.ax_eqe.text(
             0.5, 0.5, "Load EQE file to preview",
-            ha="center", va="center", color="#3D3D3D",
+            ha="center", va="center", color=_pal.BORDER_HI,
             transform=self.ax_eqe.transAxes, fontsize=14
         )
         self.canvas.draw()
 
-        # ---- bottom panel (placeholder) ----
-        bottom_panel = ctk.CTkFrame(self.center_frame, corner_radius=12, fg_color="#141414")
+        # ---- bottom panel: detailed-balance quantities ----
+        self.center_frame.grid_rowconfigure(1, weight=0)
+        bottom_panel = ctk.CTkFrame(self.center_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         bottom_panel.grid(row=1, column=0, sticky="nsew", padx=8, pady=(4, 8))
-        ctk.CTkLabel(
-            bottom_panel, text="(space) Add table / notes / extra plot here",
-            text_color="#666666", font=("Segoe UI", 13)
-        ).pack(pady=20)
+        bottom_panel.grid_columnconfigure(0, weight=1)
+        bottom_panel.grid_columnconfigure(1, weight=1)
+        head = ctk.CTkFrame(bottom_panel, fg_color="transparent")
+        head.grid(row=0, column=0, columnspan=2, sticky="ew", padx=12, pady=(8, 2))
+        ctk.CTkLabel(head, text="Band gap, Urbach tail and detailed balance", font=_pal.font(12, "bold"),
+                     text_color=self.text_primary).pack(side="left")
+        ctk.CTkButton(head, text="Recompute", width=90, height=24, fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                      text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI, font=_pal.font(10),
+                      corner_radius=_pal.R_PILL, command=self._update_detailed_balance).pack(side="right")
+        ctk.CTkLabel(head, text="Measured Voc (V)", font=_pal.font(10), text_color=self.text_secondary
+                     ).pack(side="right", padx=(0, 6))
+        self.entry_voc = ctk.CTkEntry(head, width=70, height=24, font=_pal.font(10), fg_color=_pal.BG_CARD,
+                                      border_color=_pal.BORDER, text_color=_pal.TXT, corner_radius=_pal.R_INPUT,
+                                      placeholder_text="e.g. 1.10")
+        self.entry_voc.pack(side="right", padx=(0, 10))
+        ctk.CTkLabel(head, text="T (K)", font=_pal.font(10), text_color=self.text_secondary).pack(side="right", padx=(0, 6))
+        self.entry_temp = ctk.CTkEntry(head, width=52, height=24, font=_pal.font(10), fg_color=_pal.BG_CARD,
+                                       border_color=_pal.BORDER, text_color=_pal.TXT, corner_radius=_pal.R_INPUT)
+        self.entry_temp.insert(0, "300")
+        self.entry_temp.pack(side="right", padx=(0, 10))
+        self.db_tree_left = _theme.kv_table(bottom_panel, height=8, key_width=230)
+        self.db_tree_left.grid(row=1, column=0, sticky="nsew", padx=(12, 4), pady=(0, 10))
+        self.db_tree_right = _theme.kv_table(bottom_panel, height=8, key_width=230)
+        self.db_tree_right.grid(row=1, column=1, sticky="nsew", padx=(4, 12), pady=(0, 10))
+        self.eqe_summary = None
 
     def _create_right_panel(self):
-        self.right_frame = ctk.CTkFrame(self, width=360, corner_radius=0, fg_color="#141414")
+        self.right_frame = ctk.CTkFrame(self, width=360, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.right_frame.grid(row=0, column=2, sticky="nsew")
         self.right_frame.grid_rowconfigure(1, weight=1)
 
-        stats = ctk.CTkFrame(self.right_frame, corner_radius=16, fg_color=self.card_bg)
+        stats = ctk.CTkFrame(self.right_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         stats.grid(row=0, column=0, sticky="ew", padx=12, pady=(16, 8))
 
-        ctk.CTkLabel(stats, text="Summary", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(stats, text="Summary", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
 
         self.lbl_file = ctk.CTkLabel(stats, text="",
-                                     text_color=self.accent_blue, font=("Segoe UI", 12))
+                                     text_color=self.accent_blue, font=_pal.font(12))
         self.lbl_file.pack(padx=16, anchor="w")
 
         grid = ctk.CTkFrame(stats, fg_color="transparent")
         grid.pack(fill="x", padx=16, pady=(8, 16))
 
-        self.lbl_jsc = ctk.CTkLabel(grid, text="Jsc: - mA/cm²", font=("Segoe UI", 15, "bold"),
+        self.lbl_jsc = ctk.CTkLabel(grid, text="Jsc: - mA/cm²", font=_pal.font(12, "bold"),
                                     text_color=self.accent_green)
         self.lbl_jsc.pack(anchor="w")
 
-        self.lbl_eg_fit = ctk.CTkLabel(grid, text="Eg(Fit): - eV", font=("Segoe UI", 14),
+        self.lbl_eg_fit = ctk.CTkLabel(grid, text="Eg(Fit): - eV", font=_pal.font(11),
                                        text_color=self.text_secondary)
         self.lbl_eg_fit.pack(anchor="w", pady=(4, 0))
 
-        self.lbl_eg_der = ctk.CTkLabel(grid, text="Eg(Deriv): - eV", font=("Segoe UI", 14),
+        self.lbl_eg_der = ctk.CTkLabel(grid, text="Eg(Deriv): - eV", font=_pal.font(11),
                                        text_color=self.text_secondary)
         self.lbl_eg_der.pack(anchor="w", pady=(4, 0))
 
-        self.lbl_eu = ctk.CTkLabel(grid, text="Eu: - meV", font=("Segoe UI", 14),
+        self.lbl_eg_rau = ctk.CTkLabel(grid, text="Eg(Rau, dEQE/dE): - eV", font=_pal.font(11),
+                                       text_color=self.text_secondary)
+        self.lbl_eg_rau.pack(anchor="w", pady=(4, 0))
+
+        self.lbl_voc_rad = ctk.CTkLabel(grid, text="Voc,rad: - V", font=_pal.font(11),
+                                        text_color=self.text_secondary)
+        self.lbl_voc_rad.pack(anchor="w", pady=(4, 0))
+
+        self.lbl_eu = ctk.CTkLabel(grid, text="Eu: - meV", font=_pal.font(11),
                                    text_color=self.text_secondary)
         self.lbl_eu.pack(anchor="w", pady=(4, 0))
 
-        self.lbl_r2 = ctk.CTkLabel(grid, text="R²: -", font=("Segoe UI", 14),
+        self.lbl_r2 = ctk.CTkLabel(grid, text="R²: -", font=_pal.font(11),
                                    text_color=self.text_secondary)
         self.lbl_r2.pack(anchor="w", pady=(4, 0))
 
-        self.lbl_fit = ctk.CTkLabel(grid, text="Fit: - ~ - eV", font=("Segoe UI", 14),
+        self.lbl_fit = ctk.CTkLabel(grid, text="Fit: - ~ - eV", font=_pal.font(11),
                                     text_color=self.text_secondary)
         self.lbl_fit.pack(anchor="w", pady=(4, 0))
 
-        log = ctk.CTkFrame(self.right_frame, corner_radius=16, fg_color=self.card_bg)
+        log = ctk.CTkFrame(self.right_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
         log.grid(row=1, column=0, sticky="nsew", padx=12, pady=(8, 16))
         log.grid_rowconfigure(1, weight=1)
         log.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(log, text="Log", font=("Segoe UI", 16, "bold"),
+        ctk.CTkLabel(log, text="Log", font=_pal.font(12, "bold"),
                      text_color=self.text_primary).grid(row=0, column=0, sticky="w",
                                                        padx=16, pady=(16, 8))
 
-        self.log_text = ctk.CTkTextbox(log, font=("Consolas", 11))
+        self.log_text = ctk.CTkTextbox(log, font=_pal.mono(11))
         self.log_text.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 16))
         self.log_text.configure(state="disabled")
 
     # ---------------- helpers ----------------
     def _style_axes(self, ax):
-        ax.set_facecolor("#1E1E1E")
-        ax.tick_params(colors="#AAAAAA", labelsize=10)
+        ax.set_facecolor(_pal.BG_CARD)
+        ax.tick_params(colors=_pal.PLOT_TICK, labelsize=10)
         for spine in ax.spines.values():
-            spine.set_color("#2D2D2D")
-        ax.xaxis.label.set_color("#FFFFFF")
-        ax.yaxis.label.set_color("#FFFFFF")
-        ax.title.set_color("#FFFFFF")
+            spine.set_color(_pal.BORDER)
+        ax.xaxis.label.set_color(_pal.TXT)
+        ax.yaxis.label.set_color(_pal.TXT)
+        ax.title.set_color(_pal.TXT)
 
     def _log(self, msg: str):
         self.log_text.configure(state="normal")
@@ -538,6 +573,7 @@ class EQEWindow(ctk.CTkToplevel):
 
             self._plot_all()
             self._apply_view()
+            self._update_detailed_balance()
 
             self.btn_apply.configure(state="normal")
             self.btn_autofit.configure(state="normal")
@@ -583,14 +619,14 @@ class EQEWindow(ctk.CTkToplevel):
 
         # ---- Plot 2: ln(EQE) with span-fit ----
         self.ax_ln.plot(self.hv, self.ln_eqe, "o", markersize=3.5, alpha=0.65)
-        self.ax_ln.set_title("Drag range to Fit", color="#3182F6", fontweight="bold")
+        self.ax_ln.set_title("Drag range to Fit", color=_pal.ACCENT, fontweight="bold")
         self.ax_ln.set_xlabel("Energy (eV)")
         self.ax_ln.set_ylabel(r"$\ln(EQE)$")
         self.ax_ln.grid(True, linestyle="--", alpha=0.35)
         self.slope_text_ln = self.ax_ln.text(
             0.02, 0.95, "",
             transform=self.ax_ln.transAxes,
-            ha="left", va="top", fontsize=11, color="#FCA5A5"
+            ha="left", va="top", fontsize=11, color=_pal.RED
         )
 
         self.fit_line, = self.ax_ln.plot([], [], linewidth=2.5)
@@ -614,7 +650,7 @@ class EQEWindow(ctk.CTkToplevel):
         self.eg_text_der = self.ax_der.text(
             0.02, 0.95, "",
             transform=self.ax_der.transAxes,
-            ha="left", va="top", fontsize=11, color="#FCD34D"
+            ha="left", va="top", fontsize=11, color=_pal.ORANGE
         )
 
         # ---- Plot 4: EQE vs Energy (selector) ----
@@ -787,29 +823,28 @@ class EQEWindow(ctk.CTkToplevel):
             self._log("AutoFit: not enough data points.")
             return
 
-        # 1) Absorption edge (band edge): max dEQE/dE on the low-energy rise
-        dy = np.gradient(eqe, hv)
-        e_max_eqe = hv[int(np.nanargmax(eqe))]
-        edge_mask = hv <= e_max_eqe  # low-energy (left) side of the peak only
-        if not np.any(edge_mask):
-            edge_mask = np.ones_like(hv, bool)
-        i_edge = int(np.nanargmax(np.where(edge_mask, dy, -np.inf)))
-        e0 = float(hv[i_edge])
-        self._log(f"AutoFit: absorption edge ~ {e0:.3f} eV -> derivative Eg range [{e0-0.15:.3f}, {e0+0.15:.3f}]")
-        self._on_span_eqe_energy(e0 - 0.15, e0 + 0.15)
+        # 1) Absorption edge: the half-maximum window of P(E) = dEQE/dE (Rau et al. 2017)
+        rau = eqe_core.bandgap_rau(hv, eqe)
+        if np.isfinite(rau["E_lo"]) and rau["E_hi"] > rau["E_lo"]:
+            lo_e, hi_e = rau["E_lo"] - 0.05, rau["E_hi"] + 0.05
+        else:
+            e0 = eqe_core.bandgap_inflection(hv, eqe)
+            lo_e, hi_e = e0 - 0.15, e0 + 0.15
+        self._log(f"Auto fit: edge window [{lo_e:.3f}, {hi_e:.3f}] eV; Eg(Rau) = {rau['Eg']:.3f} eV, "
+                  f"sigma = {1000 * rau['sigma']:.0f} meV")
+        self._on_span_eqe_energy(lo_e, hi_e)
 
-        # 2) Urbach tail: exponential region below the edge (low-energy side where EQE is 1-30% of max)
+        # 2) Urbach tail: exponential region below the edge (EQE between 1% and 30% of its maximum)
         try:
-            y_max = float(np.nanmax(eqe))
-            tail = (hv < e0) & (eqe > 0.01 * y_max) & (eqe < 0.3 * y_max)
-            if np.sum(tail) >= 4:
-                lo, hi = float(np.min(hv[tail])), float(np.max(hv[tail]))
-            else:
+            lo, hi = eqe_core.auto_urbach_window(hv, eqe)
+            if not np.isfinite(lo):
+                e0 = rau["E_inflection"] if np.isfinite(rau["E_inflection"]) else eqe_core.bandgap_inflection(hv, eqe)
                 lo, hi = e0 - 0.25, e0 - 0.03
-            self._log(f"AutoFit: Urbach range [{lo:.3f}, {hi:.3f}] eV")
+            self._log(f"Auto fit: Urbach range [{lo:.3f}, {hi:.3f}] eV")
             self._on_span(lo, hi)
         except Exception as ex:
-            self._log(f"AutoFit Urbach failed: {ex}")
+            self._log(f"Auto fit (Urbach) failed: {ex}")
+        self._update_detailed_balance()
 
     def _on_span(self, xmin, xmax):
         if xmin == xmax:
@@ -856,7 +891,7 @@ class EQEWindow(ctk.CTkToplevel):
         # update ln title fully
         self.ax_ln.set_title(
             f"Eg(Fit)={Eg_fit:.3f} eV | Eu={Eu_meV:.1f} meV",
-            color="#F87171", fontweight="bold"
+            color=_pal.RED, fontweight="bold"
         )
         if hasattr(self, "slope_text_ln"):
             self.slope_text_ln.set_text(f"Slope: {m:.4f} 1/eV")
@@ -892,6 +927,83 @@ class EQEWindow(ctk.CTkToplevel):
         self.btn_excel.configure(state="normal")
         self.btn_origin.configure(state="normal")
         self.canvas.draw_idle()
+
+    def _measured_voc(self):
+        try:
+            return float(self.entry_voc.get())
+        except (ValueError, AttributeError):
+            return None
+
+    def _temperature_k(self):
+        try:
+            t = float(self.entry_temp.get())
+            return t if 100 < t < 500 else 300.0
+        except (ValueError, AttributeError):
+            return 300.0
+
+    def _update_detailed_balance(self):
+        """Band gap (Rau), Urbach energy, J0,rad / Voc,rad, SQ limits and voltage losses."""
+        if self.raw_x is None or self.raw_y is None:
+            return
+        try:
+            r = eqe_core.analyze_eqe(self.raw_x, self.raw_y, temperature_k=self._temperature_k(),
+                                     voc_measured_v=self._measured_voc())
+        except Exception as ex:
+            self._log(f"Detailed balance failed: {ex}")
+            return
+        self.eqe_summary = r
+        f = lambda v, fmt: (format(v, fmt) if isinstance(v, (int, float)) and np.isfinite(v) else "-")
+        left = [("Jsc, AM1.5G integrated (mA/cm²)", r["Jsc_mA_cm2"], ".3f"),
+                ("Eg, derivative distribution (eV)", r["Eg_Rau_eV"], ".4f"),
+                ("Edge width sigma (meV)", 1000 * r["Eg_sigma_eV"] if np.isfinite(r["Eg_sigma_eV"]) else float("nan"), ".0f"),
+                ("Eg, inflection point (eV)", r["Eg_inflection_eV"], ".4f"),
+                ("Urbach energy (meV)", r["Eu_meV"], ".1f"),
+                ("Urbach fit R²", r["Eu_R2"], ".4f"),
+                ("Urbach window (eV)", f"{f(r['Eu_window_lo_eV'], '.3f')} - {f(r['Eu_window_hi_eV'], '.3f')}"),
+                ("Tail extrapolated for J0,rad", "yes" if r.get("tail_extended") else "no")]
+        right = [("J0,rad (mA/cm²)", r["J0_rad_mA_cm2"], ".3e"),
+                 ("Voc,rad (V)", r["Voc_rad_V"], ".4f"),
+                 ("SQ limit: Jsc (mA/cm²)", r["Jsc_SQ"], ".2f"),
+                 ("SQ limit: Voc (V)", r["Voc_SQ"], ".4f"),
+                 ("SQ limit: FF", r["FF_SQ"], ".3f"),
+                 ("SQ limit: PCE (%)", r["PCE_SQ"], ".2f")]
+        if "dV3_nonrad" in r:
+            right += [("dV1 = Eg/q - Voc,SQ (V)", r["dV1_SQ"], ".3f"),
+                      ("dV2 = Voc,SQ - Voc,rad (V)", r["dV2_rad"], ".3f"),
+                      ("dV3 = Voc,rad - Voc (non-radiative, V)", r["dV3_nonrad"], ".3f"),
+                      ("EQE_EL implied by dV3", r["EQE_EL"], ".2e")]
+        _theme.fill_kv(self.db_tree_left, left)
+        _theme.fill_kv(self.db_tree_right, right)
+        self.lbl_eg_rau.configure(text=f"Eg(Rau, dEQE/dE): {f(r['Eg_Rau_eV'], '.3f')} eV")
+        self.lbl_voc_rad.configure(text=f"Voc,rad: {f(r['Voc_rad_V'], '.3f')} V")
+
+    def _export_report(self):
+        if self.raw_x is None:
+            messagebox.showwarning("Report", "Load a file first.")
+            return
+        self._update_detailed_balance()
+        path = _report.ask_report_path(self, f"{self.target_file.stem if self.target_file else 'EQE'}_report.md")
+        if not path:
+            return
+        sections = []
+        if self.eqe_summary:
+            sections.append(("Band gap, Urbach tail, detailed balance", {k: v for k, v in self.eqe_summary.items()
+                                                                         if not isinstance(v, bool)}))
+        if self.fit_result:
+            r = self.fit_result
+            sections.append(("Interactive Urbach fit (ln EQE vs E)", {"Eu (meV)": r["Eu_meV"], "Eg (fit, eV)": r["Eg_fit"],
+                                                                      "R²": r["R2"], "range (eV)": f"{r['fitMin']:.3f}-{r['fitMax']:.3f}"}))
+        notes = ("Jsc = q Int EQE Phi_AM1.5G dE (ASTM G173-03). Eg from the mean of P(E) = dEQE/dE over its half-maximum "
+                 "window (Rau et al., Phys. Rev. Applied 7, 044016 (2017)). J0,rad = q Int EQE Phi_BB dE; "
+                 "Voc,rad = kT/q ln(Jsc/J0,rad + 1). SQ limit for a step absorber at the derived Eg; FF from Green's formula. "
+                 "dV1 + dV2 + dV3 = Eg/q - Voc.")
+        try:
+            _report.write_markdown_report(path, f"EQE analysis: {self.target_file.name if self.target_file else ''}",
+                                          sections, figure=self.fig, inputs=[str(self.target_file)] if self.target_file else None,
+                                          notes=notes)
+            self._log(f"Report saved: {path}")
+        except Exception as ex:
+            messagebox.showerror("Report", str(ex))
 
     def _update_summary(self, clear: bool):
         if clear:
@@ -979,6 +1091,9 @@ class EQEWindow(ctk.CTkToplevel):
                 df_res.to_excel(writer, sheet_name="Result", index=False)
                 df_eqe.to_excel(writer, sheet_name="EQE_Data", index=False)
                 df_urb_fit.to_excel(writer, sheet_name="Urbach_Data", index=False)
+                if self.eqe_summary:
+                    pd.DataFrame([{k: v for k, v in self.eqe_summary.items()}]).T.reset_index().rename(
+                        columns={"index": "Quantity", 0: "Value"}).to_excel(writer, sheet_name="DetailedBalance", index=False)
             return path
 
         try:
@@ -1246,7 +1361,7 @@ class EQEWindow(ctk.CTkToplevel):
 # main
 # ============================================================
 def main():
-    ctk.set_appearance_mode("Dark")
+    ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
     ctk.set_default_color_theme("blue")
 
     root = ctk.CTk()
