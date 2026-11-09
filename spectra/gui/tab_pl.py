@@ -68,6 +68,11 @@ class PLAnalysisTab(ctk.CTkFrame):
         self._gemini_api_key = api_key
 
         self._build_layout()
+        try:
+            from scripts.common.analysis_shell import make_thread_safe
+            make_thread_safe(self)
+        except Exception:
+            pass
         self._plot_empty()
 
     def _build_layout(self):
@@ -126,7 +131,7 @@ class PLAnalysisTab(ctk.CTkFrame):
         self.btn_run.configure(state="disabled")
 
         # Export
-        self.btn_export = ctk.CTkButton(body, text="Export Excel", command=self._export_excel, fg_color="gray", height=28)
+        self.btn_export = ctk.CTkButton(body, text="Export Excel", command=self._export_excel, fg_color="gray", height=28, text_color=_pal.TXT)
         self.btn_export.grid(row=2, column=0, sticky="ew", pady=(0, 8))
         self.btn_export.configure(state="disabled")
 
@@ -693,8 +698,7 @@ class PLAnalysisTab(ctk.CTkFrame):
             command=popup.destroy,
             fg_color="gray",
             height=28,
-            font=ctk.CTkFont(size=11, weight="bold")
-        ).pack(side="right", padx=5)
+            font=ctk.CTkFont(size=11, weight="bold"), text_color=_pal.TXT).pack(side="right", padx=5)
         
         popup.grab_set()
         popup.focus()

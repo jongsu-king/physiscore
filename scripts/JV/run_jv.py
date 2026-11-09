@@ -175,8 +175,7 @@ class AIResultDialog(ctk.CTkToplevel):
             height=26,
             fg_color=_pal.BG_SUB,
             hover_color=_pal.TXT_DIM,
-            command=self.destroy
-        ).pack(side="right")
+            command=self.destroy, text_color=_pal.TXT).pack(side="right")
 
     def _copy_content(self):
         """Copy all text"""
@@ -416,19 +415,19 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.btn_open_excel = ctk.CTkButton(btn_frame, text="Open Excel", command=self.open_excel,
                                              fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                                              corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
-                                             state="disabled")
+                                             state="disabled", text_color=_pal.TXT)
         self.btn_open_excel.pack(fill="x", pady=3)
 
         self.btn_origin_iv = ctk.CTkButton(btn_frame, text="Send J-V to Origin", command=self.send_iv_to_origin,
                                             fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                                             corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
-                                            state="disabled")
+                                            state="disabled", text_color=_pal.TXT)
         self.btn_origin_iv.pack(fill="x", pady=3)
 
         self.btn_origin_box = ctk.CTkButton(btn_frame, text="Send Box to Origin", command=self.send_box_to_origin,
                                              fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                                              corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
-                                             state="disabled")
+                                             state="disabled", text_color=_pal.TXT)
         self.btn_origin_box.pack(fill="x", pady=3)
 
         # 4. Interpretation (Gemini) Card
@@ -458,13 +457,13 @@ class AnalysisWindow(ctk.CTkToplevel):
                                                command=self._run_quick_ai_analysis,
                                                fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                                                corner_radius=_pal.R_PILL, height=28, font=_pal.font(12),
-                                               state="disabled")
+                                               state="disabled", text_color=_pal.TXT)
             self.btn_quick_ai.pack(fill="x", pady=3)
 
             self.btn_ai_panel = ctk.CTkButton(ai_btn_frame, text="Open Interpretation (Gemini)",
                                                command=self._open_ai_window,
                                                fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
-                                               corner_radius=_pal.R_PILL, height=28, font=_pal.font(12))
+                                               corner_radius=_pal.R_PILL, height=28, font=_pal.font(12), text_color=_pal.TXT)
             self.btn_ai_panel.pack(fill="x", pady=3)
 
             # AI Status
@@ -622,7 +621,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         # Voc button - green color (swapped with PCE)
         self.btn_voc = ctk.CTkButton(row1, text="", corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB,
                                       hover_color=_pal.BG_HOVER, command=lambda: self._select_box_param("Voc V"),
-                                      height=75, width=140)
+                                      height=75, width=140, text_color=_pal.TXT)
         self.btn_voc.pack(side="left", expand=True, fill="x", padx=(0, 4))
         # Voc inner content
         voc_inner = ctk.CTkFrame(self.btn_voc, fg_color="transparent")
@@ -640,7 +639,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         # Jsc button
         self.btn_jsc = ctk.CTkButton(row1, text="", corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB,
                                       hover_color=_pal.BG_HOVER, command=lambda: self._select_box_param("Jsc mA/cm2"),
-                                      height=75, width=140)
+                                      height=75, width=140, text_color=_pal.TXT)
         self.btn_jsc.pack(side="right", expand=True, fill="x", padx=(4, 0))
         # Jsc inner content
         jsc_inner = ctk.CTkFrame(self.btn_jsc, fg_color="transparent")
@@ -662,7 +661,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         # FF button
         self.btn_ff = ctk.CTkButton(row2, text="", corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB,
                                      hover_color=_pal.BG_HOVER, command=lambda: self._select_box_param("Fill Factor"),
-                                     height=75, width=140)
+                                     height=75, width=140, text_color=_pal.TXT)
         self.btn_ff.pack(side="left", expand=True, fill="x", padx=(0, 4))
         # FF inner content
         ff_inner = ctk.CTkFrame(self.btn_ff, fg_color="transparent")
@@ -680,7 +679,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         # PCE button - orange color (swapped with Voc)
         self.btn_pce = ctk.CTkButton(row2, text="", corner_radius=_pal.R_PILL, fg_color=_pal.BG_HOVER,
                                       hover_color=_pal.BG_HOVER, command=lambda: self._select_box_param("PCE (%)"),
-                                      height=75, width=140, border_width=2, border_color=self.accent_orange)
+                                      height=75, width=140, border_width=2, border_color=self.accent_orange, text_color=_pal.TXT)
         self.btn_pce.pack(side="right", expand=True, fill="x", padx=(4, 0))
         # PCE inner content
         pce_inner = ctk.CTkFrame(self.btn_pce, fg_color="transparent")
@@ -725,8 +724,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.btn_deselect_all = ctk.CTkButton(
             header_frame, text="Clear", width=50, height=26,
             corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
-            font=_pal.font(11), command=self._deselect_all
-        )
+            font=_pal.font(11), command=self._deselect_all, text_color=_pal.TXT)
         self.btn_deselect_all.pack(side="right")
 
         _theme.style_treeview(rowheight=24)

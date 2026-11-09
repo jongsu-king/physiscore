@@ -39,6 +39,7 @@ def apply_mpl_dark(fig=None, axes=None):
 
 
 apply_mpl = apply_mpl_dark
+apply_appearance()
 
 
 # ---- widget factory -------------------------------------------------------

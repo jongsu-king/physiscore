@@ -112,6 +112,11 @@ class SpectraDashboardTab(ctk.CTkFrame):
         self._build_layout()
         self._refresh_buttons()
         self._plot_empty()
+        try:
+            from scripts.common.analysis_shell import make_thread_safe
+            make_thread_safe(self)
+        except Exception:
+            pass
 
 
     # -------------------------
@@ -270,7 +275,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
 
         self.ent_path = ctk.CTkEntry(row, fg_color=COL_CARD2, placeholder_text="Select CSV / Excel...")
         self.ent_path.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        self.btn_browse = ctk.CTkButton(row, text="...", width=40, command=self.load_data, fg_color=COL_CARD2, hover_color=COL_STROKE)
+        self.btn_browse = ctk.CTkButton(row, text="...", width=40, command=self.load_data, fg_color=COL_CARD2, hover_color=COL_STROKE, text_color=_pal.TXT)
         self.btn_browse.grid(row=0, column=1)
 
         # excel sheet selector (hidden unless excel)
@@ -283,7 +288,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
         self.opt_sheet = ctk.CTkOptionMenu(sheet_row, values=[""], variable=self.var_sheet)
         self.opt_sheet.configure(fg_color=COL_CARD2, button_color=COL_CARD2, button_hover_color=COL_STROKE)
         self.opt_sheet.grid(row=0, column=1, sticky="ew", padx=(0, 8))
-        self.btn_sheet_apply = ctk.CTkButton(sheet_row, text="Apply", width=70, command=self.reload_selected_sheet, fg_color=COL_CARD2, hover_color=COL_STROKE)
+        self.btn_sheet_apply = ctk.CTkButton(sheet_row, text="Apply", width=70, command=self.reload_selected_sheet, fg_color=COL_CARD2, hover_color=COL_STROKE, text_color=_pal.TXT)
         self.btn_sheet_apply.grid(row=0, column=2, sticky="e")
 
         # action buttons
@@ -294,20 +299,20 @@ class SpectraDashboardTab(ctk.CTkFrame):
         grid.grid(row=3, column=0, sticky="ew", padx=6, pady=(0, 0))
         grid.grid_columnconfigure((0, 1), weight=1)
 
-        self.btn_save = ctk.CTkButton(grid, text="Save outputs...", command=self.save_outputs, fg_color=COL_CARD2, hover_color=COL_STROKE)
+        self.btn_save = ctk.CTkButton(grid, text="Save outputs...", command=self.save_outputs, fg_color=COL_CARD2, hover_color=COL_STROKE, text_color=_pal.TXT)
         self.btn_save.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 8))
 
-        self.btn_excel = ctk.CTkButton(grid, text="Export Excel", command=self.export_excel, fg_color=COL_CARD2, hover_color=COL_STROKE)
+        self.btn_excel = ctk.CTkButton(grid, text="Export Excel", command=self.export_excel, fg_color=COL_CARD2, hover_color=COL_STROKE, text_color=_pal.TXT)
         self.btn_excel.grid(row=0, column=1, sticky="ew", padx=(6, 0), pady=(0, 8))
 
-        self.btn_batch = ctk.CTkButton(grid, text="Batch Folder", command=self.batch_folder, fg_color=COL_CARD2, hover_color=COL_STROKE)
+        self.btn_batch = ctk.CTkButton(grid, text="Batch Folder", command=self.batch_folder, fg_color=COL_CARD2, hover_color=COL_STROKE, text_color=_pal.TXT)
         self.btn_batch.grid(row=1, column=0, sticky="ew", padx=(0, 6))
 
-        self.btn_report = ctk.CTkButton(grid, text="Peak report", command=self.make_report, fg_color=COL_CARD2, hover_color=COL_STROKE)
+        self.btn_report = ctk.CTkButton(grid, text="Peak report", command=self.make_report, fg_color=COL_CARD2, hover_color=COL_STROKE, text_color=_pal.TXT)
         self.btn_report.grid(row=1, column=1, sticky="ew", padx=(6, 0))
         if self.cfg_default.technique == "XPS":
             self.btn_quant = ctk.CTkButton(grid, text="Quantify (atomic %)...", command=self.quantify_dialog,
-                                           fg_color=COL_CARD2, hover_color=COL_STROKE)
+                                           fg_color=COL_CARD2, hover_color=COL_STROKE, text_color=_pal.TXT)
             self.btn_quant.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
 
         # hide sheet selector initially

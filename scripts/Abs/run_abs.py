@@ -228,7 +228,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         ctk.CTkButton(ana_card, text="Auto fit (expected Eg)", height=28,
                       fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                       font=_pal.font(13, "bold"), corner_radius=_pal.R_PILL,
-                      command=self.auto_fit_expected).pack(fill="x", padx=16, pady=(0, 10))
+                      command=self.auto_fit_expected, text_color=_pal.TXT).pack(fill="x", padx=16, pady=(0, 10))
 
         # X range
         xr_row = ctk.CTkFrame(ana_card, fg_color="transparent")
@@ -253,8 +253,7 @@ class AnalysisWindow(ctk.CTkToplevel):
             ana_card, text="Apply View Range", command=self.apply_view_range,
             fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
             corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
-            state="disabled"
-        )
+            state="disabled", text_color=_pal.TXT)
         self.btn_apply_view.pack(pady=(0, 16), padx=16, fill="x")\
         
         
@@ -272,16 +271,14 @@ class AnalysisWindow(ctk.CTkToplevel):
             act_card, text="Save Excel", command=self.save_to_excel,
             fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
             corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
-            state="disabled"
-        )
+            state="disabled", text_color=_pal.TXT)
         self.btn_export_excel.pack(padx=16, pady=4, fill="x")
 
         self.btn_export_origin = ctk.CTkButton(
             act_card, text="Send to Origin", command=self.send_to_origin,
             fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
             corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
-            state="disabled"
-        )
+            state="disabled", text_color=_pal.TXT)
         self.btn_export_origin.pack(padx=16, pady=(0, 16), fill="x")
 
         # ---- Status Card ----

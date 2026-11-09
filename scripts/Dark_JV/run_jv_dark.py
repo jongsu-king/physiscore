@@ -247,13 +247,13 @@ class DarkAnalysisWindow(ctk.CTkToplevel):
         self.btn_open_excel = ctk.CTkButton(btn_frame, text="Open Excel", command=self.open_excel,
                                              fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                                              corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
-                                             state="disabled")
+                                             state="disabled", text_color=_pal.TXT)
         self.btn_open_excel.pack(fill="x", pady=3)
 
         self.btn_origin_iv = ctk.CTkButton(btn_frame, text="Send to Origin", command=self.send_iv_to_origin,
                                             fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                                             corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
-                                            state="disabled")
+                                            state="disabled", text_color=_pal.TXT)
         self.btn_origin_iv.pack(fill="x", pady=3)
 
         # 6. Status Card
@@ -376,8 +376,7 @@ class DarkAnalysisWindow(ctk.CTkToplevel):
         self.btn_deselect_all = ctk.CTkButton(
             header_frame, text="Clear", width=50, height=26,
             corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
-            font=_pal.font(11), command=self._deselect_all
-        )
+            font=_pal.font(11), command=self._deselect_all, text_color=_pal.TXT)
         self.btn_deselect_all.pack(side="right")
 
         _theme.style_treeview(rowheight=24)

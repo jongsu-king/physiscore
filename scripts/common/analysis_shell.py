@@ -25,6 +25,11 @@ import customtkinter as ctk
 
 from scripts.common import palette as _pal
 
+try:  # tool windows opened without the launcher (smoke tests, --tool) must still follow the palette
+    ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
+except Exception:
+    pass
+
 STD_GEOMETRY = "1500x920"
 
 # toolbar slot style: (bg, hover, bold, text colour)
@@ -188,6 +193,71 @@ def copy_figure_to_clipboard(win):
         set_status(win, "Figure copied to clipboard")
     except Exception as e:
         messagebox.showinfo("Copy figure", f"Could not copy to the clipboard: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Thread safety
+# ---------------------------------------------------------------------------
+def make_thread_safe(widget, interval_ms: int = 40):
+    """Make `widget.after(...)` safe to call from worker threads.
+
+    Every tool runs its processing in a thread and hands results back with
+    `self.after(0, callback)`. Tk is single-threaded: with some Tcl/Tk builds
+    (observed with Tk 9.0 on macOS) an `after` issued from another thread is
+    silently dropped, so the window never receives its results. This wrapper
+    queues calls made off the main thread and a main-thread poller (started
+    here, on the main thread) dispatches them. Calls from the main thread go
+    straight to Tk as before.
+    """
+    import queue
+    import threading
+    import traceback
+
+    if getattr(widget, "_mt_safe", False):
+        return widget
+    q: "queue.Queue" = queue.Queue()
+    orig_after = widget.after
+    orig_after_cancel = widget.after_cancel
+    main = threading.main_thread()
+
+    def after(ms, func=None, *args):
+        if func is None or threading.current_thread() is main:
+            return orig_after(ms, func, *args) if func is not None else orig_after(ms)
+        q.put((ms, func, args))
+        return f"queued-{id(func)}"
+
+    def after_cancel(ident):
+        if isinstance(ident, str) and ident.startswith("queued-"):
+            return None
+        return orig_after_cancel(ident)
+
+    def drain():
+        try:
+            while True:
+                ms, func, args = q.get_nowait()
+                if ms <= 0:
+                    try:
+                        func(*args)
+                    except Exception:  # noqa: BLE001 - a bad callback must not stop the poller
+                        traceback.print_exc()
+                else:
+                    orig_after(ms, func, *args)
+        except queue.Empty:
+            pass
+        try:
+            if widget.winfo_exists():
+                orig_after(interval_ms, drain)
+        except Exception:
+            pass
+
+    widget.after = after
+    widget.after_cancel = after_cancel
+    widget._mt_safe = True
+    try:
+        orig_after(interval_ms, drain)
+    except Exception:
+        pass
+    return widget
 
 
 def set_status(win, text):
@@ -369,6 +439,10 @@ def attach_chrome(win, tool_name, actions, status_left="Ready", hints=""):
         win.configure(fg_color=_pal.BG_WINDOW)
     except Exception:
         pass
+    make_thread_safe(win)
+    tab = getattr(win, "tab", None)
+    if tab is not None and hasattr(tab, "after"):
+        make_thread_safe(tab)
 
     _make_menubar(win, tool_name, actions, hints)
 

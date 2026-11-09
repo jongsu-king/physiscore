@@ -233,13 +233,12 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         self.btn_calib = ctk.CTkButton(calib_card, text="Calibrate", command=self.toggle_calibration,
                                         fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
-                                        corner_radius=_pal.R_CARD, height=28, font=_pal.font(11))
+                                        corner_radius=_pal.R_CARD, height=28, font=_pal.font(11), text_color=_pal.TXT)
         self.btn_calib.pack(pady=12, padx=16, fill="x")
 
         self.btn_calib_auto = ctk.CTkButton(
             calib_card, text="Auto Calibrate (Scale Bar)", command=self.auto_calibrate_from_scale_bar,
-            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=28, font=_pal.font(11)
-        )
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=28, font=_pal.font(11), text_color=_pal.TXT)
         self.btn_calib_auto.pack(pady=(0, 12), padx=16, fill="x")
 
         self.lbl_scale_info = ctk.CTkLabel(calib_card, text="Scale: Not set",
@@ -277,13 +276,13 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         ctk.CTkButton(btn_frame, text="Export Excel", command=self.export_excel,
                       fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
-                      corner_radius=_pal.R_PILL, height=28, font=_pal.font(12)).pack(fill="x", pady=3)
+                      corner_radius=_pal.R_PILL, height=28, font=_pal.font(12), text_color=_pal.TXT).pack(fill="x", pady=3)
         ctk.CTkButton(btn_frame, text="Delete Selected", command=self.delete_selected_row,
                       fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
-                      corner_radius=_pal.R_PILL, height=28, font=_pal.font(12)).pack(fill="x", pady=3)
+                      corner_radius=_pal.R_PILL, height=28, font=_pal.font(12), text_color=_pal.TXT).pack(fill="x", pady=3)
         ctk.CTkButton(btn_frame, text="Send to Origin", command=self.export_origin,
                       fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
-                      corner_radius=_pal.R_PILL, height=28, font=_pal.font(12)).pack(fill="x", pady=3)
+                      corner_radius=_pal.R_PILL, height=28, font=_pal.font(12), text_color=_pal.TXT).pack(fill="x", pady=3)
 
         # 5. Auto Segment Card (Replaces Status)
         auto_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
@@ -345,8 +344,7 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         ctk.CTkButton(
             advisor_card, text="Open Advisor", command=self.open_advisor_dialog,
-            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=26, font=_pal.font(12)
-        ).pack(padx=16, pady=(0, 16), fill="x")
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=26, font=_pal.font(12), text_color=_pal.TXT).pack(padx=16, pady=(0, 16), fill="x")
 
         # Hidden entries for settings (API key, Origin path) & model combo
         self.entry_origin = ctk.CTkEntry(self.left_frame, height=1)
@@ -993,8 +991,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         btn_row.pack(fill="x", padx=16, pady=(0, 8))
         self.btn_advice = ctk.CTkButton(
             btn_row, text="Get Suggestions", command=self.get_process_advice,
-            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=26, font=_pal.font(12)
-        )
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=26, font=_pal.font(12), text_color=_pal.TXT)
         self.btn_advice.pack(side="left", fill="x", expand=True)
 
         status = ctk.CTkLabel(

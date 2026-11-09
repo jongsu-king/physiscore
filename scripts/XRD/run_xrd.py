@@ -125,8 +125,7 @@ class AIResultDialog(ctk.CTkToplevel):
             height=26,
             fg_color=_pal.BG_SUB,
             hover_color=_pal.TXT_DIM,
-            command=self.destroy
-        ).pack(side="right")
+            command=self.destroy, text_color=_pal.TXT).pack(side="right")
 
     def _copy_content(self):
         """Copy all text"""
@@ -153,7 +152,7 @@ class AIConfigDialog(ctk.CTkToplevel):
         self.txt_context = ctk.CTkTextbox(self, width=400, height=150)
         self.txt_context.pack(pady=5)
         
-        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28).pack(pady=20)
+        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28, text_color=_pal.TXT).pack(pady=20)
         
         threading.Thread(target=self.fetch_models, daemon=True).start()
         
@@ -317,23 +316,23 @@ class XRDAnalysisTab(ctk.CTkFrame):
         self.zoom_frame = ctk.CTkFrame(self.frame_result, fg_color="transparent", height=28)
         self.zoom_frame.pack(side="bottom", fill="x", padx=10, pady=5)
         
-        self.btn_reset = ctk.CTkButton(self.zoom_frame, text="Reset view", command=self.reset_view, width=80, height=26, font=_pal.font(12, "bold"), fg_color=_pal.BG_SUB)
+        self.btn_reset = ctk.CTkButton(self.zoom_frame, text="Reset view", command=self.reset_view, width=80, height=26, font=_pal.font(12, "bold"), fg_color=_pal.BG_SUB, text_color=_pal.TXT)
         self.btn_reset.pack(side="right", padx=5)
         
-        self.btn_undo = ctk.CTkButton(self.zoom_frame, text="Undo", command=self.undo_zoom, width=80, height=26, font=_pal.font(12, "bold"), fg_color=_pal.BG_SUB)
+        self.btn_undo = ctk.CTkButton(self.zoom_frame, text="Undo", command=self.undo_zoom, width=80, height=26, font=_pal.font(12, "bold"), fg_color=_pal.BG_SUB, text_color=_pal.TXT)
         self.btn_undo.pack(side="right", padx=5)
 
         # Drag action mode: Zoom <-> Fit Range
         self.drag_mode = "zoom"
         self.btn_fitrange = ctk.CTkButton(self.zoom_frame, text="Fit range: off",
                                           command=self.toggle_fit_range, width=140, height=26,
-                                          font=_pal.font(13, "bold"), fg_color=_pal.BG_SUB)
+                                          font=_pal.font(13, "bold"), fg_color=_pal.BG_SUB, text_color=_pal.TXT)
         self.btn_fitrange.pack(side="right", padx=5)
 
         self.btn_wh = ctk.CTkButton(self.zoom_frame, text="W-H plot",
                                     command=self.show_williamson_hall, width=110, height=26,
                                     font=_pal.font(13, "bold"),
-                                    fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER)
+                                    fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, text_color=_pal.TXT)
         self.btn_wh.pack(side="right", padx=5)
 
         # Rectangle Selector for Zoom (Right Plot)
@@ -349,7 +348,7 @@ class XRDAnalysisTab(ctk.CTkFrame):
         self.ai_frame = ctk.CTkFrame(self, fg_color=COL_CARD, border_width=1, border_color=COL_STROKE, height=120)
         self.ai_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 10))
         
-        ctk.CTkLabel(self.ai_frame, text="Interpretation Insights / Log", font=_pal.font(13, "bold"), text_color=COL_ACC).pack(anchor="w", padx=15, pady=5)
+        ctk.CTkLabel(self.ai_frame, text="Log", font=_pal.font(13, "bold"), text_color=COL_ACC).pack(anchor="w", padx=15, pady=5)
         
         self.ai_textbox = ctk.CTkTextbox(self.ai_frame, height=80, font=_pal.mono(11), fg_color=_pal.BG_CARD, text_color=COL_TXT)
         self.ai_textbox.pack(fill="x", padx=15, pady=(0, 15))

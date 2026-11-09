@@ -48,7 +48,7 @@ class AIConfigDialog(ctk.CTkToplevel):
         self.txt_context = ctk.CTkTextbox(self, width=400, height=150)
         self.txt_context.pack(pady=5)
         
-        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28).pack(pady=20)
+        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28, text_color=_pal.TXT).pack(pady=20)
         
         threading.Thread(target=self.fetch_models, daemon=True).start()
         
@@ -235,7 +235,7 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         ctk.CTkButton(rb_row, text="Pristine", width=74, height=28,
                       fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                       font=_pal.font(11, "bold"),
-                      command=lambda: self._set_role("Pristine")).pack(side="left", padx=(0, 4))
+                      command=lambda: self._set_role("Pristine"), text_color=_pal.TXT).pack(side="left", padx=(0, 4))
         ctk.CTkButton(rb_row, text="Bi-layer", width=74, height=28,
                       fg_color=self.accent_blue, hover_color=_pal.ACCENT_HOV,
                       font=_pal.font(11, "bold"),
@@ -243,11 +243,11 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         ctk.CTkButton(rb_row, text="Exclude", width=70, height=28,
                       fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                       font=_pal.font(11, "bold"),
-                      command=lambda: self._set_role("Exclude")).pack(side="left", padx=4)
+                      command=lambda: self._set_role("Exclude"), text_color=_pal.TXT).pack(side="left", padx=4)
         ctk.CTkButton(roles_card, text="Apply Roles (create averages -> ready to analyze)", height=28,
                       fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                       font=_pal.font(12, "bold"),
-                      command=self._apply_roles).pack(fill="x", padx=16, pady=(2, 16))
+                      command=self._apply_roles, text_color=_pal.TXT).pack(fill="x", padx=16, pady=(2, 16))
 
         # 4. Parameters Card (Real-time Preview)
         frame_params = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
@@ -295,18 +295,18 @@ class PLAnalysisWindow(ctk.CTkToplevel):
 
         self.btn_run = ctk.CTkButton(frame_action, text="RUN Analysis", command=self.run_analysis,
                                      fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
-                                     height=28, font=_pal.font(13, "bold"), state="disabled")
+                                     height=28, font=_pal.font(13, "bold"), state="disabled", text_color=_pal.TXT)
         self.btn_run.pack(fill="x", padx=16, pady=4)
 
         self.btn_export = ctk.CTkButton(frame_action, text="Save Excel", command=self.export_excel, state="disabled")
         self.btn_export.pack(fill="x", padx=16, pady=4)
 
         self.btn_origin = ctk.CTkButton(frame_action, text="Plot to Origin", command=self.send_to_origin,
-                                        fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, state="disabled")
+                                        fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, state="disabled", text_color=_pal.TXT)
         self.btn_origin.pack(fill="x", padx=16, pady=4)
 
         self.btn_ai = ctk.CTkButton(frame_action, text="Interpretation", command=self.run_ai_analysis,
-                                    fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, state="disabled")
+                                    fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, state="disabled", text_color=_pal.TXT)
         self.btn_ai.pack(fill="x", padx=16, pady=(4, 16))
 
         # Left resizer (drag bar)

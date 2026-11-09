@@ -233,7 +233,11 @@ class LauncherApp(ctk.CTk):
         self.refresh_cards()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self._setup_updates()
+        # imports run in a worker thread; the main thread polls the results
+        # (an after() issued from the worker is dropped by some Tk builds)
+        self._preload_done = False
         threading.Thread(target=self._preload_modules, daemon=True).start()
+        self.after(100, self._poll_modules)
 
     # ---------------- config ----------------
     def load_config(self):
@@ -444,19 +448,22 @@ class LauncherApp(ctk.CTk):
                 except Exception as e:
                     print(f"[Physiscore] {mod_path} import failed: {e}")
                     self.modules[mod_path] = None
-            try:
-                self.after(0, self._update_card_state, mod_path)
-            except Exception:
-                return
+        self._preload_done = True
+
+    def _poll_modules(self):
+        for mod_path in list(self.cards):
+            self._update_card_state(mod_path)
+        if not self._preload_done:
+            self.after(150, self._poll_modules)
 
     def _update_card_state(self, mod_path):
         card = self.cards.get(mod_path)
         if not card:
             return
-        mod = self.modules.get(mod_path)
+        mod = self.modules.get(mod_path, "loading")
         lbl, btn = card["status"], card["btn"]
         is_exe = mod_path.startswith("exe:") and isinstance(mod, str)
-        if mod == "loading":
+        if isinstance(mod, str) and mod == "loading":
             lbl.configure(text="Loading...", text_color=_pal.TXT_DIM)
             btn.configure(state="disabled", fg_color=_pal.BG_SUB, text_color=_pal.TXT_DIM)
         elif mod is None:
@@ -507,8 +514,6 @@ class LauncherApp(ctk.CTk):
         head.grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=(10, 0))
         ctk.CTkLabel(head, text=name, font=_pal.font(12, "bold"), text_color=_pal.TXT).pack(side="left")
         ctk.CTkLabel(head, text=category, font=_pal.font(10), text_color=_pal.TXT_DIM).pack(side="left", padx=8)
-        status = ctk.CTkLabel(head, text="Loading...", font=_pal.font(10), text_color=_pal.TXT_DIM)
-        status.pack(side="right")
 
         ctk.CTkLabel(card, text=description, font=_pal.font(10), text_color=_pal.TXT_SUB,
                      justify="left", anchor="w", wraplength=440).grid(row=1, column=1, sticky="ew", padx=(0, 12))
@@ -524,6 +529,8 @@ class LauncherApp(ctk.CTk):
                           hover_color=_pal.BG_HOVER, text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI,
                           font=_pal.font(11), corner_radius=_pal.R_PILL,
                           command=lambda t=spectra_tab: self.open_spectra(t)).pack(side="left", padx=(8, 0))
+        status = ctk.CTkLabel(btns, text="Loading...", font=_pal.font(10), text_color=_pal.TXT_DIM, anchor="e")
+        status.pack(side="right")
         self.cards[mod_path] = {"status": status, "btn": btn}
         self._update_card_state(mod_path)
 

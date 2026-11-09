@@ -53,7 +53,7 @@ class AIConfigDialog(ctk.CTkToplevel):
         self.txt_context = ctk.CTkTextbox(self, width=400, height=150)
         self.txt_context.pack(pady=5)
         
-        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28).pack(pady=20)
+        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28, text_color=_pal.TXT).pack(pady=20)
         
         threading.Thread(target=self.fetch_models, daemon=True).start()
         
@@ -132,9 +132,9 @@ class ResultPopup(ctk.CTkToplevel):
         btn_frame.pack(fill="x", padx=20, pady=(0, 20))
         
         if self.save_data:
-            ctk.CTkButton(btn_frame, text="Save to Excel", command=self.save_excel, height=28, fg_color=_pal.BG_SUB).pack(side="left", fill="x", expand=True, padx=(0, 10))
+            ctk.CTkButton(btn_frame, text="Save to Excel", command=self.save_excel, height=28, fg_color=_pal.BG_SUB, text_color=_pal.TXT).pack(side="left", fill="x", expand=True, padx=(0, 10))
             
-        ctk.CTkButton(btn_frame, text="Close", command=self.destroy, height=28, fg_color=_pal.BG_SUB).pack(side="right", fill="x", expand=True, padx=(10, 0))
+        ctk.CTkButton(btn_frame, text="Close", command=self.destroy, height=28, fg_color=_pal.BG_SUB, text_color=_pal.TXT).pack(side="right", fill="x", expand=True, padx=(10, 0))
 
     def save_excel(self):
         path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")])
@@ -310,29 +310,29 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.add_card_label("Edit Peaks")
         edit_frame = ctk.CTkFrame(self.left_scroll, fg_color="transparent")
         edit_frame.pack(fill="x", padx=10, pady=5)
-        self.btn_add = ctk.CTkButton(edit_frame, text="Add Peak", command=self.toggle_add_mode, fg_color=_pal.BG_SUB)
+        self.btn_add = ctk.CTkButton(edit_frame, text="Add Peak", command=self.toggle_add_mode, fg_color=_pal.BG_SUB, text_color=_pal.TXT)
         self.btn_add.pack(fill="x", pady=(0, 5))
-        self.btn_del = ctk.CTkButton(edit_frame, text="Delete Peak", command=self.toggle_delete_mode, fg_color=_pal.BG_SUB)
+        self.btn_del = ctk.CTkButton(edit_frame, text="Delete Peak", command=self.toggle_delete_mode, fg_color=_pal.BG_SUB, text_color=_pal.TXT)
         self.btn_del.pack(fill="x")
         self.lbl_edit_status = ctk.CTkLabel(self.left_scroll, text="Ready", text_color=_pal.TXT_SUB, font=_pal.font(11))
         self.lbl_edit_status.pack(pady=(0, 10))
 
         self.add_card_label("Analysis (Target Layer)")
-        self.btn_ai = ctk.CTkButton(self.left_scroll, text="Assign peaks (Gemini)", command=self.analyze_target_thread, fg_color=_pal.BG_SUB)
+        self.btn_ai = ctk.CTkButton(self.left_scroll, text="Assign peaks (Gemini)", command=self.analyze_target_thread, fg_color=_pal.BG_SUB, text_color=_pal.TXT)
         self.btn_ai.pack(fill="x", padx=10, pady=5)
-        ctk.CTkButton(self.left_scroll, text="View Peak List (Table)", command=self.show_peak_list, fg_color=_pal.BG_SUB).pack(fill="x", padx=10, pady=5)
-        self.btn_origin = ctk.CTkButton(self.left_scroll, text="Plot to Origin", command=self.plot_to_origin, fg_color=_pal.BG_SUB)
+        ctk.CTkButton(self.left_scroll, text="View Peak List (Table)", command=self.show_peak_list, fg_color=_pal.BG_SUB, text_color=_pal.TXT).pack(fill="x", padx=10, pady=5)
+        self.btn_origin = ctk.CTkButton(self.left_scroll, text="Plot to Origin", command=self.plot_to_origin, fg_color=_pal.BG_SUB, text_color=_pal.TXT)
         self.btn_origin.pack(fill="x", padx=10, pady=5)
-        ctk.CTkButton(self.left_scroll, text="Save All Layers (Excel)", command=self.save_all_results, fg_color=_pal.BG_SUB).pack(fill="x", padx=10, pady=10)
+        ctk.CTkButton(self.left_scroll, text="Save All Layers (Excel)", command=self.save_all_results, fg_color=_pal.BG_SUB, text_color=_pal.TXT).pack(fill="x", padx=10, pady=10)
 
         self.add_card_label("Compare vs Ref")
         comp_frame = ctk.CTkFrame(self.left_scroll, fg_color="transparent")
         comp_frame.pack(fill="x", padx=10, pady=5)
         
-        self.btn_compare = ctk.CTkButton(self.left_scroll, text="Compare Target vs Ref", command=self.start_comparison, fg_color=_pal.BG_SUB)
+        self.btn_compare = ctk.CTkButton(self.left_scroll, text="Compare Target vs Ref", command=self.start_comparison, fg_color=_pal.BG_SUB, text_color=_pal.TXT)
         self.btn_compare.pack(fill="x", padx=10, pady=(5, 20))
         
-        ctk.CTkButton(self.left_scroll, text="Peak-shift table (all vs reference)", command=self.batch_compare_all, fg_color=_pal.BG_SUB).pack(fill="x", padx=10, pady=(0, 20))
+        ctk.CTkButton(self.left_scroll, text="Peak-shift table (all vs reference)", command=self.batch_compare_all, fg_color=_pal.BG_SUB, text_color=_pal.TXT).pack(fill="x", padx=10, pady=(0, 20))
         
         self.lbl_status = ctk.CTkLabel(self.left_scroll, text="Ready", text_color=_pal.TXT_SUB)
         self.lbl_status.pack()
@@ -614,7 +614,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         for i in range(len(self.layers)):
             btn = ctk.CTkButton(self.layer_bar, text=str(i+1), width=35, height=28,
                                 font=_pal.font(12, "bold"), fg_color=_pal.BG_SUB, 
-                                command=lambda x=i: self.toggle_layer_visibility(x))
+                                command=lambda x=i: self.toggle_layer_visibility(x), text_color=_pal.TXT)
             btn.pack(side="left", padx=3)
             self.layer_buttons.append(btn)
         

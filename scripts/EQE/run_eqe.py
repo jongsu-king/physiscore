@@ -258,8 +258,7 @@ class EQEWindow(ctk.CTkToplevel):
             set_card, text="Apply View", command=self._apply_view,
             fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
             corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
-            state="disabled"
-        )
+            state="disabled", text_color=_pal.TXT)
         self.btn_apply.pack(pady=(0, 8), padx=16, fill="x")
 
         # One-click auto fit: auto-select absorption edge (derivative Eg) + Urbach tail (ln EQE)
@@ -267,7 +266,7 @@ class EQEWindow(ctk.CTkToplevel):
             set_card, text="Auto fit (Eg and Urbach)",
             command=self._auto_fit_all, height=28,
             fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
-            font=_pal.font(13, "bold"), corner_radius=_pal.R_PILL, state="disabled")
+            font=_pal.font(13, "bold"), corner_radius=_pal.R_PILL, state="disabled", text_color=_pal.TXT)
         self.btn_autofit.pack(pady=(0, 16), padx=16, fill="x")
 
         # Origin card
@@ -295,16 +294,14 @@ class EQEWindow(ctk.CTkToplevel):
             act_card, text="Save Excel", command=self._save_excel,
             fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
             corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
-            state="disabled"
-        )
+            state="disabled", text_color=_pal.TXT)
         self.btn_excel.pack(padx=16, pady=4, fill="x")
 
         self.btn_origin = ctk.CTkButton(
             act_card, text="Send to Origin", command=self._send_origin,
             fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
             corner_radius=_pal.R_PILL, height=28, font=_pal.font(11),
-            state="disabled"
-        )
+            state="disabled", text_color=_pal.TXT)
         self.btn_origin.pack(padx=16, pady=(0, 16), fill="x")
 
     def _create_center_panel(self):
