@@ -1,6 +1,6 @@
 # Validation against closed-form synthetic data
 
-Every row compares a quantity recovered by Physiscore 3.1.0 with the value that was
+Every row compares a quantity recovered by Physiscore 3.1.1 with the value that was
 put into an analytical model (single-diode J-V curves, error-function EQE edges,
 Tauc edges with Urbach tails, pseudo-Voigt reflections, Gaussian/Lorentzian bands,
 Shirley-type XPS backgrounds, log-normal grain sizes, strained cubic lattices). The
@@ -91,4 +91,4 @@ within 1 meV of its centre.
 | XRD | lattice strain from reference match | 0.003 | 0.00299999 | - | -0.000 | 7 reflections, a = 1.003 a0 |
 | XRD | reference coverage | 1 | 1 | - | +0.000 |  |
 
-_Generated 2026-11-09 with Physiscore 3.1.0, numpy 2.4.6, scipy 1.17.1._
+_Generated 2026-11-09 with Physiscore 3.1.1, numpy 2.4.6, scipy 1.17.1._

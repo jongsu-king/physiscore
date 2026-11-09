@@ -3,7 +3,17 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
-## [3.1.0] - 2026-11-09
+## [3.1.1] - 2026-11-09
+
+First published build of the 3.1.0 features; the program is unchanged from 3.1.0.
+
+### Fixed
+- The updater's end-to-end tests wait for the background helper to finish its
+  cleanup and write its log line, instead of checking the instant the new copy
+  appears. On the slower Intel macOS runner the check failed, so the 3.1.0 tag was
+  never published.
+
+## [3.1.0] - 2026-11-09 (tagged, not published; released as 3.1.1)
 
 ### Added
 - **Device summary** tool: J-V, EQE, absorbance and PL of one device in one window. Jsc
@@ -41,9 +51,6 @@ release dates. Detailed release notes are in `docs/release-notes/`.
 
 ### Tests
 - 239 unit tests (15 new); 13 GUI smoke checks.
-- The updater's end-to-end tests wait for the background helper to finish its
-  cleanup instead of checking the folder the instant the new copy appears (the check
-  failed on the slower Intel macOS runner).
 
 ## [3.0.0] - 2026-11-09
 

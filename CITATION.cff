@@ -5,7 +5,7 @@ abstract: >-
   Integrated, physics-constrained analysis suite for thin-film photovoltaic
   device and material characterization, covering J-V (light and dark), EQE,
   absorbance, photoluminescence, Raman, FTIR, XRD, SEM and XPS.
-version: "3.1.0"
+version: "3.1.1"
 date-released: "2026-11-09"
 # Concept DOI: always resolves to the latest archived release on Zenodo.
 doi: 10.5281/zenodo.22267588
