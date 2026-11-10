@@ -152,8 +152,10 @@ class AnalysisWindow(ctk.CTkToplevel):
         right.grid(row=0, column=2, sticky="nsew")
         right.grid_rowconfigure(1, weight=1)
         right.grid_propagate(False)
-        ctk.CTkLabel(right, text="Summary", font=_pal.font(12, "bold"), text_color=_pal.TXT,
-                     anchor="w").grid(row=0, column=0, sticky="ew", padx=12, pady=(10, 4))
+        hdr_summary = ctk.CTkLabel(right, text="Summary", font=_pal.font(12, "bold"), text_color=_pal.TXT,
+                                  anchor="w")
+        hdr_summary.grid(row=0, column=0, sticky="ew", padx=12, pady=(10, 4))
+        _theme.panel_header(hdr_summary, right)
         frame = ctk.CTkFrame(right, fg_color=_pal.BG_CARD, corner_radius=_pal.R_CARD, border_width=1,
                              border_color=_pal.BORDER)
         frame.grid(row=1, column=0, sticky="nsew", padx=10)
@@ -175,8 +177,10 @@ class AnalysisWindow(ctk.CTkToplevel):
             _pi.attach_tree_context_menu(self, self.tree)
         except Exception:
             pass
-        ctk.CTkLabel(right, text="Checks", font=_pal.font(12, "bold"), text_color=_pal.TXT,
-                     anchor="w").grid(row=2, column=0, sticky="ew", padx=12, pady=(10, 4))
+        hdr_checks = ctk.CTkLabel(right, text="Checks", font=_pal.font(12, "bold"), text_color=_pal.TXT,
+                                  anchor="w")
+        hdr_checks.grid(row=2, column=0, sticky="ew", padx=12, pady=(10, 4))
+        _theme.panel_header(hdr_checks, right)
         self.txt_checks = ctk.CTkTextbox(right, height=170, font=_pal.font(10), fg_color=_pal.BG_CARD,
                                          text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER,
                                          corner_radius=_pal.R_CARD, wrap="word")

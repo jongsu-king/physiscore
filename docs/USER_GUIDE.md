@@ -30,7 +30,7 @@ Contents
 
 ![launcher](images/launcher.png)
 
-*The main window. Each card names what the tool derives; *Ready* appears once its code has loaded. Synthetic example data.*
+*The main window: tool tree on the left; the selected tool with its input, output and method notes, the session settings, recent folders and the conventions on the right.*
 
 | How | Command |
 |---|---|
@@ -39,12 +39,25 @@ Contents
 | One tool directly | `Physiscore --tool "J-V Curve"` (or `python Physiscore_Launcher.py --tool "XRD"`) |
 | An auto-fit workspace | `Physiscore --spectra XRD` / `PL` / `XPS` |
 
-The main window lists the eleven tools as cards. Each card says what the tool derives;
-the line at the right of the card reads **Ready** once the tool's code has loaded
-(it loads in the background for a second or two). The category buttons
-(**Device, Optical, Structural, Vibrational, Surface**) and the filter field narrow the
-list. The status bar shows the device area used for current densities, whether an
-Origin path is set, whether the optional interpretation is enabled, and the version.
+The main window is a workbench (3.2):
+
+- **Analysis tools** (left): the eleven tools grouped by category (Device, Optical,
+  Structural, Vibrational, Surface) with their status - *Ready* once the tool's code has
+  loaded in the background, *External program* for an external J-V executable on
+  Windows, *Unavailable* if a module failed to import. The filter field in the toolbar
+  narrows the list. Double-click a tool or press Enter to open it.
+- **Tool**: what the selected tool derives, the files it reads, the files it writes,
+  the section of the method notes that documents it, and the buttons *Open*,
+  *Auto-fit workspace* (PL, XRD) and *Method notes*.
+- **Session**: the device area used for current densities, the irradiance and
+  temperature defaults, the Origin path, whether the optional interpretation is on,
+  the settings file and the version.
+- **Recent folders**: folders processed in J-V Curve and J-V Dark; double-click opens
+  the tool with the folder filled in.
+- **Conventions**: units and sign conventions used throughout.
+
+The status bar repeats the device area, the Origin and interpretation state and the
+version.
 
 Menus of the main window:
 
@@ -62,8 +75,12 @@ Origin), *View* (Auto range, Toggle legend, Toggle grid), *Help* (mouse and keyb
 methods, About).
 
 **Toolbar.** Open actions on the left, then the run action (the only solid blue button,
-also F5), then fit and extra actions. Exports on the right: Excel (Ctrl+E), Figure,
-Report, Origin, Interpretation.
+also F5), then fit and extra actions, in groups separated by thin rules. Exports on the
+right: Excel (Ctrl+E), Figure, Report, Origin, Interpretation.
+
+**Panels.** Every group of controls or results sits in a box with a grey title strip
+(as in the dock panels of instrument software); tables have alternating row shading and
+right-aligned numbers.
 
 **Status bar.** Status text on the left; on the right the data coordinates under the
 mouse pointer (x, y of the plot), useful for reading off a peak position or a voltage.

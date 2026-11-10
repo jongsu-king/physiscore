@@ -24,6 +24,7 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
 from scripts.common import palette as _pal
+from scripts.common import theme as _theme   # installs the instrument theme (3.2)
 
 try:  # tool windows opened without the launcher (smoke tests, --tool) must still follow the palette
     ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
@@ -34,15 +35,15 @@ STD_GEOMETRY = "1500x920"
 
 # toolbar slot style: (bg, hover, bold, text colour)
 _SLOT_STYLE = {
-    "open":   (_pal.BG_SUB, _pal.BG_HOVER, False, _pal.TXT),
+    "open":   (_pal.BG_PANEL, _pal.BG_HOVER, False, _pal.TXT),
     "run":    (_pal.ACCENT, _pal.ACCENT_HOV, True, "white"),
-    "fit":    (_pal.BG_SUB, _pal.BG_HOVER, False, _pal.TXT),
-    "extra":  (_pal.BG_SUB, _pal.BG_HOVER, False, _pal.TXT),
-    "excel":  (_pal.BG_SUB, _pal.BG_HOVER, False, _pal.TXT),
-    "png":    (_pal.BG_SUB, _pal.BG_HOVER, False, _pal.TXT),
-    "report": (_pal.BG_SUB, _pal.BG_HOVER, False, _pal.TXT),
-    "origin": (_pal.BG_SUB, _pal.BG_HOVER, False, _pal.TXT),
-    "ai":     (_pal.BG_SUB, _pal.BG_HOVER, False, _pal.TXT_SUB),
+    "fit":    (_pal.BG_PANEL, _pal.BG_HOVER, False, _pal.TXT),
+    "extra":  (_pal.BG_PANEL, _pal.BG_HOVER, False, _pal.TXT),
+    "excel":  (_pal.BG_PANEL, _pal.BG_HOVER, False, _pal.TXT),
+    "png":    (_pal.BG_PANEL, _pal.BG_HOVER, False, _pal.TXT),
+    "report": (_pal.BG_PANEL, _pal.BG_HOVER, False, _pal.TXT),
+    "origin": (_pal.BG_PANEL, _pal.BG_HOVER, False, _pal.TXT),
+    "ai":     (_pal.BG_PANEL, _pal.BG_HOVER, False, _pal.TXT_SUB),
 }
 _RIGHT_ORDER = ["excel", "png", "report", "origin", "ai"]
 _LEFT_ORDER = ["open", "run", "fit", "extra"]
@@ -446,22 +447,28 @@ def attach_chrome(win, tool_name, actions, status_left="Ready", hints=""):
 
     _make_menubar(win, tool_name, actions, hints)
 
-    # ---- toolbar ----
-    bar = ctk.CTkFrame(win, height=40, fg_color=_pal.BG_PANEL, corner_radius=0)
+    # ---- toolbar (3.2: compact, flat buttons in groups, hairline under it) ----
+    bar = ctk.CTkFrame(win, height=36, fg_color=_pal.TOOL_BG, corner_radius=0)
     bar.pack_propagate(False)
+    ctk.CTkFrame(bar, height=1, fg_color=_pal.BORDER_HI, corner_radius=0).place(
+        relx=0, rely=1.0, relwidth=1.0, anchor="sw")
     ctk.CTkLabel(bar, text=tool_name, font=_pal.font(12, "bold"), text_color=_pal.TXT
-                 ).pack(side="left", padx=(12, 14))
+                 ).pack(side="left", padx=(10, 12))
 
     def make_btn(parent, label, cb, slot):
         color, hov, bold, tcol = _SLOT_STYLE[slot]
         is_run = slot == "run"
         return ctk.CTkButton(
-            parent, text=label, command=_wrap(cb), height=26,
-            width=max(64, 10 + 7 * len(label)),
+            parent, text=label, command=_wrap(cb), height=24,
+            width=max(58, 12 + 7 * len(label)),
             fg_color=color, hover_color=hov, text_color=tcol,
             border_width=0 if is_run else 1, border_color=_pal.BORDER_HI,
             font=_pal.font(11, "bold") if bold else _pal.font(11),
             corner_radius=_pal.R_PILL)
+
+    def separator():
+        ctk.CTkFrame(bar, width=1, height=20, fg_color=_pal.BORDER_HI, corner_radius=0
+                     ).pack(side="left", padx=7, pady=8)
 
     for slot in _LEFT_ORDER:
         v = actions.get(slot)
@@ -471,9 +478,9 @@ def attach_chrome(win, tool_name, actions, status_left="Ready", hints=""):
         for it in items:
             if it is None:
                 continue
-            make_btn(bar, it[0], it[1], slot).pack(side="left", padx=3, pady=7)
-        if slot == "run":
-            ctk.CTkFrame(bar, width=1, height=22, fg_color=_pal.BORDER).pack(side="left", padx=6, pady=9)
+            make_btn(bar, it[0], it[1], slot).pack(side="left", padx=2, pady=6)
+        if slot in ("open", "run"):
+            separator()
 
     for slot in _RIGHT_ORDER:
         v = actions.get(slot)
@@ -485,11 +492,13 @@ def attach_chrome(win, tool_name, actions, status_left="Ready", hints=""):
         for it in reversed(items):
             if it is None:
                 continue
-            make_btn(bar, it[0], it[1], slot).pack(side="right", padx=3, pady=7)
+            make_btn(bar, it[0], it[1], slot).pack(side="right", padx=2, pady=6)
 
     # ---- status bar ----
-    sb = ctk.CTkFrame(win, height=24, fg_color=_pal.BG_PANEL, corner_radius=0)
+    sb = ctk.CTkFrame(win, height=22, fg_color=_pal.TOOL_BG, corner_radius=0)
     sb.pack_propagate(False)
+    ctk.CTkFrame(sb, height=1, fg_color=_pal.BORDER_HI, corner_radius=0).place(
+        relx=0, rely=0, relwidth=1.0, anchor="nw")
     status = ctk.CTkLabel(sb, text=status_left, font=_pal.font(10), text_color=_pal.TXT_SUB, anchor="w")
     status.pack(side="left", padx=10)
     cursor = ctk.CTkLabel(sb, text="", font=_pal.mono(10), text_color=_pal.TXT_SUB, anchor="e")
@@ -508,8 +517,8 @@ def attach_chrome(win, tool_name, actions, status_left="Ready", hints=""):
         for r in range(maxrow + 1, 0, -1):
             cfg = win.grid_rowconfigure(r - 1)
             win.grid_rowconfigure(r, weight=cfg["weight"], minsize=cfg["minsize"])
-        win.grid_rowconfigure(0, weight=0, minsize=40)
-        win.grid_rowconfigure(maxrow + 2, weight=0, minsize=24)
+        win.grid_rowconfigure(0, weight=0, minsize=36)
+        win.grid_rowconfigure(maxrow + 2, weight=0, minsize=22)
         bar.grid(row=0, column=0, columnspan=max(ncols, 1), sticky="ew")
         sb.grid(row=maxrow + 2, column=0, columnspan=max(ncols, 1), sticky="ew")
     else:
@@ -529,4 +538,10 @@ def attach_chrome(win, tool_name, actions, status_left="Ready", hints=""):
             cv = getattr(holder, name, None)
             if cv is not None and hasattr(cv, "mpl_connect"):
                 attach_cursor_readout(win, cv, cursor)
+
+    # group boxes -> square boxes with header strips (3.2)
+    try:
+        _theme.instrumentize(win)
+    except Exception:
+        pass
     return status

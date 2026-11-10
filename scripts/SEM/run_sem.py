@@ -469,7 +469,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         ctk.CTkLabel(mean_box, text="Mean", text_color=self.text_secondary,
                      font=_pal.font(10)).pack(pady=(8, 2))
         self.lbl_stats_mean = ctk.CTkLabel(mean_box, text="- nm", font=_pal.font(12, "bold"),
-                                           text_color=self.accent_blue)
+                                           text_color=_pal.TXT)
         self.lbl_stats_mean.pack(pady=(0, 8))
 
         std_box = ctk.CTkFrame(row1, corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB)
@@ -477,7 +477,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         ctk.CTkLabel(std_box, text="Std Dev", text_color=self.text_secondary,
                      font=_pal.font(10)).pack(pady=(8, 2))
         self.lbl_stats_std = ctk.CTkLabel(std_box, text="- nm", font=_pal.font(12, "bold"),
-                                          text_color=self.accent_blue)
+                                          text_color=_pal.TXT)
         self.lbl_stats_std.pack(pady=(0, 8))
 
         # Min & Max Row
@@ -489,7 +489,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         ctk.CTkLabel(min_box, text="Min", text_color=self.text_secondary,
                      font=_pal.font(10)).pack(pady=(8, 2))
         self.lbl_stats_min = ctk.CTkLabel(min_box, text="- nm", font=_pal.font(12, "bold"),
-                                          text_color=_pal.GREEN)
+                                          text_color=_pal.TXT)
         self.lbl_stats_min.pack(pady=(0, 8))
 
         max_box = ctk.CTkFrame(row2, corner_radius=_pal.R_PILL, fg_color=_pal.BG_SUB)
@@ -497,7 +497,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         ctk.CTkLabel(max_box, text="Max", text_color=self.text_secondary,
                      font=_pal.font(10)).pack(pady=(8, 2))
         self.lbl_stats_max = ctk.CTkLabel(max_box, text="- nm", font=_pal.font(12, "bold"),
-                                          text_color=_pal.RED)
+                                          text_color=_pal.TXT)
         self.lbl_stats_max.pack(pady=(0, 8))
 
         ctk.CTkLabel(stats_grid, text="Distribution", font=_pal.font(10, "bold"), text_color=self.text_secondary,

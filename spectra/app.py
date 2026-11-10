@@ -12,6 +12,7 @@ from spectra.core.config import PipelineConfig
 from spectra.gui.tab_dashboard import SpectraDashboardTab
 from spectra.gui.tab_pl import PLAnalysisTab
 from scripts.common import palette as _pal
+from scripts.common import theme as _theme  # noqa: F401  palette theme for customtkinter (3.2)
 
 
 def build_default_configs():
@@ -84,6 +85,12 @@ class App(ctk.CTk):
             t_pl = tabs.add("PL")
             PLAnalysisTab(t_pl, pl_cfg).pack(fill="both", expand=True)
             tabs.set("PL")
+
+        # group boxes -> square boxes with header strips, as in the tool windows (3.2)
+        try:
+            _theme.instrumentize(self)
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

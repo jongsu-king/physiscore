@@ -419,7 +419,10 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.right_frame = ctk.CTkFrame(self.paned_window, width=350, corner_radius=0, fg_color=_pal.BG_PANEL)
         self.paned_window.add(self.right_frame, minsize=300)
         
-        ctk.CTkLabel(self.right_frame, text="Peak Detail (Target Layer)", text_color=_pal.TXT, font=_pal.font(12, "bold")).pack(pady=10)
+        peak_hdr = ctk.CTkLabel(self.right_frame, text="Peak detail (target layer)", text_color=_pal.TXT,
+                                font=_pal.font(12, "bold"))
+        peak_hdr.pack(pady=10)
+        _theme.panel_header(peak_hdr)
         self.lbl_peak_pos = ctk.CTkLabel(self.right_frame, text="-", text_color=_pal.TXT)
         self.lbl_peak_pos.pack(pady=5)
         

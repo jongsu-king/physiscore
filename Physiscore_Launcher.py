@@ -1,6 +1,6 @@
 # ============================================================
 # Physiscore_Launcher.py - main window of the analysis suite
-#  - menu bar (File / Analysis / Tools / Help) and a compact tool grid
+#  - menu bar (File / Analysis / Tools / Help); tool tree and tool panel (workbench)
 #  - Settings: Origin path, API key, cell area, theme
 #  - status bar: cell area, Origin, version
 #  - command line: --version, --selftest [--out f], --update, --spectra TAB,
@@ -26,11 +26,12 @@ from scripts.common import app_config  # noqa: E402
 from scripts.common import palette as _pal  # noqa: E402
 
 CONFIG_FILE = app_config.config_path()
-APP_VERSION = "3.1.2"
+APP_VERSION = "3.2.0"
 REPO_URL = "https://github.com/jongsu-king/physiscore"
 
 ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
 ctk.set_default_color_theme("blue")
+from scripts.common import theme as _theme  # noqa: E402  palette theme for customtkinter (3.2)
 
 CATEGORIES = ["All", "Device", "Optical", "Structural", "Vibrational", "Surface"]
 
@@ -63,6 +64,51 @@ TOOLS = [
 ]
 
 BUILTIN_FALLBACK = {"exe:JV_Analysis.exe": "scripts.JV.run_jv"}
+
+# name -> (input, output, method notes) shown in the tool panel of the main window
+TOOL_DETAILS = {
+    "J-V Curve": ("Folder of instrument exports (Vmeas/Imeas) or CSV/TSV/DAT/Excel I-V files",
+                  "<folder>.xlsx: summary, curve analysis, statistics, hysteresis, box charts; side-car",
+                  "METHODS 1 (J-V), 13 (generic I-V)"),
+    "J-V Dark": ("Folder of dark I-V files", "<folder>_Dark.xlsx: CombinedData, SummaryTable (window and full fit)",
+                 "METHODS 2"),
+    "Device summary": ("J-V curve and EQE of one device; absorbance and PL of the absorber (optional)",
+                       "Excel: Summary, AllValues, Checks, Inputs; Markdown report", "METHODS 11"),
+    "EQE": ("Wavelength (nm) and EQE (% or fraction), CSV or Excel",
+            "<file>_result.xlsx: Result, EQE_Data, Urbach_Data, DetailedBalance", "METHODS 3"),
+    "Absorbance": ("Wavelength (nm) and one or more absorbance columns, Excel",
+                   "<file>_result.xlsx: Result, UV-Vis, Tauc_Data", "METHODS 4"),
+    "PL": ("Wavelength column and sample columns, CSV or Excel", "Excel: PL_Results, Processed", "METHODS 6"),
+    "XRD": ("2θ (°) and intensity; reference peak list (2θ or d, hkl, I) optional",
+            "Excel: Peaks, Pattern, WilliamsonHall, ReferenceMatch, Crystallinity", "METHODS 5, 12"),
+    "FE-SEM": ("TIF, PNG, JPG or BMP image, 8 or 16 bit", "Excel: Grains, Statistics", "METHODS 8"),
+    "Raman": ("Raman shift (cm⁻¹) and up to ten spectra", "Band, fit and shift tables; Excel", "METHODS 7"),
+    "FTIR": ("Wavenumber (cm⁻¹) and transmittance or absorbance", "Band, fit and shift tables; Excel", "METHODS 7"),
+    "XPS": ("Binding energy (eV) and counts; Thermo Avantage exports", "peaks_fitted.csv, processed.csv, Excel, "
+            "peak report; atomic concentrations", "METHODS 9"),
+}
+METHODS_URL = "https://github.com/jongsu-king/physiscore/blob/main/docs/METHODS.md"
+
+
+class _TreeCell:
+    """Status cell of one tool in the tool tree; keeps the cards[...]["status"]
+    interface (cget/configure) used by the smoke test and the screenshot tool."""
+
+    def __init__(self, tree, iid):
+        self.tree, self.iid = tree, iid
+
+    def cget(self, key):
+        try:
+            return self.tree.set(self.iid, "status") if key == "text" else ""
+        except Exception:
+            return ""
+
+    def configure(self, text=None, **_kw):
+        if text is not None:
+            try:
+                self.tree.set(self.iid, "status", text)
+            except Exception:
+                pass
 
 
 def find_external_exe(filename):
@@ -214,8 +260,8 @@ class LauncherApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Physiscore")
-        self.geometry("1180x740")
-        self.minsize(960, 620)
+        self.geometry("1180x780")
+        self.minsize(980, 640)
         self.configure(fg_color=_pal.BG_WINDOW)
 
         self.origin_path = ""
@@ -364,40 +410,141 @@ class LauncherApp(ctk.CTk):
 
     # ---------------- toolbar ----------------
     def _build_toolbar(self):
-        bar = ctk.CTkFrame(self, height=44, fg_color=_pal.BG_PANEL, corner_radius=0)
+        bar = ctk.CTkFrame(self, height=36, fg_color=_pal.TOOL_BG, corner_radius=0)
         bar.pack(fill="x", side="top")
         bar.pack_propagate(False)
-
+        ctk.CTkFrame(bar, height=1, fg_color=_pal.BORDER_HI, corner_radius=0).place(
+            relx=0, rely=1.0, relwidth=1.0, anchor="sw")
         ctk.CTkLabel(bar, text="Physiscore", font=_pal.font(13, "bold"), text_color=_pal.TXT
-                     ).pack(side="left", padx=(14, 4))
-        ctk.CTkLabel(bar, text="analysis suite", font=_pal.font(11), text_color=_pal.TXT_SUB
-                     ).pack(side="left", padx=(0, 16))
-
-        self.seg = ctk.CTkSegmentedButton(
-            bar, values=CATEGORIES, height=28, fg_color=_pal.BG_SUB,
-            selected_color=_pal.ACCENT, selected_hover_color=_pal.ACCENT_HOV,
-            unselected_color=_pal.BG_SUB, unselected_hover_color=_pal.BG_HOVER,
-            text_color=_pal.TXT, font=_pal.font(11), corner_radius=_pal.R_PILL, command=self._on_category)
-        self.seg.set("All")
-        self.seg.pack(side="left", padx=4, pady=8)
-
-        ctk.CTkButton(bar, text="Settings", width=84, height=28, fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                     ).pack(side="left", padx=(12, 6))
+        ctk.CTkLabel(bar, text="thin-film photovoltaic characterisation", font=_pal.font(11),
+                     text_color=_pal.TXT_SUB).pack(side="left", padx=(0, 16))
+        ctk.CTkButton(bar, text="Settings", width=76, height=24, fg_color=_pal.BG_PANEL, hover_color=_pal.BG_HOVER,
                       text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI, font=_pal.font(11),
-                      corner_radius=_pal.R_PILL, command=self.open_settings).pack(side="right", padx=12, pady=8)
-
+                      corner_radius=_pal.R_PILL, command=self.open_settings).pack(side="right", padx=10, pady=6)
         self.search_var = ctk.StringVar()
-        ent = ctk.CTkEntry(bar, width=200, height=28, fg_color=_pal.BG_CARD, border_color=_pal.BORDER,
+        ent = ctk.CTkEntry(bar, width=190, height=24, fg_color=_pal.BG_CARD, border_color=_pal.BORDER_HI,
                            text_color=_pal.TXT, font=_pal.font(11), corner_radius=_pal.R_INPUT,
                            placeholder_text="Filter tools", textvariable=self.search_var)
-        ent.pack(side="right", padx=(0, 4), pady=8)
+        ent.pack(side="right", padx=(0, 4), pady=6)
         ent.bind("<KeyRelease>", lambda e: self.refresh_cards())
 
     # ---------------- body ----------------
     def _build_body(self):
-        self.body = ctk.CTkScrollableFrame(self, fg_color=_pal.BG_WINDOW,
-                                           scrollbar_button_color=_pal.BORDER_HI,
-                                           scrollbar_button_hover_color=_pal.TXT_DIM)
-        self.body.pack(fill="both", expand=True, padx=10, pady=(8, 4))
+        """Workbench: tool tree on the left; the selected tool, the session and the
+        conventions on the right (3.2; replaces the card grid)."""
+        from tkinter import ttk
+        body = ctk.CTkFrame(self, fg_color=_pal.BG_WINDOW, corner_radius=0)
+        body.pack(fill="both", expand=True, padx=8, pady=8)
+        body.grid_columnconfigure(0, weight=0, minsize=340)
+        body.grid_columnconfigure(1, weight=1)
+        body.grid_rowconfigure(0, weight=1)
+
+        # ---- left: tool tree ----
+        left = _theme.card(body)
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        hdr = ctk.CTkLabel(left, text="Analysis tools", font=_pal.font(11, "bold"))
+        hdr.pack(fill="x")
+        _theme.panel_header(hdr, left)
+        _theme.style_treeview(rowheight=24)
+        self.tree = ttk.Treeview(left, columns=("status",), show="tree headings", selectmode="browse")
+        self.tree.heading("#0", text="Tool", anchor="w")
+        self.tree.heading("status", text="Status", anchor="w")
+        self.tree.column("#0", width=200, minwidth=160, stretch=True)
+        self.tree.column("status", width=120, minwidth=90, stretch=False, anchor="w")
+        self.tree.tag_configure("category", font=_pal.font(11, "bold"), foreground=_pal.TXT_SUB)
+        self.tree.tag_configure("unavailable", foreground=_pal.RED)
+        self.tree.pack(fill="both", expand=True, padx=1, pady=(0, 1))
+        self.tree.bind("<<TreeviewSelect>>", self._on_select)
+        self.tree.bind("<Double-1>", lambda e: self._open_selected())
+        self.tree.bind("<Return>", lambda e: self._open_selected())
+        self._iid_tool = {}
+        self._selected_tool = None
+
+        # ---- right: tool, session, conventions ----
+        right = ctk.CTkFrame(body, fg_color="transparent", corner_radius=0)
+        right.grid(row=0, column=1, sticky="nsew")
+        right.grid_columnconfigure(0, weight=1)
+
+        tool = _theme.card(right)
+        tool.pack(fill="x")
+        th = ctk.CTkLabel(tool, text="Tool", font=_pal.font(11, "bold"))
+        th.pack(fill="x")
+        _theme.panel_header(th, tool)
+        top = ctk.CTkFrame(tool, fg_color="transparent")
+        top.pack(fill="x", padx=12, pady=(2, 6))
+        self.lbl_icon = ctk.CTkLabel(top, text="", width=52)
+        self.lbl_icon.pack(side="left", padx=(0, 10))
+        names = ctk.CTkFrame(top, fg_color="transparent")
+        names.pack(side="left", fill="x", expand=True)
+        self.lbl_tool = ctk.CTkLabel(names, text="", font=_pal.font(16, "bold"), text_color=_pal.TXT, anchor="w")
+        self.lbl_tool.pack(fill="x")
+        self.lbl_cat = ctk.CTkLabel(names, text="", font=_pal.font(11), text_color=_pal.TXT_SUB, anchor="w")
+        self.lbl_cat.pack(fill="x")
+        self.lbl_desc = ctk.CTkLabel(tool, text="", font=_pal.font(12), text_color=_pal.TXT, anchor="w",
+                                     justify="left", wraplength=700)
+        self.lbl_desc.pack(fill="x", padx=12, pady=(0, 6))
+        self.tool_table = _theme.kv_table(tool, height=4, key_width=110, value_width=600)
+        self.tool_table.heading("k", text="Item")
+        self.tool_table.heading("v", text="Description")
+        self.tool_table.column("v", anchor="w")
+        self.tool_table.pack(fill="x", padx=12, pady=(0, 8))
+        btns = ctk.CTkFrame(tool, fg_color="transparent")
+        btns.pack(fill="x", padx=12, pady=(0, 10))
+        self.btn_open = ctk.CTkButton(btns, text="Open", width=96, height=26, fg_color=_pal.ACCENT,
+                                      hover_color=_pal.ACCENT_HOV, text_color="white", font=_pal.font(12, "bold"),
+                                      corner_radius=_pal.R_PILL, command=self._open_selected)
+        self.btn_open.pack(side="left")
+        self.btn_autofit = ctk.CTkButton(btns, text="Auto-fit workspace", width=140, height=26,
+                                         fg_color=_pal.BG_PANEL, hover_color=_pal.BG_HOVER, text_color=_pal.TXT,
+                                         border_width=1, border_color=_pal.BORDER_HI, font=_pal.font(11),
+                                         corner_radius=_pal.R_PILL, command=self._open_selected_autofit)
+        self.btn_methods = ctk.CTkButton(btns, text="Method notes", width=110, height=26,
+                                         fg_color=_pal.BG_PANEL, hover_color=_pal.BG_HOVER, text_color=_pal.TXT,
+                                         border_width=1, border_color=_pal.BORDER_HI, font=_pal.font(11),
+                                         corner_radius=_pal.R_PILL, command=lambda: self._open_url(METHODS_URL))
+        self.btn_methods.pack(side="right")
+        self.lbl_hint = ctk.CTkLabel(btns, text="Double-click a tool or press Enter to open it.",
+                                     font=_pal.font(10), text_color=_pal.TXT_DIM)
+        self.lbl_hint.pack(side="right", padx=10)
+
+        session = _theme.card(right)
+        session.pack(fill="x", pady=(8, 0))
+        sh = ctk.CTkLabel(session, text="Session", font=_pal.font(11, "bold"))
+        sh.pack(fill="x")
+        _theme.panel_header(sh, session)
+        self.session_table = _theme.kv_table(session, height=7, key_width=180, value_width=530)
+        self.session_table.heading("k", text="Setting")
+        self.session_table.heading("v", text="Value")
+        self.session_table.column("v", anchor="w")
+        self.session_table.pack(fill="x", padx=12, pady=(0, 10))
+
+        recent = _theme.card(right)
+        recent.pack(fill="x", pady=(8, 0))
+        rh = ctk.CTkLabel(recent, text="Recent folders", font=_pal.font(11, "bold"))
+        rh.pack(fill="x")
+        _theme.panel_header(rh, recent)
+        self.recent_table = ttk.Treeview(recent, columns=("folder", "tool"), show="headings", height=5,
+                                         selectmode="browse")
+        self.recent_table.heading("folder", text="Folder", anchor="w")
+        self.recent_table.heading("tool", text="Tool", anchor="w")
+        self.recent_table.column("folder", width=560, anchor="w", stretch=True)
+        self.recent_table.column("tool", width=120, anchor="w", stretch=False)
+        self.recent_table.pack(fill="x", padx=12, pady=(0, 10))
+        self.recent_table.bind("<Double-1>", lambda e: self._open_recent())
+        self._recent_rows = {}
+
+        conv = _theme.card(right)
+        conv.pack(fill="x", pady=(8, 0))
+        ch = ctk.CTkLabel(conv, text="Conventions", font=_pal.font(11, "bold"))
+        ch.pack(fill="x")
+        _theme.panel_header(ch, conv)
+        ctk.CTkLabel(conv, justify="left", anchor="w", wraplength=760, font=_pal.font(11), text_color=_pal.TXT_SUB,
+                     text=("Current density in mA/cm², photocurrent plotted negative; energies in eV, wavelengths in nm; "
+                           "T = 298.15 K unless set. Jsc from EQE uses ASTM G173-03 AM1.5G (1000.4 W/m²). "
+                           "Every Excel export writes a .analysis.json side-car with the inputs, parameters and version; "
+                           "equations, defaults and references are in the method notes.")
+                     ).pack(fill="x", padx=12, pady=(0, 10))
 
     # ---------------- status bar ----------------
     def _build_statusbar(self):
@@ -415,6 +562,16 @@ class LauncherApp(ctk.CTk):
         o = "Origin: configured" if self.origin_path else "Origin: not set"
         k = "Interpretation: on" if self.gemini_api_key else "Interpretation: off"
         self.lbl_env.configure(text=f"Cell area {area:g} cm²   |   {o}   |   {k}   |   v{APP_VERSION}")
+        if getattr(self, "session_table", None) is not None:
+            _theme.fill_kv(self.session_table, [
+                ("Device active area", f"{area:g} cm²  (current density = current / area)"),
+                ("Irradiance for PCE", "100 mW/cm² (one sun; set per analysis)"),
+                ("Temperature", "298.15 K (J-V, diode fits); 300 K (detailed balance)"),
+                ("OriginLab", self.origin_path or "not set (Origin export on Windows)"),
+                ("Interpretation (Gemini)", "on" if self.gemini_api_key else "off - no number depends on it"),
+                ("Settings file", str(CONFIG_FILE)),
+                ("Version", f"Physiscore {APP_VERSION}, Python {sys.version.split()[0]}"),
+            ])
 
     def set_status(self, text):
         try:
@@ -457,87 +614,160 @@ class LauncherApp(ctk.CTk):
             self._update_card_state(mod_path)
         if not self._preload_done:
             self.after(150, self._poll_modules)
+        else:
+            self._fill_recent()
+
+    def _tool_state(self, mod_path):
+        mod = self.modules.get(mod_path, "loading")
+        if isinstance(mod, str) and mod == "loading":
+            return "Loading...", False
+        if mod is None:
+            return "Unavailable (see console)", False
+        if mod_path.startswith("exe:") and isinstance(mod, str):
+            return "External program", True
+        return "Ready", True
 
     def _update_card_state(self, mod_path):
         card = self.cards.get(mod_path)
         if not card:
             return
-        mod = self.modules.get(mod_path, "loading")
-        lbl, btn = card["status"], card["btn"]
-        is_exe = mod_path.startswith("exe:") and isinstance(mod, str)
-        if isinstance(mod, str) and mod == "loading":
-            lbl.configure(text="Loading...", text_color=_pal.TXT_DIM)
-            btn.configure(state="disabled", fg_color=_pal.BG_SUB, text_color=_pal.TXT_DIM)
-        elif mod is None:
-            lbl.configure(text="Unavailable (see console)", text_color=_pal.RED)
-            btn.configure(state="disabled", fg_color=_pal.BG_SUB, text_color=_pal.TXT_DIM)
-        else:
-            lbl.configure(text="External program" if is_exe else "Ready", text_color=_pal.TXT_SUB)
-            btn.configure(state="normal", fg_color=_pal.ACCENT, text_color="white")
+        text, ok = self._tool_state(mod_path)
+        card["status"].configure(text=text)
+        try:
+            tags = [t for t in self.tree.item(card["iid"], "tags") if t != "unavailable"]
+            if text.startswith("Unavailable"):
+                tags.append("unavailable")
+            self.tree.item(card["iid"], tags=tags)
+        except Exception:
+            pass
+        if self._selected_tool is not None and self._selected_tool[3] == mod_path:
+            self._refresh_detail()
 
-    # ---------------- cards ----------------
+    # ---------------- tool tree ----------------
     def refresh_cards(self):
-        for w in self.body.winfo_children():
-            w.destroy()
-        self.cards.clear()
+        """Rebuild the tool tree (filtered by the search field), grouped by category."""
         q = self.search_var.get().strip().lower() if hasattr(self, "search_var") else ""
-        cat = self.current_category
-        visible = [t for t in TOOLS if (cat == "All" or t[1] == cat)
-                   and (not q or q in t[0].lower() or q in t[5].lower())]
-        grid = ctk.CTkFrame(self.body, fg_color="transparent")
-        grid.pack(fill="both", expand=True)
-        cols = 2
-        for i in range(cols):
-            grid.grid_columnconfigure(i, weight=1, uniform="col")
-        for idx, tool in enumerate(visible):
-            r, c = divmod(idx, cols)
-            self._build_card(grid, r, c, *tool)
-        self.set_status(f"{len(visible)} analysis tools")
+        keep = self._selected_tool[0] if self._selected_tool else None
+        self.tree.delete(*self.tree.get_children())
+        self.cards.clear()
+        self._iid_tool = {}
+        first = None
+        n = 0
+        for cat in CATEGORIES[1:]:
+            tools = [t for t in TOOLS if t[1] == cat and (not q or q in t[0].lower() or q in t[5].lower())]
+            if not tools:
+                continue
+            pid = self.tree.insert("", "end", text=cat, open=True, values=("",), tags=("category",))
+            for t in tools:
+                iid = self.tree.insert(pid, "end", text=t[0], values=("Loading...",))
+                self._iid_tool[iid] = t
+                self.cards[t[3]] = {"status": _TreeCell(self.tree, iid), "iid": iid}
+                self._update_card_state(t[3])
+                n += 1
+                if first is None or t[0] == keep:
+                    first = iid if (first is None or t[0] == keep) else first
+        if first is not None:
+            self.tree.selection_set(first)
+            self.tree.focus(first)
+            self._on_select()
+        self.set_status(f"{n} analysis tools")
 
-    def _build_card(self, parent, r, c, name, category, icon, mod_path, spectra_tab, description):
-        card = ctk.CTkFrame(parent, fg_color=_pal.BG_CARD, corner_radius=_pal.R_CARD,
-                            border_width=1, border_color=_pal.BORDER)
-        card.grid(row=r, column=c, padx=6, pady=6, sticky="nsew")
-        card.grid_columnconfigure(1, weight=1)
+    def _on_select(self, _event=None):
+        sel = self.tree.selection()
+        if not sel:
+            return
+        tool = self._iid_tool.get(sel[0])
+        if tool is None:                       # a category row: select its first tool
+            kids = self.tree.get_children(sel[0])
+            if kids:
+                self.tree.selection_set(kids[0])
+            return
+        self._selected_tool = tool
+        self._refresh_detail()
 
+    def _refresh_detail(self):
+        tool = self._selected_tool
+        if tool is None:
+            return
+        name, category, icon, mod_path, spectra_tab, description = tool
         img = None
         p = os.path.join(self.logo_dir, icon)
         if os.path.exists(p):
             try:
                 pil = Image.open(p)
-                img = ctk.CTkImage(light_image=pil, dark_image=pil, size=(36, 36))
+                img = ctk.CTkImage(light_image=pil, dark_image=pil, size=(46, 46))
             except Exception:
                 img = None
-        icon_lbl = ctk.CTkLabel(card, text="" if img else name[:2], image=img, width=40,
-                                font=_pal.font(12, "bold"), text_color=_pal.TXT_SUB)
-        icon_lbl.grid(row=0, column=0, rowspan=2, padx=(12, 8), pady=(10, 6), sticky="n")
-
-        head = ctk.CTkFrame(card, fg_color="transparent")
-        head.grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=(10, 0))
-        ctk.CTkLabel(head, text=name, font=_pal.font(12, "bold"), text_color=_pal.TXT).pack(side="left")
-        ctk.CTkLabel(head, text=category, font=_pal.font(10), text_color=_pal.TXT_DIM).pack(side="left", padx=8)
-
-        ctk.CTkLabel(card, text=description, font=_pal.font(10), text_color=_pal.TXT_SUB,
-                     justify="left", anchor="w", wraplength=440).grid(row=1, column=1, sticky="ew", padx=(0, 12))
-
-        btns = ctk.CTkFrame(card, fg_color="transparent")
-        btns.grid(row=2, column=0, columnspan=2, sticky="ew", padx=12, pady=(6, 10))
-        btn = ctk.CTkButton(btns, text="Open", width=90, height=26, fg_color=_pal.BG_SUB, text_color=_pal.TXT_DIM,
-                            state="disabled", hover_color=_pal.ACCENT_HOV, font=_pal.font(11, "bold"),
-                            corner_radius=_pal.R_PILL, command=lambda m=mod_path, n=name: self.open_tool(m, n))
-        btn.pack(side="left")
+        self._icon_ref = img
+        self.lbl_icon.configure(image=img, text="" if img else name[:2])
+        self.lbl_tool.configure(text=name)
+        src = self.modules.get(mod_path)
+        if mod_path.startswith("spectra:"):
+            where = "auto-fit workspace"
+        elif mod_path.startswith("exe:") and isinstance(src, str) and src != "loading":
+            where = f"external program {os.path.basename(src)}"
+        else:
+            where = BUILTIN_FALLBACK.get(mod_path, mod_path)
+        self.lbl_cat.configure(text=f"{category}  ·  {where}")
+        self.lbl_desc.configure(text=description)
+        inp, out, meth = TOOL_DETAILS.get(name, ("-", "-", "METHODS"))
+        state, ok = self._tool_state(mod_path)
+        _theme.fill_kv(self.tool_table, [("Input", inp), ("Output", out), ("Method notes", meth), ("Status", state)])
+        self.btn_open.configure(state="normal" if ok else "disabled",
+                                fg_color=_pal.ACCENT if ok else _pal.BG_SUB,
+                                text_color="white" if ok else _pal.TXT_DIM)
         if spectra_tab:
-            ctk.CTkButton(btns, text="Auto-fit workspace", width=130, height=26, fg_color=_pal.BG_SUB,
-                          hover_color=_pal.BG_HOVER, text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI,
-                          font=_pal.font(11), corner_radius=_pal.R_PILL,
-                          command=lambda t=spectra_tab: self.open_spectra(t)).pack(side="left", padx=(8, 0))
-        status = ctk.CTkLabel(btns, text="Loading...", font=_pal.font(10), text_color=_pal.TXT_DIM, anchor="e")
-        status.pack(side="right")
-        self.cards[mod_path] = {"status": status, "btn": btn}
-        self._update_card_state(mod_path)
+            self.btn_autofit.pack(side="left", padx=(8, 0), after=self.btn_open)
+        else:
+            self.btn_autofit.pack_forget()
+
+    def _fill_recent(self):
+        """Folders processed by the J-V tools (their own recent lists), newest first."""
+        tbl = getattr(self, "recent_table", None)
+        if tbl is None:
+            return
+        tbl.delete(*tbl.get_children())
+        self._recent_rows = {}
+        rows = []
+        for mod_path, label in (("exe:JV_Analysis.exe", "J-V Curve"), ("scripts.Dark_JV.run_jv_dark", "J-V Dark")):
+            mod = self.modules.get(mod_path)
+            cfg = getattr(mod, "CONFIG_FILE", None) if mod not in (None, "loading") and not isinstance(mod, str) else None
+            if not cfg:
+                continue
+            try:
+                with open(cfg, "r", encoding="utf-8") as f:
+                    dirs = json.load(f).get("recent_dirs", [])
+            except Exception:
+                dirs = []
+            rows += [(d, label, mod_path) for d in dirs if os.path.isdir(d)]
+        for d, label, mod_path in rows[:8]:
+            iid = tbl.insert("", "end", values=(d, label))
+            self._recent_rows[iid] = (d, label, mod_path)
+        if not rows:
+            tbl.insert("", "end", values=("No folders yet: folders processed in J-V Curve or J-V Dark appear here.", ""))
+
+    def _open_recent(self):
+        sel = self.recent_table.selection()
+        row = self._recent_rows.get(sel[0]) if sel else None
+        if row:
+            folder, label, mod_path = row
+            self.open_tool(mod_path, label, folder=folder)
+
+    def _open_selected(self):
+        tool = self._selected_tool
+        if tool is None:
+            return
+        name, _cat, _icon, mod_path, _tab, _desc = tool
+        if self._tool_state(mod_path)[1]:
+            self.open_tool(mod_path, name)
+
+    def _open_selected_autofit(self):
+        tool = self._selected_tool
+        if tool is not None and tool[4]:
+            self.open_spectra(tool[4])
 
     # ---------------- launching ----------------
-    def open_tool(self, mod_path, name):
+    def open_tool(self, mod_path, name, folder=None):
         mod = self.modules.get(mod_path)
         if mod_path.startswith("spectra:"):
             self.open_spectra(mod_path.split(":", 1)[1])
@@ -565,7 +795,13 @@ class LauncherApp(ctk.CTk):
         try:
             self.iconify()
             win = win_cls(self, self.origin_path, self.gemini_api_key)
+            if folder and hasattr(win, "directory_path"):
+                try:
+                    win.directory_path.set(folder)
+                except Exception:
+                    pass
             self.wait_window(win)
+            self._fill_recent()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open {name}:\n{e}")
         finally:

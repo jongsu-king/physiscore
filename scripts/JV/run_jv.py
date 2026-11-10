@@ -630,7 +630,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                      font=_pal.font(12))
         voc_label.pack()
         self.lbl_stats_voc = ctk.CTkLabel(voc_inner, text="- V", font=_pal.font(12, "bold"),
-                                           text_color=self.accent_green)
+                                           text_color=_pal.TXT)
         self.lbl_stats_voc.pack()
         # Bind click events to inner widgets
         for widget in [voc_inner, voc_label, self.lbl_stats_voc]:
@@ -648,7 +648,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                      font=_pal.font(12))
         jsc_label.pack()
         self.lbl_stats_jsc = ctk.CTkLabel(jsc_inner, text="- mA/cm²", font=_pal.font(12, "bold"),
-                                           text_color=self.accent_blue)
+                                           text_color=_pal.TXT)
         self.lbl_stats_jsc.pack()
         # Bind click events to inner widgets
         for widget in [jsc_inner, jsc_label, self.lbl_stats_jsc]:
@@ -670,7 +670,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                      font=_pal.font(12))
         ff_label.pack()
         self.lbl_stats_ff = ctk.CTkLabel(ff_inner, text="- %", font=_pal.font(12, "bold"),
-                                          text_color=self.accent_purple)
+                                          text_color=_pal.TXT)
         self.lbl_stats_ff.pack()
         # Bind click events to inner widgets
         for widget in [ff_inner, ff_label, self.lbl_stats_ff]:
@@ -679,7 +679,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         # PCE button - orange color (swapped with Voc)
         self.btn_pce = ctk.CTkButton(row2, text="", corner_radius=_pal.R_PILL, fg_color=_pal.BG_HOVER,
                                       hover_color=_pal.BG_HOVER, command=lambda: self._select_box_param("PCE (%)"),
-                                      height=75, width=140, border_width=2, border_color=self.accent_orange, text_color=_pal.TXT)
+                                      height=75, width=140, border_width=2, border_color=_pal.ACCENT, text_color=_pal.TXT)
         self.btn_pce.pack(side="right", expand=True, fill="x", padx=(4, 0))
         # PCE inner content
         pce_inner = ctk.CTkFrame(self.btn_pce, fg_color="transparent")
@@ -688,7 +688,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                      font=_pal.font(12))
         pce_label.pack()
         self.lbl_stats_pce = ctk.CTkLabel(pce_inner, text="- %", font=_pal.font(12, "bold"),
-                                           text_color=self.accent_orange)
+                                           text_color=_pal.TXT)
         self.lbl_stats_pce.pack()
         # Bind click events to inner widgets
         for widget in [pce_inner, pce_label, self.lbl_stats_pce]:
@@ -803,7 +803,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         """Initialize statistics button highlighting on startup"""
         for p, btn in self.stats_buttons.items():
             if p == self.selected_box_param:
-                btn.configure(fg_color=_pal.BG_HOVER, border_width=2, border_color=self.stats_colors[p])
+                btn.configure(fg_color=_pal.BG_HOVER, border_width=2, border_color=_pal.ACCENT)
             else:
                 btn.configure(fg_color=_pal.BG_SUB, border_width=0)
 
@@ -833,7 +833,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         # Update button highlighting
         for p, btn in self.stats_buttons.items():
             if p == param:
-                btn.configure(fg_color=_pal.BG_HOVER, border_width=2, border_color=self.stats_colors[p])
+                btn.configure(fg_color=_pal.BG_HOVER, border_width=2, border_color=_pal.ACCENT)
             else:
                 btn.configure(fg_color=_pal.BG_SUB, border_width=0)
 
@@ -844,7 +844,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         # Update button highlighting
         for p, btn in self.stats_buttons.items():
             if p == param:
-                btn.configure(fg_color=_pal.BG_HOVER, border_width=2, border_color=self.stats_colors[p])
+                btn.configure(fg_color=_pal.BG_HOVER, border_width=2, border_color=_pal.ACCENT)
             else:
                 btn.configure(fg_color=_pal.BG_SUB, border_width=0)
 

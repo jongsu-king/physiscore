@@ -3,6 +3,20 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
+## [3.2.0] - 2026-11-10
+
+### Changed
+- Instrument-style interface: main window as a workbench (tool tree; tool panel with
+  input, output and method notes; session settings; recent folders; conventions).
+- Every tool window: square group boxes with grey title strips (`theme.instrumentize`,
+  applied by `attach_chrome`), compact type, grouped flat toolbar, ruled and striped
+  tables, palette-coloured option menus/check boxes/sliders (customtkinter theme from the
+  palette, kept when a module resets it), neutral statistic tiles, plain plot titles and
+  boxed annotations in EQE and Tauc plots. Auto-fit workspaces included.
+
+### Tests
+- Design tokens, customtkinter theme hook, panel-header pass; 266 tests.
+
 ## [3.1.2] - 2026-11-10
 
 ### Fixed

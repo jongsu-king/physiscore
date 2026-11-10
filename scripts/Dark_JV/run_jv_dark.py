@@ -368,7 +368,7 @@ class DarkAnalysisWindow(ctk.CTkToplevel):
         ctk.CTkLabel(rshunt_frame, text="RShunt", text_color=self.text_secondary,
                      font=_pal.font(12)).pack(pady=(12, 4))
         self.lbl_stats_rshunt = ctk.CTkLabel(rshunt_frame, text="- Ω", font=_pal.font(12, "bold"),
-                                              text_color=self.accent_orange)
+                                              text_color=_pal.TXT)
         self.lbl_stats_rshunt.pack(pady=(0, 12))
 
         # Results Table Card

@@ -51,6 +51,10 @@ PALETTES: Dict[str, Dict[str, str]] = {
         "PLOT_SPINE": "#6B7480",
         "PLOT_REF": "#9AA3AE",
         "SELECT": "#CFE0F5",
+        "HEADER_BG": "#DDE2E8",   # panel header strip (dock-panel title bar)
+        "HEADER_TXT": "#27303B",
+        "STRIPE": "#F4F6F8",      # alternate table row
+        "TOOL_BG": "#E6E9ED",     # toolbar and status bar
     },
     "dark": {
         "BG_WINDOW": "#16181C",
@@ -80,6 +84,10 @@ PALETTES: Dict[str, Dict[str, str]] = {
         "PLOT_SPINE": "#5A636E",
         "PLOT_REF": "#6B7480",
         "SELECT": "#355A86",
+        "HEADER_BG": "#2B3139",
+        "HEADER_TXT": "#D3D8DE",
+        "STRIPE": "#262A30",
+        "TOOL_BG": "#1A1D21",
     },
 }
 
@@ -137,12 +145,21 @@ PLOT_GRID = _P["PLOT_GRID"]
 PLOT_SPINE = _P["PLOT_SPINE"]
 PLOT_REF = _P["PLOT_REF"]
 SELECT = _P["SELECT"]
+HEADER_BG = _P["HEADER_BG"]
+HEADER_TXT = _P["HEADER_TXT"]
+STRIPE = _P["STRIPE"]
+TOOL_BG = _P["TOOL_BG"]
 IS_DARK = THEME == "dark"
 
-# Geometry: small radii and compact spacing, as in instrument software.
-R_PILL = 4
-R_CARD = 6
-R_INPUT = 3
+# Geometry: square corners and compact spacing, as in instrument software
+# (3.2: radii 4/6/3 -> 2; every window takes its radii from these tokens).
+R_PILL = 2
+R_CARD = 2
+R_INPUT = 2
+
+# Type: one point smaller than the size a window asks for (3.2), which gives
+# the dense read-outs of measurement software without editing every window.
+FONT_DELTA = -1
 
 
 def _ui_font_family() -> str:
@@ -165,13 +182,17 @@ FONT_UI = _ui_font_family()
 FONT_MONO = _mono_font_family()
 
 
+def _size(size) -> int:
+    return max(8, int(size) + FONT_DELTA)
+
+
 def font(size: int = 12, weight: str | None = None):
-    """Tk font tuple in the platform UI family."""
-    return (FONT_UI, int(size), weight) if weight else (FONT_UI, int(size))
+    """Tk font tuple in the platform UI family (compact: FONT_DELTA applied)."""
+    return (FONT_UI, _size(size), weight) if weight else (FONT_UI, _size(size))
 
 
 def mono(size: int = 11, weight: str | None = None):
-    return (FONT_MONO, int(size), weight) if weight else (FONT_MONO, int(size))
+    return (FONT_MONO, _size(size), weight) if weight else (FONT_MONO, _size(size))
 
 
 # Matplotlib rcParams for on-screen figures: white/neutral axes, inward

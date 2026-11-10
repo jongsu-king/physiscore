@@ -245,7 +245,7 @@ class PLAnalysisWindow(ctk.CTkToplevel):
                       fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                       font=_pal.font(11, "bold"),
                       command=lambda: self._set_role("Exclude"), text_color=_pal.TXT).pack(side="left", padx=4)
-        ctk.CTkButton(roles_card, text="Apply Roles (create averages -> ready to analyze)", height=28,
+        ctk.CTkButton(roles_card, text="Apply roles (average repeats)", height=28,
                       fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
                       font=_pal.font(12, "bold"),
                       command=self._apply_roles, text_color=_pal.TXT).pack(fill="x", padx=16, pady=(2, 16))

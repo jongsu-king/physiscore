@@ -131,9 +131,9 @@ def style_treeview(style=None, rowheight=22):
         pass
     style.configure("Treeview", background=_pal.BG_CARD, foreground=_pal.TXT,
                     fieldbackground=_pal.BG_CARD, borderwidth=0, rowheight=rowheight,
-                    font=_pal.font(10))
-    style.configure("Treeview.Heading", background=_pal.BG_SUB, foreground=_pal.TXT,
-                    borderwidth=1, relief="flat", font=_pal.font(10, "bold"))
+                    font=_pal.font(11))
+    style.configure("Treeview.Heading", background=_pal.HEADER_BG, foreground=_pal.HEADER_TXT,
+                    borderwidth=1, relief="groove", font=_pal.font(10, "bold"))
     style.map("Treeview", background=[("selected", _pal.SELECT)],
               foreground=[("selected", _pal.TXT)])
     style.map("Treeview.Heading", background=[("active", _pal.BG_HOVER)])
@@ -227,3 +227,232 @@ def _install_segmented_contrast():
 
 
 _install_segmented_contrast()
+
+
+# ---------------------------------------------------------------------------
+# 3.2 instrument look
+# ---------------------------------------------------------------------------
+def install_ctk_theme():
+    """Replace customtkinter's blue defaults by the palette, for every widget
+    created without explicit colours (option menus, check boxes, sliders,
+    progress bars, scroll bars, text boxes). Light and dark values come from
+    the two palettes, so the appearance mode still switches them."""
+    L, D = _pal.PALETTES["light"], _pal.PALETTES["dark"]
+
+    def pair(key):
+        return [L[key], D[key]]
+    white = ["#FFFFFF", "#FFFFFF"]
+    t = ctk.ThemeManager.theme
+    try:
+        t["CTk"]["fg_color"] = pair("BG_WINDOW")
+        t["CTkToplevel"]["fg_color"] = pair("BG_WINDOW")
+        t["CTkFrame"].update(corner_radius=_pal.R_CARD, fg_color=pair("BG_PANEL"),
+                             top_fg_color=pair("BG_CARD"), border_color=pair("BORDER"))
+        t["CTkButton"].update(corner_radius=_pal.R_PILL, fg_color=pair("ACCENT"), hover_color=pair("ACCENT_HOV"),
+                              border_color=pair("BORDER_HI"), text_color=white, text_color_disabled=pair("TXT_DIM"))
+        t["CTkLabel"]["text_color"] = pair("TXT")
+        t["CTkEntry"].update(corner_radius=_pal.R_INPUT, border_width=1, fg_color=pair("BG_CARD"),
+                             border_color=pair("BORDER_HI"), text_color=pair("TXT"),
+                             placeholder_text_color=pair("TXT_DIM"))
+        t["CTkCheckBox"].update(corner_radius=2, border_width=1, fg_color=pair("ACCENT"),
+                                border_color=pair("BORDER_HI"), hover_color=pair("BG_HOVER"),
+                                checkmark_color=white, text_color=pair("TXT"))
+        t["CTkRadioButton"].update(border_width_unchecked=1, border_width_checked=5, fg_color=pair("ACCENT"),
+                                   border_color=pair("BORDER_HI"), hover_color=pair("BG_HOVER"),
+                                   text_color=pair("TXT"))
+        t["CTkSwitch"].update(fg_color=pair("BORDER_HI"), progress_color=pair("ACCENT"),
+                              button_color=pair("BG_CARD"), button_hover_color=pair("BG_HOVER"),
+                              text_color=pair("TXT"))
+        t["CTkProgressBar"].update(corner_radius=1, fg_color=pair("BORDER"), progress_color=pair("ACCENT"))
+        t["CTkSlider"].update(corner_radius=2, button_corner_radius=2, fg_color=pair("BORDER"),
+                              progress_color=pair("TXT_DIM"), button_color=pair("ACCENT"),
+                              button_hover_color=pair("ACCENT_HOV"))
+        t["CTkOptionMenu"].update(corner_radius=_pal.R_INPUT, fg_color=pair("BG_SUB"),
+                                  button_color=pair("BG_HOVER"), button_hover_color=pair("BORDER"),
+                                  text_color=pair("TXT"), text_color_disabled=pair("TXT_DIM"))
+        t["CTkComboBox"].update(corner_radius=_pal.R_INPUT, border_width=1, fg_color=pair("BG_CARD"),
+                                border_color=pair("BORDER_HI"), button_color=pair("BG_HOVER"),
+                                button_hover_color=pair("BORDER"), text_color=pair("TXT"))
+        t["CTkScrollbar"].update(corner_radius=2, button_color=pair("BORDER_HI"),
+                                 button_hover_color=pair("TXT_DIM"))
+        t["CTkSegmentedButton"].update(corner_radius=_pal.R_PILL, border_width=1, fg_color=pair("BORDER_HI"),
+                                       selected_color=pair("ACCENT"), selected_hover_color=pair("ACCENT_HOV"),
+                                       unselected_color=pair("BG_SUB"), unselected_hover_color=pair("BG_HOVER"),
+                                       text_color=pair("TXT"))
+        t["CTkTextbox"].update(corner_radius=_pal.R_INPUT, border_width=1, fg_color=pair("BG_CARD"),
+                               border_color=pair("BORDER"), text_color=pair("TXT"),
+                               scrollbar_button_color=pair("BORDER_HI"))
+        t["CTkScrollableFrame"]["label_fg_color"] = pair("HEADER_BG")
+        t["DropdownMenu"].update(fg_color=pair("BG_CARD"), hover_color=pair("SELECT"), text_color=pair("TXT"))
+        t["CTkFont"].update(family=_pal.FONT_UI, size=_pal._size(12))
+    except Exception:
+        pass
+
+
+def _install_theme_hook():
+    """Re-apply the palette whenever some module resets customtkinter to its
+    built-in "blue" theme (several standalone entry points do)."""
+    if getattr(ctk, "_physiscore_theme_hook", False):
+        return
+    original = ctk.set_default_color_theme
+
+    def set_default_color_theme(name):
+        original(name)
+        install_ctk_theme()
+    ctk.set_default_color_theme = set_default_color_theme
+    ctk._physiscore_theme_hook = True
+
+
+def _install_tree_stripes():
+    """Alternate row shading in every ttk.Treeview (rows appended in order)."""
+    from tkinter import ttk
+    if getattr(ttk.Treeview, "_physiscore_stripes", False):
+        return
+    original = ttk.Treeview.insert
+
+    def insert(self, parent, index, iid=None, **kw):
+        try:
+            if not getattr(self, "_stripe_ready", False):
+                self.tag_configure("stripe", background=_pal.STRIPE)
+                self._stripe_ready = True
+            if index == "end" and len(self.get_children(parent)) % 2 == 1:
+                tags = kw.get("tags", ())
+                tags = (tags,) if isinstance(tags, str) else tuple(tags or ())
+                kw["tags"] = tags + ("stripe",)
+        except Exception:
+            pass
+        return original(self, parent, index, iid, **kw)
+    ttk.Treeview.insert = insert
+    ttk.Treeview._physiscore_stripes = True
+
+
+def _walk(widget):
+    yield widget
+    try:
+        children = widget.winfo_children()
+    except Exception:
+        return
+    for c in children:
+        yield from _walk(c)
+
+
+def _color_is(value, token: str) -> bool:
+    if isinstance(value, (list, tuple)):
+        value = value[1 if _pal.IS_DARK else 0] if len(value) == 2 else value[0]
+    return str(value).lower() == str(token).lower()
+
+
+def _first_slave(frame):
+    try:
+        packed = frame.pack_slaves()
+    except Exception:
+        packed = []
+    if packed:
+        return packed[0]
+    try:
+        gridded = frame.grid_slaves(row=0, column=0)
+    except Exception:
+        gridded = []
+    return gridded[0] if gridded else None
+
+
+def _is_title(widget) -> bool:
+    if not isinstance(widget, ctk.CTkLabel):
+        return False
+    try:
+        text = str(widget.cget("text") or "")
+        f = widget.cget("font")
+        image = widget.cget("image")
+    except Exception:
+        return False
+    try:
+        bold = f.cget("weight") == "bold" if hasattr(f, "cget") else "bold" in str(f)
+    except Exception:
+        bold = "bold" in str(f)
+    return bool(text.strip()) and "\n" not in text and len(text) <= 48 and image is None and bold
+
+
+def panel_header(label, frame=None):
+    """Turn a group title label into a header strip across the top of its box."""
+    try:
+        label.configure(fg_color=_pal.HEADER_BG, text_color=_pal.HEADER_TXT, corner_radius=0,
+                        anchor="w", font=_pal.font(11, "bold"), height=22)
+        try:
+            label._label.grid_configure(padx=(8, 6))      # text inset inside the strip
+        except Exception:
+            pass
+        mgr = label.winfo_manager()
+        if mgr == "pack":
+            label.pack_configure(fill="x", padx=1, pady=(1, 6), anchor="w")
+        elif mgr == "grid":
+            cols = max(1, (frame or label.master).grid_size()[0])
+            label.grid_configure(columnspan=cols, sticky="ew", padx=1, pady=(1, 6))
+        label._physiscore_header = True
+    except Exception:
+        pass
+
+
+def instrumentize(root) -> int:
+    """Give a finished window the instrument look: every white group box gets
+    square corners and a hairline border, and its bold title becomes a header
+    strip (the title bar of a dock panel). Returns the number of headers made.
+    Applied by analysis_shell.attach_chrome to every tool window."""
+    made = 0
+    for w in list(_walk(root)):
+        if not isinstance(w, ctk.CTkFrame):
+            continue
+        try:
+            fg = w.cget("fg_color")
+        except Exception:
+            continue
+        if not _color_is(fg, _pal.BG_CARD):
+            continue
+        try:
+            w.configure(corner_radius=_pal.R_CARD, border_width=1, border_color=_pal.BORDER)
+        except Exception:
+            pass
+        first = _first_slave(w)
+        if first is not None and _is_title(first) and not getattr(first, "_physiscore_header", False):
+            panel_header(first, w)
+            made += 1
+        elif isinstance(first, ctk.CTkFrame) and not getattr(first, "_physiscore_header", False):
+            # a title row: [bold title][other widgets...] in a transparent frame
+            try:
+                transparent = str(first.cget("fg_color")) == "transparent"
+            except Exception:
+                transparent = False
+            inner = _first_slave(first) if transparent else None
+            if inner is not None and _is_title(inner):
+                header_row(first, inner, w)
+                made += 1
+    return made
+
+
+def header_row(row, title, frame=None):
+    """Turn a title row (title label plus small controls) into a header strip."""
+    try:
+        row.configure(fg_color=_pal.HEADER_BG, corner_radius=0)
+        title.configure(text_color=_pal.HEADER_TXT, font=_pal.font(11, "bold"))
+        mgr = row.winfo_manager()
+        if mgr == "pack":
+            row.pack_configure(fill="x", padx=1, pady=(1, 6), ipady=1)
+            try:
+                title.pack_configure(padx=(8, 6))
+            except Exception:
+                pass
+        elif mgr == "grid":
+            cols = max(1, (frame or row.master).grid_size()[0])
+            row.grid_configure(columnspan=cols, sticky="ew", padx=1, pady=(1, 6), ipady=1)
+            try:
+                if title.winfo_manager() == "pack":
+                    title.pack_configure(padx=(8, 6))
+            except Exception:
+                pass
+        row._physiscore_header = True
+    except Exception:
+        pass
+
+
+_install_theme_hook()
+install_ctk_theme()
+_install_tree_stripes()

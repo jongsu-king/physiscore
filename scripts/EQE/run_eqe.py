@@ -617,14 +617,15 @@ class EQEWindow(ctk.CTkToplevel):
 
         # ---- Plot 2: ln(EQE) with span-fit ----
         self.ax_ln.plot(self.hv, self.ln_eqe, "o", markersize=3.5, alpha=0.65)
-        self.ax_ln.set_title("Drag range to Fit", color=_pal.ACCENT, fontweight="bold")
+        self.ax_ln.set_title("ln EQE (drag a range to fit the Urbach tail)", color=_pal.PLOT_FG)
         self.ax_ln.set_xlabel("Energy (eV)")
         self.ax_ln.set_ylabel(r"$\ln(EQE)$")
         self.ax_ln.grid(True, linestyle="--", alpha=0.35)
         self.slope_text_ln = self.ax_ln.text(
-            0.02, 0.95, "",
+            0.98, 0.05, "",
             transform=self.ax_ln.transAxes,
-            ha="left", va="top", fontsize=11, color=_pal.RED
+            ha="right", va="bottom", fontsize=9, color=_pal.PLOT_FG,
+            bbox=dict(boxstyle="square,pad=0.25", fc=_pal.PLOT_AXES, ec=_pal.PLOT_SPINE, lw=0.6)
         )
 
         self.fit_line, = self.ax_ln.plot([], [], linewidth=2.5)
@@ -641,14 +642,15 @@ class EQEWindow(ctk.CTkToplevel):
         self.peak_annot = self.ax_der.annotate(
             "", xy=(0, 0), xytext=(0, -20), textcoords="offset points",
             ha="center", va="top",
-            bbox=dict(boxstyle="round,pad=0.3", fc="yellow", alpha=0.5),
-            arrowprops=dict(arrowstyle="->")
+            fontsize=9, color=_pal.PLOT_FG,
+            bbox=dict(boxstyle="square,pad=0.25", fc=_pal.PLOT_AXES, ec=_pal.PLOT_SPINE, lw=0.6),
+            arrowprops=dict(arrowstyle="->", color=_pal.PLOT_SPINE, lw=0.8)
         )
         self.peak_annot.set_visible(False)
         self.eg_text_der = self.ax_der.text(
-            0.02, 0.95, "",
+            0.98, 0.95, "",
             transform=self.ax_der.transAxes,
-            ha="left", va="top", fontsize=11, color=_pal.ORANGE
+            ha="right", va="top", fontsize=9, color=_pal.PLOT_FG
         )
 
         # ---- Plot 4: EQE vs Energy (selector) ----
@@ -888,8 +890,8 @@ class EQEWindow(ctk.CTkToplevel):
 
         # update ln title fully
         self.ax_ln.set_title(
-            f"Eg(Fit)={Eg_fit:.3f} eV | Eu={Eu_meV:.1f} meV",
-            color=_pal.RED, fontweight="bold"
+            f"Urbach fit: Eg = {Eg_fit:.3f} eV, Eu = {Eu_meV:.1f} meV",
+            color=_pal.PLOT_FG
         )
         if hasattr(self, "slope_text_ln"):
             self.slope_text_ln.set_text(f"Slope: {m:.4f} 1/eV")

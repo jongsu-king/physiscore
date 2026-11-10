@@ -534,7 +534,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         )
         self.ax_tauc.set_xlabel("hν (eV)")
         self.ax_tauc.set_ylabel(self.data_state["y_label"])
-        self.title_text = self.ax_tauc.set_title("Drag range to Fit", color=_pal.ACCENT, fontweight="bold")
+        self.title_text = self.ax_tauc.set_title("Tauc plot (drag a range to fit)", color=_pal.PLOT_FG)
         self.ax_tauc.grid(True, linestyle="--", alpha=0.35)
 
         # fit visuals
@@ -675,8 +675,8 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.fit_line.set_data([], [])
         self.v1.set_xdata([np.nan, np.nan])
         self.v2.set_xdata([np.nan, np.nan])
-        self.title_text.set_text("Drag range to Fit")
-        self.title_text.set_color(_pal.ACCENT)
+        self.title_text.set_text("Tauc plot (drag a range to fit)")
+        self.title_text.set_color(_pal.PLOT_FG)
         self.fit_result = None
 
         self._autoscale_y()
@@ -791,8 +791,8 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.v1.set_xdata([fitMin, fitMin])
         self.v2.set_xdata([fitMax, fitMax])
 
-        self.title_text.set_text(f"Eg = {Eg:.4f} eV  |  R² = {R2:.4f}")
-        self.title_text.set_color(_pal.RED)
+        self.title_text.set_text(f"Tauc fit: Eg = {Eg:.4f} eV, R² = {R2:.4f}")
+        self.title_text.set_color(_pal.PLOT_FG)
 
         lin = abs_core.linear_fit(x, y, fitMin, fitMax)
         urb = abs_core.urbach_from_absorbance(self.raw_x, self.raw_y - float(np.nanmin(self.raw_y)),

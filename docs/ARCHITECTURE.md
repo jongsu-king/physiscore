@@ -19,7 +19,7 @@ scripts/common/             shared, GUI-free unless noted
   app_config.py             physisfera_config.json (area, Origin path, API key, theme, presets)
   naming.py                 sample-name rules shared by the J-V parsers
   palette.py                light/dark colours, fonts, matplotlib style (no Tk)
-  theme.py                  customtkinter widget helpers (GUI)
+  theme.py                  customtkinter theme from the palette, widget helpers, panel headers, table stripes (GUI)
   analysis_shell.py         menu bar, toolbar, status bar, figure export, thread-safe after() (GUI)
   plot_interactions.py      zoom/pan/context menus (GUI)
   sample_naming.py          rename/preset menus (GUI)
@@ -67,6 +67,19 @@ threads are queued and dispatched by a main-thread poller; `attach_chrome` appli
 every tool window, and the comparison window and auto-fit tabs apply it themselves. New
 threaded GUI code must either live in such a window or call `make_thread_safe`. Never read
 Tk variables (`StringVar.get()` etc.) inside the worker; read them before starting it.
+
+## Look and feel
+
+All colours, radii and type sizes are tokens in `scripts/common/palette.py` (light and
+dark). Importing `scripts.common.theme` replaces customtkinter's built-in blue theme by the
+palette (option menus, check boxes, sliders, text boxes ...) and keeps it replaced when a
+module calls `ctk.set_default_color_theme("blue")` again; it also shades alternate rows of
+every `ttk.Treeview`. `attach_chrome` ends with `theme.instrumentize(window)`: every group
+box (a frame in `BG_CARD`) gets square corners and a hairline border, and its bold title -
+or a title row of title plus small controls - becomes a grey header strip. New windows get
+the look by building group boxes the usual way (a `BG_CARD` frame whose first child is a
+bold label) and calling `attach_chrome`; `theme.panel_header(label)` does the same for a
+title that is not inside such a box.
 
 ## Adding a tool
 
