@@ -3,7 +3,16 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
-## [3.3.0] - 2026-11-10
+## [3.3.1] - 2026-11-10
+
+First published build of 3.3.0 (the program is unchanged).
+
+### Fixed
+- Tests on a headless Linux runner: a test imported `matplotlib.pyplot` before modules that
+  call `matplotlib.use("TkAgg")`, which then failed. The test uses `Figure` directly and the
+  modules accept a headless run.
+
+## [3.3.0] - 2026-11-10 (tagged, not published; released as 3.3.1)
 
 ### Added
 - Origin-style graphs in every window and in exported figures (`palette.originize`, applied

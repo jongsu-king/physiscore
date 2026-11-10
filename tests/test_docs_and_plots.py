@@ -62,11 +62,11 @@ def test_release_notes_of_this_version_are_bundled():
 
 def test_origin_style_pass():
     matplotlib = pytest.importorskip("matplotlib")
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure        # no pyplot: it would fix the backend for later tests
     from matplotlib.ticker import AutoMinorLocator
     _pal.apply_mpl()
-    fig, (a, b) = plt.subplots(1, 2)
+    fig = Figure()
+    a, b = fig.subplots(1, 2)
     a.plot([0, 1, 2], [0, 1, 4], label="data")
     a.grid(True)                                   # a window's own grid call
     a.legend()
@@ -83,7 +83,6 @@ def test_origin_style_pass():
     frame = a.get_legend().get_frame()
     assert matplotlib.colors.to_hex(frame.get_edgecolor()) == "#000000"
     assert matplotlib.rcParams["axes.grid"] is False
-    plt.close(fig)
 
 
 def test_origin_colour_order():

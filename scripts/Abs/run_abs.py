@@ -13,7 +13,10 @@ import customtkinter as ctk
 
 # Matplotlib embed
 import matplotlib
-matplotlib.use("TkAgg")
+try:  # the Tk canvas is embedded explicitly; a headless test run keeps its own backend
+    matplotlib.use("TkAgg")
+except ImportError:
+    pass
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 

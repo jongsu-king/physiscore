@@ -20,7 +20,10 @@ import pandas as pd
 import customtkinter as ctk
 
 import matplotlib
-matplotlib.use("TkAgg")
+try:  # the Tk canvas is embedded explicitly; a headless test run keeps its own backend
+    matplotlib.use("TkAgg")
+except ImportError:
+    pass
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 

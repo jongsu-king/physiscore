@@ -26,7 +26,7 @@ from scripts.common import app_config  # noqa: E402
 from scripts.common import palette as _pal  # noqa: E402
 
 CONFIG_FILE = app_config.config_path()
-APP_VERSION = "3.3.0"
+APP_VERSION = "3.3.1"
 REPO_URL = "https://github.com/jongsu-king/physiscore"
 
 ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")

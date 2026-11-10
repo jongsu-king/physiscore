@@ -25,7 +25,10 @@ import customtkinter as ctk
 
 # Matplotlib for embedded histogram
 import matplotlib
-matplotlib.use("TkAgg")
+try:  # the Tk canvas is embedded explicitly; a headless test run keeps its own backend
+    matplotlib.use("TkAgg")
+except ImportError:
+    pass
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from scripts.common import palette as _pal
