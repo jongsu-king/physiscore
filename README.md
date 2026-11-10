@@ -46,7 +46,7 @@ All screenshots show synthetic example data (analytical models with noise), prod
 | ![XRD](docs/images/xrd.png) | ![XPS](docs/images/xps.png) |
 | XRD: pseudo-Voigt fit, reference peak list with hkl ticks, unassigned peak | XPS auto-fit: Shirley background, four Pb 4f components |
 
-More: [dark J-V](docs/images/dark.png), [absorbance](docs/images/abs.png),
+More: [updates tab](docs/images/updates.png), [dark J-V](docs/images/dark.png), [absorbance](docs/images/abs.png),
 [PL](docs/images/pl.png), [FE-SEM](docs/images/sem.png), [Raman](docs/images/raman.png),
 [FTIR](docs/images/ftir.png), [comparing files](docs/images/compare.png).
 
@@ -154,7 +154,7 @@ physics and is never part of an exported table. See [CONFIG.md](CONFIG.md).
 
 ```bash
 pip install pytest
-pytest -q                          # 266 tests on closed-form synthetic data
+pytest -q                          # 272 tests on closed-form synthetic data
 python tools/validation_report.py  # the table in docs/VALIDATION.md
 python tools/gui_smoke.py          # every window, the launcher and a session (needs a display)
 ```
@@ -168,7 +168,7 @@ absent.
 A software paper is in preparation; please cite the archived release in the meantime:
 
 > Kim, K., Shin, J., Lim, J., Ji, H., Lee, S.-E., & Lee, J. (2026). *Physiscore*
-> (Version 3.2.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
+> (Version 3.3.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
 
 The concept DOI always resolves to the latest archived release. Full metadata is in
 `CITATION.cff`; the methods and their references are in [docs/METHODS.md](docs/METHODS.md).

@@ -101,7 +101,8 @@ GUI; an installed program offers `Physiscore --tool "J-V Curve"`, `--spectra XRD
 
 ## Automatic updates
 
-The installed program keeps itself up to date. **Tools → Updates → Automatic updates** has three
+The installed program keeps itself up to date. The setting is in two places: the **Updates**
+tab of the main window and **Tools → Updates → Automatic updates**. There are three
 settings:
 
 | Setting | What happens |
@@ -137,8 +138,49 @@ settings:
 `PHYSISCORE_NO_UPDATE=1`. Continuous-integration runners (`CI` set) never check
 automatically.
 
-Command line: `Physiscore --update` checks and, for an installed copy, installs the
-latest release.
+Command line: `Physiscore --update` (or `physiscore update`) checks and, for an installed
+copy, installs the latest release; `physiscore update --check-only` only reports.
+
+**How an update is detected, step by step**
+
+1. At start-up the program removes what a finished update left behind (the downloaded
+   package, the staging folder, the previous copy).
+2. If the setting is not *Off*, `PHYSISCORE_NO_UPDATE` is not set and the last check is
+   more than 24 hours old, it asks GitHub three seconds after start-up for the latest
+   release (`releases/latest`). *Check now* in the Updates tab asks at once.
+3. The release's version is compared with the installed one (numerically: 3.10.0 is newer
+   than 3.9.2). The file for this computer is chosen by operating system, processor
+   (`arm64` / `x86_64`) and installation type (installer, portable, app, `.deb`, folder).
+4. With *Download and install*, the file is downloaded into the settings folder
+   (`updates/`), its SHA-256 is compared with `SHA256SUMS.txt`, and the new copy is
+   unpacked next to the old one. The status bar and the Updates tab say so.
+5. You are asked whether to restart now. Otherwise a small helper script waits until the
+   program has closed, swaps the copies (or runs the installer silently), restores the old
+   copy if anything fails, and writes `update.log`.
+6. The first start of the new version opens its release notes (**Help → What's new**).
+
+**The Updates tab** shows the installed version, how this copy was installed, whether it
+can update itself (and why not: a read-only folder, a pip or source installation), the
+setting, the time of the last check, the latest release seen and the state (*checking or
+downloading*, *x.y.z is available*, *downloaded and verified - installed when you close
+Physiscore*, *up to date*). *Install now and restart* appears once an update is ready;
+*What's new* opens the release notes of the installed version; *Release page* opens GitHub.
+
+**Copies older than 3.1.2 on macOS and Linux**: those builds could not verify GitHub's
+certificate from inside the bundled program, so their automatic check fails. Install the
+current version once by hand; from then on updates work.
+
+## Documentation on the computer
+
+Every installer contains the user guide, the methods and algorithms, the validation table,
+the file formats, the command line and this installation guide, with all screenshots, and
+the release notes of each version. They open offline in the browser from the **Help** menu
+(**F1** for the user guide), from *User guide* and *Method notes* in the main window (the
+latter at the selected tool's section), from the Start menu on Windows (*Physiscore user
+guide*, *Physiscore methods*), from the right-click menu of the application on Linux, and
+from the command line: `Physiscore --doc METHODS` or `physiscore docs METHODS --section 3.`.
+The pages are written to a cache folder (`~/Library/Caches/Physiscore/docs`,
+`%LOCALAPPDATA%\Physiscore\docs`, `~/.cache/physiscore/docs`).
 
 ## Checking a download
 

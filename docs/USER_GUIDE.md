@@ -46,15 +46,27 @@ The main window is a workbench (3.2):
   loaded in the background, *External program* for an external J-V executable on
   Windows, *Unavailable* if a module failed to import. The filter field in the toolbar
   narrows the list. Double-click a tool or press Enter to open it.
-- **Tool**: what the selected tool derives, the files it reads, the files it writes,
-  the section of the method notes that documents it, and the buttons *Open*,
-  *Auto-fit workspace* (PL, XRD) and *Method notes*.
-- **Session**: the device area used for current densities, the irradiance and
-  temperature defaults, the Origin path, whether the optional interpretation is on,
-  the settings file and the version.
-- **Recent folders**: folders processed in J-V Curve and J-V Dark; double-click opens
-  the tool with the folder filled in.
-- **Conventions**: units and sign conventions used throughout.
+- **Tool**: what the selected tool derives, the files it reads (*Input*), the files it
+  writes (*Output*), the quantities it reports (*Results*), its default settings
+  (*Defaults*), the papers its methods follow (*References*) and the section of the method
+  notes that documents it; buttons *Open*, *Auto-fit workspace* (PL, XRD), *User guide*
+  and *Method notes* (opens the offline methods document at that section).
+- Tabs below the tool panel:
+  - **Session**: the device area used for current densities, the irradiance and
+    temperature defaults, the Origin path, whether the optional interpretation is on, the
+    settings file and the version.
+  - **Updates**: the installed version, how this copy was installed and whether it can
+    update itself, the automatic-update setting, the last check, the latest release seen
+    and the state, with *Check now*, *Install now and restart*, *What's new* and *Release
+    page* (details in the installation guide).
+  - **Recent folders**: folders processed in J-V Curve and J-V Dark; double-click opens
+    the tool with the folder filled in.
+  - **Conventions**: units, sign conventions and the plot style.
+
+![updates](images/updates.png)
+
+*The Updates tab of a copy run from source (it cannot update itself; automatic checks are
+switched off by `PHYSISCORE_NO_UPDATE`).*
 
 The status bar repeats the device area, the Origin and interpretation state and the
 version.
@@ -65,7 +77,9 @@ Menus of the main window:
 - **Analysis** - every tool and the three auto-fit workspaces.
 - **Tools** - Updates (check now; download and install / only notify / off), Run
   self-test (imports every module and checks reference physics), command-line help.
-- **Help** - this guide's methods document, the installation guide, issue tracker, About.
+- **Help** - the offline documentation: user guide (**F1**), methods and algorithms,
+  validation, file formats, command line, installation and updates, *What's new* in this
+  version; the documentation on the web, the issue tracker, About.
 
 ## 2. Things every window shares
 
@@ -85,7 +99,11 @@ right-aligned numbers.
 **Status bar.** Status text on the left; on the right the data coordinates under the
 mouse pointer (x, y of the plot), useful for reading off a peak position or a voltage.
 
-**Plots.** Mouse wheel zooms around the pointer (Ctrl = x only, Shift = y only); left
+**Plots.** Every graph is drawn the way Origin draws it: white page, black 1.5 pt axis
+box, ticks pointing in on all four sides with one minor tick between majors, no grid,
+Arial, square black-framed legend, series colours in Origin's order (black, red, blue,
+magenta, olive, navy ...; *Settings → Plot colours → Colour-blind safe* for Okabe-Ito
+colours). Mouse wheel zooms around the pointer (Ctrl = x only, Shift = y only); left
 drag pans where dragging is not used for range selection; double-click restores the full
 range; right-click opens Auto range / Toggle legend / Toggle grid / Save figure.
 
@@ -425,7 +443,8 @@ as inputs.
 | Device active area (cm²) | current density = current / area; scales Jsc and PCE linearly; read again for every analysis |
 | OriginLab executable | enables the Origin buttons (Windows) |
 | Gemini API key | enables the optional *Interpretation* panels only; no number depends on it |
-| Appearance | Light (default) or Dark; applies after a restart |
+| Appearance | Light (default) or Dark; applies after a restart (graphs stay white, as in Origin) |
+| Plot colours | Origin (default: black, red, blue, magenta, olive, navy ...) or Colour-blind safe (Okabe-Ito); applies after a restart |
 
 Settings live in `physisfera_config.json` (installed copies: the per-user folder,
 **File → Open settings folder**). `PHYSISCORE_CONFIG` points to another file;

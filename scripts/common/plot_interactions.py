@@ -225,7 +225,8 @@ def add_canvas_context_menu(owner, canvas, fig, extra_items=None,
     def do_toggle_grid():
         for ax in fig.axes:
             try:
-                on = any(l.get_visible() for l in ax.get_xgridlines())
+                on = bool(getattr(ax, "_physiscore_grid", False))
+                ax._physiscore_grid = not on      # kept by palette.originize at every draw
                 ax.grid(not on, linestyle="--", alpha=0.3)
             except Exception:
                 pass

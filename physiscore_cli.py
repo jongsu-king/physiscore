@@ -311,6 +311,29 @@ def cmd_batch(a):
     _emit({"rows": df}, a.json, lines)
 
 
+def cmd_update(a):
+    """Check GitHub for a newer release; an installed copy downloads, verifies and installs it."""
+    import selfupdate
+    from Physiscore_Launcher import make_update_app
+    updater = selfupdate.Updater(make_update_app(selfupdate))
+    return selfupdate.cli(updater, install=not a.check_only)
+
+
+def cmd_docs(a):
+    """Open one of the bundled documents (offline HTML) in the browser."""
+    from scripts.common import docs_viewer
+    if a.name.lower() == "list":
+        for k, v in docs_viewer.DOCS.items():
+            print(f"{k:14s} {v}")
+        return 0
+    path = docs_viewer.open_doc(a.name.upper(), section=a.section)
+    if path is None:
+        print(f"document {a.name} not found; available: {', '.join(docs_viewer.DOCS)}")
+        return 1
+    print(path)
+    return 0
+
+
 def cmd_validate(a):
     import subprocess
     cmd = [sys.executable, os.path.join(ROOT, "tools", "validation_report.py")] + (["--csv"] if a.csv else [])
@@ -379,13 +402,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", help="CSV or Excel path for the table"); common(p); p.set_defaults(func=cmd_batch)
 
     p = sub.add_parser("validate", help="regenerate the validation table"); p.add_argument("--csv", action="store_true"); p.set_defaults(func=cmd_validate)
+
+    p = sub.add_parser("update", help="check for a newer release (an installed copy also installs it)")
+    p.add_argument("--check-only", action="store_true"); p.set_defaults(func=cmd_update)
+
+    p = sub.add_parser("docs", help="open the offline documentation: USER_GUIDE, METHODS, VALIDATION, ... or 'list'")
+    p.add_argument("name", nargs="?", default="USER_GUIDE")
+    p.add_argument("--section", help="heading prefix, e.g. '3.' for section 3"); p.set_defaults(func=cmd_docs)
     return ap
 
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
-    args.func(args)
-    return 0
+    rc = args.func(args)
+    return int(rc or 0)
 
 
 if __name__ == "__main__":

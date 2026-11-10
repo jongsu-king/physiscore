@@ -453,6 +453,29 @@ def header_row(row, title, frame=None):
         pass
 
 
+def _install_origin_draw():
+    """Every Tk canvas restyles its figure as an Origin graph just before drawing,
+    so all windows share the look whatever their plotting code sets (3.3)."""
+    try:
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+    except Exception:
+        return
+    if getattr(FigureCanvasTkAgg, "_physiscore_origin", False):
+        return
+    original = FigureCanvasTkAgg.draw
+
+    def draw(self, *args, **kwargs):
+        try:
+            _pal.originize(self.figure)
+        except Exception:
+            pass
+        return original(self, *args, **kwargs)
+    FigureCanvasTkAgg.draw = draw
+    FigureCanvasTkAgg._physiscore_origin = True
+
+
 _install_theme_hook()
 install_ctk_theme()
 _install_tree_stripes()
+_pal.apply_mpl()
+_install_origin_draw()

@@ -46,6 +46,8 @@ Source: "{#Root}\dist\Physiscore\*"; DestDir: "{app}"; Flags: ignoreversion recu
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
+Name: "{autoprograms}\{#AppName} user guide"; Filename: "{app}\{#AppExe}"; Parameters: "--doc USER_GUIDE"; Comment: "Offline user guide"
+Name: "{autoprograms}\{#AppName} methods"; Filename: "{app}\{#AppExe}"; Parameters: "--doc METHODS"; Comment: "Equations, defaults and references (offline)"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]

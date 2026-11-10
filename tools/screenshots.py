@@ -26,7 +26,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 os.environ.setdefault("PHYSISCORE_NO_UPDATE", "1")
 
-NAMES = ("launcher", "jv", "device", "dark", "eqe", "abs", "pl", "xrd", "sem",
+NAMES = ("launcher", "updates", "jv", "device", "dark", "eqe", "abs", "pl", "xrd", "sem",
          "raman", "ftir", "xps", "compare")
 HC = 1239.84198
 TOOL_SIZE = "1440x900+30+40"
@@ -305,12 +305,15 @@ def write_device_inputs(tmp):
 
 
 # --------------------------------------------------------------------------- windows
-def shot_launcher(outdir, tmp):
+def shot_launcher(outdir, tmp, tab=None):
     import Physiscore_Launcher as L
     app = L.LauncherApp()
     app.geometry("1180x900+30+40")
     pump(app, 20, until=lambda: all(c["status"].cget("text").startswith("Ready") for c in app.cards.values()))
-    ok = grab(app, os.path.join(outdir, "launcher.png"))
+    if tab:
+        app.tabs.set(tab)
+        pump(app, 2.5)
+    ok = grab(app, os.path.join(outdir, "launcher.png" if not tab else f"{tab.lower()}.png"))
     app.on_closing()
     return ok
 
@@ -515,7 +518,12 @@ if __name__ == "__main__":
     if "--one" in sys.argv:
         i = sys.argv.index("--one")
         name, outdir, tmp = sys.argv[i + 1], sys.argv[i + 2], sys.argv[i + 3]
-        ok = shot_launcher(outdir, tmp) if name == "launcher" else shot_tool(name, outdir, tmp)
+        if name == "launcher":
+            ok = shot_launcher(outdir, tmp)
+        elif name == "updates":
+            ok = shot_launcher(outdir, tmp, tab="Updates")
+        else:
+            ok = shot_tool(name, outdir, tmp)
         sys.exit(0 if ok else 1)
     args = sys.argv[1:]
     out = args[0] if args and args[0] not in NAMES else os.path.join(ROOT, "docs", "images")

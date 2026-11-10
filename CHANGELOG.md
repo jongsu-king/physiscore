@@ -3,6 +3,31 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
+## [3.3.0] - 2026-11-10
+
+### Added
+- Origin-style graphs in every window and in exported figures (`palette.originize`, applied
+  before every canvas draw): black 1.5 pt box, ticks in on four sides with one minor tick,
+  no grid, Arial, square black legend, Origin's colour order; *Settings → Plot colours*
+  (Origin or colour-blind safe). The graph page stays white in the dark theme.
+- Offline documentation bundled with every installer (`scripts/common/docs_viewer.py`):
+  Help menu, F1, *User guide* and *Method notes* (at the tool's section), Windows Start-menu
+  and Linux desktop actions, `Physiscore --doc NAME`, `physiscore docs NAME [--section]`;
+  the build self-test checks that it is bundled.
+- Updates tab in the main window (installation type, self-update ability, setting, last
+  check, latest release, state; Check now, Install now and restart, What's new, Release
+  page); the release notes open on the first start after an update; `physiscore update
+  [--check-only]`.
+- Tool panel: results, defaults and references of each tool; session, updates, recent
+  folders and conventions in tabs.
+
+### Fixed
+- `physiscore` CLI returned 0 even when a command reported a failure.
+
+### Tests
+- Markdown conversion, bundled documents and section anchors, Origin pass (twin axes,
+  user grid, legend), colour order, CLI docs; 272 tests.
+
 ## [3.2.0] - 2026-11-10
 
 ### Changed

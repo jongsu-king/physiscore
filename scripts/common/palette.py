@@ -43,13 +43,13 @@ PALETTES: Dict[str, Dict[str, str]] = {
         "TXT_SUB": "#5A6472",
         "TXT_DIM": "#8A939E",
         "TXT_MUTED": "#3A4350",
-        "PLOT_BG": "#FFFFFF",
+        "PLOT_BG": "#FFFFFF",     # graph page: white with black ink, as in Origin
         "PLOT_AXES": "#FFFFFF",
-        "PLOT_FG": "#1B1F24",
-        "PLOT_TICK": "#3A4350",
+        "PLOT_FG": "#000000",
+        "PLOT_TICK": "#000000",
         "PLOT_GRID": "#D5D9DF",
-        "PLOT_SPINE": "#6B7480",
-        "PLOT_REF": "#9AA3AE",
+        "PLOT_SPINE": "#000000",
+        "PLOT_REF": "#808080",
         "SELECT": "#CFE0F5",
         "HEADER_BG": "#DDE2E8",   # panel header strip (dock-panel title bar)
         "HEADER_TXT": "#27303B",
@@ -76,13 +76,13 @@ PALETTES: Dict[str, Dict[str, str]] = {
         "TXT_SUB": "#A4ACB6",
         "TXT_DIM": "#737C87",
         "TXT_MUTED": "#C9CED4",
-        "PLOT_BG": "#23272D",
-        "PLOT_AXES": "#1D2126",
-        "PLOT_FG": "#E8EAED",
-        "PLOT_TICK": "#B8BEC6",
-        "PLOT_GRID": "#363C44",
-        "PLOT_SPINE": "#5A636E",
-        "PLOT_REF": "#6B7480",
+        "PLOT_BG": "#FFFFFF",     # the graph page stays white in the dark theme too (Origin)
+        "PLOT_AXES": "#FFFFFF",
+        "PLOT_FG": "#000000",
+        "PLOT_TICK": "#000000",
+        "PLOT_GRID": "#D5D9DF",
+        "PLOT_SPINE": "#000000",
+        "PLOT_REF": "#808080",
         "SELECT": "#355A86",
         "HEADER_BG": "#2B3139",
         "HEADER_TXT": "#D3D8DE",
@@ -91,10 +91,35 @@ PALETTES: Dict[str, Dict[str, str]] = {
     },
 }
 
-# Series colours: a colour-blind-safe, print-safe sequence (Okabe-Ito order
-# with a darker yellow), the same in both themes.
-SERIES_COLORS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00",
-                 "#56B4E9", "#B8860B", "#6A3D9A", "#A6761D", "#1B9E77"]
+# Series colours. "origin" (default, 3.3) is OriginLab's default colour
+# increment list - black, red, blue, magenta, olive, navy, violet, purple,
+# wine, dark cyan - so plots look like the ones made in Origin. "colorblind"
+# is the Okabe-Ito sequence (with a darker yellow), safe for colour-vision
+# deficiency and greyscale print. Chosen in Settings (key "plot_colors").
+COLOR_SETS = {
+    "origin": ["#000000", "#FF0000", "#0000FF", "#FF00FF", "#808000",
+               "#000080", "#8000FF", "#800080", "#800000", "#008080"],
+    "colorblind": ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00",
+                   "#56B4E9", "#B8860B", "#6A3D9A", "#A6761D", "#1B9E77"],
+}
+
+
+def _configured_colors() -> str:
+    env = os.environ.get("PHYSISCORE_PLOT_COLORS")
+    if env and env.lower() in COLOR_SETS:
+        return env.lower()
+    if app_config is not None:
+        try:
+            value = str(app_config.get("plot_colors", "origin") or "origin").lower()
+            if value in COLOR_SETS:
+                return value
+        except Exception:
+            pass
+    return "origin"
+
+
+PLOT_COLORS = _configured_colors()
+SERIES_COLORS = list(COLOR_SETS[PLOT_COLORS])
 
 
 def available_themes():
@@ -195,39 +220,64 @@ def mono(size: int = 11, weight: str | None = None):
     return (FONT_MONO, _size(size), weight) if weight else (FONT_MONO, _size(size))
 
 
-# Matplotlib rcParams for on-screen figures: white/neutral axes, inward
-# ticks on all four sides, thin grid - the convention of Origin-style lab
-# plots rather than a web dashboard.
+# Matplotlib rcParams: the look of an Origin graph (3.3) - white page, black
+# 1.5 pt axis box, ticks pointing in on all four sides with one minor tick
+# between majors, no grid, Arial, square black-framed legend, 1.5 pt lines.
+PLOT_FONT = ["Arial", "Helvetica", "Liberation Sans", "DejaVu Sans"]
 MPL_STYLE = {
     "figure.facecolor": PLOT_BG,
     "axes.facecolor": PLOT_AXES,
     "axes.edgecolor": PLOT_SPINE,
     "axes.labelcolor": PLOT_FG,
-    "axes.linewidth": 1.0,
+    "axes.linewidth": 1.5,
     "axes.titlesize": 11,
-    "axes.labelsize": 10.5,
+    "axes.titleweight": "normal",
+    "axes.labelsize": 12,
+    "axes.labelpad": 5.0,
+    "axes.grid": False,
     "xtick.color": PLOT_TICK,
     "ytick.color": PLOT_TICK,
     "xtick.direction": "in",
     "ytick.direction": "in",
     "xtick.top": True,
     "ytick.right": True,
-    "xtick.labelsize": 9.5,
-    "ytick.labelsize": 9.5,
+    "xtick.labelsize": 11,
+    "ytick.labelsize": 11,
+    "xtick.major.size": 6.0,
+    "ytick.major.size": 6.0,
+    "xtick.minor.size": 3.0,
+    "ytick.minor.size": 3.0,
+    "xtick.major.width": 1.5,
+    "ytick.major.width": 1.5,
+    "xtick.minor.width": 1.0,
+    "ytick.minor.width": 1.0,
+    "xtick.minor.visible": True,
+    "ytick.minor.visible": True,
+    "xtick.minor.ndivs": 2,
+    "ytick.minor.ndivs": 2,
+    "xtick.major.pad": 6.0,     # keeps the corner labels of x and y apart
+    "ytick.major.pad": 5.0,
     "text.color": PLOT_FG,
     "grid.color": PLOT_GRID,
     "grid.linestyle": "-",
     "grid.linewidth": 0.6,
     "grid.alpha": 0.8,
     "legend.facecolor": PLOT_AXES,
-    "legend.edgecolor": PLOT_SPINE,
-    "legend.fontsize": 9,
-    "legend.framealpha": 0.95,
+    "legend.edgecolor": "#000000",
+    "legend.fontsize": 10,
+    "legend.framealpha": 1.0,
+    "legend.fancybox": False,
+    "legend.frameon": True,
+    "legend.borderpad": 0.4,
     "lines.linewidth": 1.5,
+    "lines.markersize": 6,
     "axes.prop_cycle": None,  # set in apply_mpl()
     "font.family": "sans-serif",
-    "font.sans-serif": [FONT_UI, "Arial", "Helvetica", "DejaVu Sans"],
-    "mathtext.fontset": "dejavusans",
+    "font.sans-serif": PLOT_FONT,
+    "mathtext.fontset": "custom",
+    "mathtext.rm": PLOT_FONT[0],
+    "mathtext.it": PLOT_FONT[0] + ":italic",
+    "mathtext.bf": PLOT_FONT[0] + ":bold",
 }
 
 
@@ -235,24 +285,34 @@ def apply_mpl() -> None:
     """Install the screen style into matplotlib's rcParams (idempotent)."""
     import matplotlib
     from cycler import cycler
+    try:   # Arial for maths too when it is installed (Windows, macOS); DejaVu otherwise
+        from matplotlib import font_manager
+        font_manager.findfont(PLOT_FONT[0], fallback_to_default=False)
+        have_arial = True
+    except Exception:
+        have_arial = False
     for k, v in MPL_STYLE.items():
         if k == "axes.prop_cycle":
             matplotlib.rcParams[k] = cycler(color=SERIES_COLORS)
+            continue
+        if k.startswith("mathtext.") and not have_arial:
             continue
         try:
             matplotlib.rcParams[k] = v
         except Exception:
             pass
+    if not have_arial:
+        matplotlib.rcParams["mathtext.fontset"] = "dejavusans"
 
 
-def style_axes(ax, grid: bool = True) -> None:
-    """Apply the screen style to an existing Axes (after ax.clear())."""
+def style_axes(ax, grid: bool = False) -> None:
+    """Apply the Origin-like screen style to an existing Axes (after ax.clear())."""
     ax.set_facecolor(PLOT_AXES)
     for sp in ax.spines.values():
         sp.set_color(PLOT_SPINE)
-        sp.set_linewidth(1.0)
+        sp.set_linewidth(1.5)
     ax.tick_params(axis="both", which="both", colors=PLOT_TICK, direction="in", top=True, right=True,
-                   labelsize=9.5)
+                   labelsize=11)
     ax.xaxis.label.set_color(PLOT_FG)
     ax.yaxis.label.set_color(PLOT_FG)
     ax.title.set_color(PLOT_FG)
@@ -270,3 +330,61 @@ def style_figure(fig) -> None:
 
 def series_color(i: int) -> str:
     return SERIES_COLORS[i % len(SERIES_COLORS)]
+
+
+def originize(fig) -> None:
+    """Restyle every axes of ``fig`` as an Origin graph, whatever the window drew:
+    black 1.5 pt box, ticks in on all four sides (major 6 pt, minor 3 pt, one minor
+    between majors on linear axes), no grid unless the user switched it on
+    (``ax._physiscore_grid``), black square-framed legend. Twin axes (twinx/twiny)
+    keep their own sides. Called before every screen draw and for exported figures."""
+    try:
+        from matplotlib.ticker import AutoMinorLocator, FixedLocator, NullLocator
+    except Exception:
+        return
+    axes = [a for a in fig.axes if a.axison]
+
+    def key(a):
+        return tuple(round(v, 3) for v in a.get_position().bounds)
+    shared = {}
+    for a in axes:
+        shared.setdefault(key(a), []).append(a)
+    for ax in axes:
+        if getattr(ax, "_physiscore_raw", False):
+            continue
+        twin = len(shared.get(key(ax), ())) > 1
+        try:
+            ax.grid(bool(getattr(ax, "_physiscore_grid", False)), which="major")
+            ax.grid(False, which="minor")
+        except Exception:
+            pass
+        for side, sp in ax.spines.items():
+            if sp.get_visible():
+                sp.set_linewidth(1.5)
+                sp.set_color(PLOT_SPINE)
+        for axis, scale in ((ax.xaxis, ax.get_xscale()), (ax.yaxis, ax.get_yscale())):
+            try:
+                if scale == "linear" and not isinstance(axis.get_major_locator(), FixedLocator):
+                    if not isinstance(axis.get_minor_locator(), AutoMinorLocator):
+                        axis.set_minor_locator(AutoMinorLocator(2))
+                elif scale == "linear":
+                    axis.set_minor_locator(NullLocator())
+            except Exception:
+                pass
+        if twin:
+            ax.tick_params(which="both", direction="in", color=PLOT_TICK)
+        else:
+            ax.tick_params(which="both", direction="in", top=True, right=True, color=PLOT_TICK)
+        ax.tick_params(which="major", length=6, width=1.5)
+        ax.tick_params(which="minor", length=3, width=1.0)
+        leg = ax.get_legend()
+        if leg is not None:
+            try:
+                frame = leg.get_frame()
+                frame.set_edgecolor("#000000")
+                frame.set_linewidth(1.0)
+                frame.set_facecolor(PLOT_AXES)
+                frame.set_alpha(1.0)
+                frame.set_boxstyle("square", pad=0.3)
+            except Exception:
+                pass

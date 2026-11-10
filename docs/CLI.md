@@ -20,6 +20,8 @@ by a `.analysis.json` side-car.
 | `batch TECHNIQUE PATHS` | files or folders | one table row per spectrum |
 | `sq EG` | band gap | Shockley-Queisser limit |
 | `validate` | - | the validation table of docs/VALIDATION.md |
+| `update [--check-only]` | - | checks GitHub for a newer release; an installed copy downloads, verifies and installs it |
+| `docs NAME [--section 3.]` | USER_GUIDE, METHODS, VALIDATION, FILE_FORMATS, INSTALL, CLI or `list` | opens the offline documentation in the browser |
 
 ## jv
 
@@ -127,6 +129,23 @@ physiscore validate [--csv]
 ```
 
 Regenerates the table in [VALIDATION.md](VALIDATION.md) from closed-form synthetic data.
+
+## update
+
+```
+physiscore update                 # check and, for an installed copy, install the latest release
+physiscore update --check-only    # only report
+```
+
+Exit status 2 when GitHub cannot be reached (for example after 60 unauthenticated requests
+in an hour from the same address).
+
+## docs
+
+```
+physiscore docs list
+physiscore docs METHODS --section 3.      # opens Methods and algorithms at section 3 (EQE)
+```
 
 ## Exit status
 

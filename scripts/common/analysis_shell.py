@@ -84,6 +84,7 @@ def _publication_copy(fig):
     except Exception:
         return None
     try:
+        _pal.originize(fig2)
         fig2.patch.set_facecolor("white")
         fig2.patch.set_alpha(1.0)
         light = {c.lower() for c in (_pal.PLOT_FG, _pal.PLOT_TICK, _pal.TXT, _pal.TXT_MUTED, "white",
@@ -92,8 +93,8 @@ def _publication_copy(fig):
             ax.set_facecolor("white")
             for spine in ax.spines.values():
                 spine.set_color("black")
-                spine.set_linewidth(1.1)
-            ax.tick_params(axis="both", which="both", colors="black", direction="in", top=True, right=True)
+                spine.set_linewidth(1.5)
+            ax.tick_params(axis="both", which="both", colors="black", direction="in")
             ax.xaxis.label.set_color("black")
             ax.yaxis.label.set_color("black")
             ax.title.set_color("black")
@@ -348,8 +349,9 @@ def _make_menubar(win, tool_name, actions, hints):
             leg.set_visible(not leg.get_visible())
 
     def _toggle_grid(ax):
-        on = any(l.get_visible() for l in ax.get_xgridlines())
-        ax.grid(not on)
+        on = bool(getattr(ax, "_physiscore_grid", False))
+        ax._physiscore_grid = not on          # remembered by palette.originize at every draw
+        ax.grid(not on, color=_pal.PLOT_GRID, linewidth=0.6)
 
     m_view.add_command(label="Auto range", command=lambda: _each_axes(_auto_range))
     m_view.add_command(label="Toggle legend", command=lambda: _each_axes(_toggle_legend))

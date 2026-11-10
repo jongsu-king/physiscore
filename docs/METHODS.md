@@ -4,7 +4,7 @@ This document states, for every quantity Physiscore reports, the equation that i
 evaluated, the numerical procedure, its defaults, and the primary reference. It is
 written so that the methods section of a paper can cite it (or copy from it) and so
 that a reviewer can check a number against the code. File references are to the
-3.2.0 source tree; all functions are GUI-free and importable.
+3.3.0 source tree; all functions are GUI-free and importable.
 
 Conventions: J in mA cm⁻², V in V, R in Ω cm², E in eV, T = 298.15 K unless stated.
 Constants: q = 1.602176634×10⁻¹⁹ C, k = 1.380649×10⁻²³ J K⁻¹, hc = 1239.84198 eV nm.
@@ -202,8 +202,10 @@ with Scofield cross sections relative to C 1s (Scofield, J. Electron Spectrosc. 
 - Baselines: ALS and arPLS solve (W + λ D'D) z = W y with a sparse second-difference
   operator D; λ is the stiffness (10⁴ flexible … 10⁹ straight).
 - Peak finding: scipy `find_peaks` with prominence = max(fraction of range, k × MAD noise).
-- Publication figures: white background, black axes, inward ticks on all four sides,
-  600 dpi raster or SVG/PDF vector.
+- Figures (screen and export) follow OriginLab's default graph: white page, black 1.5 pt
+  axis box, ticks in on all four sides (major 6 pt, minor 3 pt, one minor between majors),
+  no grid, Arial, 1.5 pt lines, square black-framed legend, Origin's colour order
+  (`palette.originize`); exports at 600 dpi raster or SVG/PDF vector.
 
 ## 11. Cross-technique device summary (`scripts/common/device_summary.py`)
 

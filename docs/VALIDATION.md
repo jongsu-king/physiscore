@@ -1,6 +1,6 @@
 # Validation against closed-form synthetic data
 
-Every row compares a quantity recovered by Physiscore 3.2.0 with the value that was
+Every row compares a quantity recovered by Physiscore 3.3.0 with the value that was
 put into an analytical model (single-diode J-V curves, error-function EQE edges,
 Tauc edges with Urbach tails, pseudo-Voigt reflections, Gaussian/Lorentzian bands,
 Shirley-type XPS backgrounds, log-normal grain sizes, strained cubic lattices). The
@@ -12,7 +12,7 @@ regenerated with
 python tools/validation_report.py          # or: python physiscore_cli.py validate
 ```
 
-and the same cases are enforced as unit tests in `tests/` (`pytest`, 266 tests).
+and the same cases are enforced as unit tests in `tests/` (`pytest`, 272 tests).
 Measured-data checks (a perovskite XRD pattern, XPS region scans) run when a local
 `rawdata/` folder is present and are skipped otherwise, because those measurements
 are unpublished.
@@ -91,4 +91,4 @@ within 1 meV of its centre.
 | XRD | lattice strain from reference match | 0.003 | 0.00299999 | - | -0.000 | 7 reflections, a = 1.003 a0 |
 | XRD | reference coverage | 1 | 1 | - | +0.000 |  |
 
-_Generated 2026-11-10 with Physiscore 3.2.0, numpy 2.4.6, scipy 1.17.1._
+_Generated 2026-11-10 with Physiscore 3.3.0, numpy 2.4.6, scipy 1.17.1._

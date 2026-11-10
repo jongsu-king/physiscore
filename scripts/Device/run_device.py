@@ -369,14 +369,16 @@ class AnalysisWindow(ctk.CTkToplevel):
         # voltage ladder
         eg = s.get("Eg_reference")
         if eg is not None and np.isfinite(eg) and np.isfinite(s.get("SQ_Voc", np.nan)):
-            levels = [("Eg/q", eg), ("Voc,SQ", s.get("SQ_Voc")), ("Voc,rad", s.get("EQE_Voc_rad")), ("Voc", s.get("JV_Voc"))]
+            levels = [(r"$E_g/q$", eg), (r"$V_{oc}^{SQ}$", s.get("SQ_Voc")), (r"$V_{oc}^{rad}$", s.get("EQE_Voc_rad")),
+                      (r"$V_{oc}$", s.get("JV_Voc"))]
             levels = [(k, v) for k, v in levels if v is not None and np.isfinite(v)]
             xs = np.arange(len(levels))
-            self.ax_loss.bar(xs, [v for _, v in levels], color=[_pal.series_color(i) for i in range(len(levels))], width=0.6)
+            self.ax_loss.bar(xs, [v for _, v in levels], color=[_pal.series_color(i) for i in range(len(levels))],
+                             width=0.6, edgecolor="#000000", linewidth=1.0)
             for i, (k, v) in enumerate(levels):
                 self.ax_loss.text(i, v + 0.01, f"{v:.3f}", ha="center", va="bottom", fontsize=8, color=_pal.PLOT_FG)
             self.ax_loss.set_xticks(xs)
-            self.ax_loss.set_xticklabels([k for k, _ in levels])
+            self.ax_loss.set_xticklabels([k for k, _ in levels], fontsize=10)
             lo = min(v for _, v in levels)
             self.ax_loss.set_ylim(max(0.0, lo - 0.25), eg + 0.12)
             self.ax_loss.set_ylabel("Voltage (V)")

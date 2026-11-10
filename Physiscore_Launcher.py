@@ -26,7 +26,7 @@ from scripts.common import app_config  # noqa: E402
 from scripts.common import palette as _pal  # noqa: E402
 
 CONFIG_FILE = app_config.config_path()
-APP_VERSION = "3.2.0"
+APP_VERSION = "3.3.0"
 REPO_URL = "https://github.com/jongsu-king/physiscore"
 
 ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
@@ -65,27 +65,76 @@ TOOLS = [
 
 BUILTIN_FALLBACK = {"exe:JV_Analysis.exe": "scripts.JV.run_jv"}
 
-# name -> (input, output, method notes) shown in the tool panel of the main window
+# Shown in the Tool panel of the main window. "sections" are the headings of
+# docs/METHODS.md that *Method notes* opens (offline copy bundled with the installers).
 TOOL_DETAILS = {
-    "J-V Curve": ("Folder of instrument exports (Vmeas/Imeas) or CSV/TSV/DAT/Excel I-V files",
-                  "<folder>.xlsx: summary, curve analysis, statistics, hysteresis, box charts; side-car",
-                  "METHODS 1 (J-V), 13 (generic I-V)"),
-    "J-V Dark": ("Folder of dark I-V files", "<folder>_Dark.xlsx: CombinedData, SummaryTable (window and full fit)",
-                 "METHODS 2"),
-    "Device summary": ("J-V curve and EQE of one device; absorbance and PL of the absorber (optional)",
-                       "Excel: Summary, AllValues, Checks, Inputs; Markdown report", "METHODS 11"),
-    "EQE": ("Wavelength (nm) and EQE (% or fraction), CSV or Excel",
-            "<file>_result.xlsx: Result, EQE_Data, Urbach_Data, DetailedBalance", "METHODS 3"),
-    "Absorbance": ("Wavelength (nm) and one or more absorbance columns, Excel",
-                   "<file>_result.xlsx: Result, UV-Vis, Tauc_Data", "METHODS 4"),
-    "PL": ("Wavelength column and sample columns, CSV or Excel", "Excel: PL_Results, Processed", "METHODS 6"),
-    "XRD": ("2θ (°) and intensity; reference peak list (2θ or d, hkl, I) optional",
-            "Excel: Peaks, Pattern, WilliamsonHall, ReferenceMatch, Crystallinity", "METHODS 5, 12"),
-    "FE-SEM": ("TIF, PNG, JPG or BMP image, 8 or 16 bit", "Excel: Grains, Statistics", "METHODS 8"),
-    "Raman": ("Raman shift (cm⁻¹) and up to ten spectra", "Band, fit and shift tables; Excel", "METHODS 7"),
-    "FTIR": ("Wavenumber (cm⁻¹) and transmittance or absorbance", "Band, fit and shift tables; Excel", "METHODS 7"),
-    "XPS": ("Binding energy (eV) and counts; Thermo Avantage exports", "peaks_fitted.csv, processed.csv, Excel, "
-            "peak report; atomic concentrations", "METHODS 9"),
+    "J-V Curve": dict(
+        input="Folder of instrument exports (Vmeas/Imeas) or CSV/TSV/DAT/Excel I-V files",
+        output="<folder>.xlsx: summary, curve analysis, statistics, hysteresis, box charts; side-car",
+        results="Voc, Jsc, FF, PCE, Vmpp, Rs, Rsh; one-diode Jph, J0, n, Rs, Rsh, R²; hysteresis index; statistics",
+        defaults="area 0.04 cm²; 100 mW/cm²; 298.15 K; slope window ±5 % Voc; diode fit up to Voc + 0.15 V",
+        refs="Jain & Kapoor 2004 (Lambert W); Hegedus & Shafarman 2004; Snaith et al. 2014",
+        sections=["1.", "13."]),
+    "J-V Dark": dict(
+        input="Folder of dark I-V files (instrument exports or CSV/Excel)",
+        output="<folder>_Dark.xlsx: CombinedData, SummaryTable (window and full fit); side-car",
+        results="n and J0 (sliding window), Rsh,dark; full fit J0, n, Rs, Rsh; Cheung Rs and n",
+        defaults="0.25 V window from 0.15 V, step 0.02 V, n in [0.5, 10]; |V| ≤ 0.15 V for Rsh; Cheung J ≥ 5 % of max",
+        refs="Cheung & Cheung 1986", sections=["2."]),
+    "Device summary": dict(
+        input="J-V curve and EQE of one device; absorbance and PL of the absorber (optional)",
+        output="Excel: Summary, AllValues, Checks, Inputs; Markdown report; side-car",
+        results="Jsc mismatch; Eg from EQE, Tauc, PL and spread; Stokes shift; SQ fractions; ΔV1, ΔV2, ΔV3; EQE_EL",
+        defaults="mismatch warning 5 %; band-gap spread warning 60 meV; 300 K; reverse sweep",
+        refs="Rau 2007; Rau et al. 2017; Snaith 2012; Zimmermann et al. 2016", sections=["11."]),
+    "EQE": dict(
+        input="Wavelength (nm) and EQE (% or fraction), CSV or Excel",
+        output="<file>_result.xlsx: Result, EQE_Data, Urbach_Data, DetailedBalance; side-car",
+        results="Jsc (AM1.5G); Eg (Rau) ± σ; inflection Eg; Urbach energy; J0,rad, Voc,rad; SQ limits; ΔV1-ΔV3",
+        defaults="ASTM G173-03; Urbach window 1-30 % of max; tail extrapolated 0.6 eV; 300 K",
+        refs="Rau et al. 2017; Urbach 1953; Green 1981; Rühle 2016", sections=["3."]),
+    "Absorbance": dict(
+        input="Wavelength (nm) and one or more absorbance columns, Excel",
+        output="<file>_result.xlsx: Result, UV-Vis, Tauc_Data; side-car",
+        results="Tauc Eg ± standard error, linear region, derivative Eg, Urbach energy",
+        defaults="window max(7, 4 %); local R² ≥ 0.8; slope ≥ 60 % of anchor; R² ≥ 0.98; ±0.6 eV around expected Eg",
+        refs="Tauc, Grigorovici & Vancu 1966; Makuła et al. 2018", sections=["4."]),
+    "PL": dict(
+        input="Wavelength column and sample columns, CSV or Excel",
+        output="Excel: PL_Results, Processed; side-car",
+        results="Peak (nm, eV), FWHM (nm, meV), area, components (AICc), quenching by peak and area",
+        defaults="Savitzky-Golay window; ALS log10 λ (8 for 0.5 nm sampling of a broad band), p 0.01; Jacobian",
+        refs="Mooney & Kambhampati 2013; Akaike 1974", sections=["6."]),
+    "XRD": dict(
+        input="2θ (°) and intensity; reference peak list (2θ or d, hkl, I) optional",
+        output="Excel: Peaks, Pattern, WilliamsonHall, ReferenceMatch, Crystallinity; side-car",
+        results="Position, d, FWHM, η, Scherrer size; W-H size and strain ± error; crystallinity; reference match",
+        defaults="ALS λ 10⁷, p 0.01; K 0.9; Cu Kα 1.5406 Å; reference tolerance 0.15°",
+        refs="Scherrer 1918; Williamson & Hall 1953; Rachinger 1948; Nelson & Riley 1945", sections=["5.", "12."]),
+    "FE-SEM": dict(
+        input="TIF, PNG, JPG or BMP image, 8 or 16 bit",
+        output="Excel: Grains, Statistics; side-car",
+        results="Equivalent diameters; mean, sd, median, D10/D50/D90, CV; log-normal μ, σ, geometric mean and sd",
+        defaults="Otsu threshold + marker watershed; two-point or scale-bar calibration; Freedman-Diaconis bins",
+        refs="Otsu 1979", sections=["8."]),
+    "Raman": dict(
+        input="Raman shift (cm⁻¹) and up to ten spectra",
+        output="Band, fit and shift tables; Excel",
+        results="Band positions, widths, heights (Lorentzian); shifts against a reference layer; library suggestions",
+        defaults="arPLS log10 λ 5; prominence 2 %; shift tolerance 8 cm⁻¹",
+        refs="Baek, Park, Ahn & Choo 2015 (arPLS)", sections=["7."]),
+    "FTIR": dict(
+        input="Wavenumber (cm⁻¹) and transmittance or absorbance",
+        output="Band, fit and shift tables; Excel",
+        results="Band positions, widths, depths (Gaussian); shifts against a reference layer; library suggestions",
+        defaults="arPLS log10 λ 5; prominence 1 %; T → A = -log10 T optional",
+        refs="Baek et al. 2015", sections=["7."]),
+    "XPS": dict(
+        input="Binding energy (eV) and counts; Thermo Avantage exports",
+        output="peaks_fitted.csv, processed.csv, Excel, peak report; atomic concentrations",
+        results="Components (centre, FWHM, area), Shirley background, atomic %",
+        defaults="C 1s at 284.8 eV; Scofield factors; doublet ratios 1:2, 2:3, 3:4; overlapping peaks fitted together",
+        refs="Shirley 1972; Scofield 1976; Greczynski & Hultman 2020", sections=["9."]),
 }
 METHODS_URL = "https://github.com/jongsu-king/physiscore/blob/main/docs/METHODS.md"
 
@@ -143,7 +192,7 @@ class SettingsDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.parent = parent
         self.title("Settings")
-        self.geometry("560x420")
+        self.geometry("600x520")
         self.resizable(False, False)
         self.configure(fg_color=_pal.BG_WINDOW)
         self.transient(parent)
@@ -212,6 +261,18 @@ class SettingsDialog(ctk.CTkToplevel):
                                unselected_color=_pal.BG_SUB, unselected_hover_color=_pal.BG_HOVER,
                                text_color=_pal.TXT).pack(anchor="w", padx=16)
 
+        # plot colours
+        label("Plot colours (applies after restart)")
+        self.colors_var = ctk.StringVar(value="Origin" if _pal.PLOT_COLORS == "origin" else "Colour-blind safe")
+        ctk.CTkSegmentedButton(body, values=["Origin", "Colour-blind safe"], variable=self.colors_var, height=26,
+                               font=_pal.font(11), corner_radius=_pal.R_PILL,
+                               selected_color=_pal.ACCENT, selected_hover_color=_pal.ACCENT_HOV,
+                               unselected_color=_pal.BG_SUB, unselected_hover_color=_pal.BG_HOVER,
+                               text_color=_pal.TXT).pack(anchor="w", padx=16)
+        ctk.CTkLabel(body, text="Origin: black, red, blue, magenta, olive, navy ... (OriginLab's default increment). "
+                                "Colour-blind safe: Okabe-Ito.",
+                     font=_pal.font(10), text_color=_pal.TXT_DIM, anchor="w").pack(fill="x", padx=16)
+
         btns = ctk.CTkFrame(body, fg_color="transparent")
         btns.pack(fill="x", padx=16, pady=(12, 12), side="bottom")
         ctk.CTkButton(btns, text="Cancel", width=90, height=30, fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
@@ -244,9 +305,10 @@ class SettingsDialog(ctk.CTkToplevel):
         self.parent.origin_path = self.ent_origin.get().strip()
         self.parent.gemini_api_key = self.ent_key.get().strip()
         theme = self.theme_var.get().lower()
-        self.parent.save_config(extra={"cell_area_cm2": area, "theme": theme})
+        colors = "origin" if self.colors_var.get() == "Origin" else "colorblind"
+        self.parent.save_config(extra={"cell_area_cm2": area, "theme": theme, "plot_colors": colors})
         self.parent.refresh_statusbar()
-        if theme != _pal.THEME:
+        if theme != _pal.THEME or colors != _pal.PLOT_COLORS:
             self.parent.set_status("Appearance saved; restart Physiscore to apply it.")
         else:
             self.parent.set_status("Settings saved.")
@@ -273,6 +335,7 @@ class LauncherApp(ctk.CTk):
         self.cards = {}
         self.current_category = "All"
         self.updater = None
+        self.update_worker = None
 
         self._build_menubar()
         self._build_toolbar()
@@ -286,6 +349,8 @@ class LauncherApp(ctk.CTk):
         self._preload_done = False
         threading.Thread(target=self._preload_modules, daemon=True).start()
         self.after(100, self._poll_modules)
+        self.after(500, self._refresh_updates)
+        self.after(1500, self._maybe_whats_new)
 
     # ---------------- config ----------------
     def load_config(self):
@@ -336,8 +401,15 @@ class LauncherApp(ctk.CTk):
         bar.add_cascade(label="Tools", menu=m_tools)
 
         m_help = tk.Menu(bar, tearoff=False)
-        m_help.add_command(label="Methods and algorithms", command=lambda: self._open_url(f"{REPO_URL}/blob/main/docs/METHODS.md"))
-        m_help.add_command(label="Installation guide", command=lambda: self._open_url(f"{REPO_URL}/blob/main/docs/INSTALL.md"))
+        m_help.add_command(label="User guide", accelerator="F1", command=lambda: self.open_doc("USER_GUIDE"))
+        m_help.add_command(label="Methods and algorithms", command=lambda: self.open_doc("METHODS"))
+        m_help.add_command(label="Validation", command=lambda: self.open_doc("VALIDATION"))
+        m_help.add_command(label="File formats", command=lambda: self.open_doc("FILE_FORMATS"))
+        m_help.add_command(label="Command line", command=lambda: self.open_doc("CLI"))
+        m_help.add_command(label="Installation and updates", command=lambda: self.open_doc("INSTALL"))
+        m_help.add_command(label=f"What's new in {APP_VERSION}", command=self.show_whats_new)
+        m_help.add_separator()
+        m_help.add_command(label="Documentation on the web", command=lambda: self._open_url(f"{REPO_URL}/tree/main/docs"))
         m_help.add_command(label="Report an issue", command=lambda: self._open_url(f"{REPO_URL}/issues"))
         m_help.add_separator()
         m_help.add_command(label="About Physiscore", command=self._about)
@@ -345,6 +417,42 @@ class LauncherApp(ctk.CTk):
         self.configure(menu=bar)
         self.bind("<Control-q>", lambda e: self.on_closing())
         self.bind("<Control-comma>", lambda e: self.open_settings())
+        self.bind("<F1>", lambda e: self.open_doc("USER_GUIDE"))
+
+    def open_doc(self, name, section=None):
+        """Open the bundled documentation (offline HTML); the web copy if it is missing."""
+        try:
+            from scripts.common import docs_viewer
+            if docs_viewer.open_doc(name, section=section) is not None:
+                self.set_status(f"Opened {docs_viewer.DOCS.get(name, name)} (offline copy)")
+                return
+        except Exception as e:  # noqa: BLE001
+            print(f"[Physiscore] offline documentation: {e}")
+        self._open_url(f"{REPO_URL}/blob/main/docs/{name}.md")
+
+    def show_whats_new(self):
+        try:
+            from scripts.common import docs_viewer
+            if docs_viewer.open_release_notes(APP_VERSION) is not None:
+                return
+        except Exception as e:  # noqa: BLE001
+            print(f"[Physiscore] release notes: {e}")
+        self._open_url(f"{REPO_URL}/releases/tag/v{APP_VERSION}")
+
+    def _maybe_whats_new(self):
+        """After an update (the version differs from the last run), open the release notes once."""
+        if os.environ.get("PHYSISCORE_NO_UPDATE") or os.environ.get("CI"):
+            return
+        last = app_config.get("last_run_version")
+        if last == APP_VERSION:
+            return
+        try:
+            app_config.update({"last_run_version": APP_VERSION})
+        except Exception:
+            pass
+        if last:
+            self.set_status(f"Updated from {last} to {APP_VERSION}; the release notes are open in the browser.")
+            self.show_whats_new()
 
     def _open_url(self, url):
         import webbrowser
@@ -403,8 +511,8 @@ class LauncherApp(ctk.CTk):
         try:
             import selfupdate
             self.updater = selfupdate.Updater(make_update_app(selfupdate))
-            selfupdate.attach_tk(self, self.updater, self.update_menu, lang="en",
-                                 status=lambda text: text and self.set_status(text))
+            self.update_worker = selfupdate.attach_tk(self, self.updater, self.update_menu, lang="en",
+                                                      status=lambda text: text and self.set_status(text))
         except Exception as e:  # updates must never stop the analysis suite
             print(f"[Physiscore] update support unavailable: {e}")
 
@@ -461,18 +569,19 @@ class LauncherApp(ctk.CTk):
         self._iid_tool = {}
         self._selected_tool = None
 
-        # ---- right: tool, session, conventions ----
+        # ---- right: the selected tool on top, Session / Updates / Recent / Conventions in tabs ----
         right = ctk.CTkFrame(body, fg_color="transparent", corner_radius=0)
         right.grid(row=0, column=1, sticky="nsew")
         right.grid_columnconfigure(0, weight=1)
+        right.grid_rowconfigure(1, weight=1)
 
         tool = _theme.card(right)
-        tool.pack(fill="x")
+        tool.grid(row=0, column=0, sticky="ew")
         th = ctk.CTkLabel(tool, text="Tool", font=_pal.font(11, "bold"))
         th.pack(fill="x")
         _theme.panel_header(th, tool)
         top = ctk.CTkFrame(tool, fg_color="transparent")
-        top.pack(fill="x", padx=12, pady=(2, 6))
+        top.pack(fill="x", padx=12, pady=(2, 4))
         self.lbl_icon = ctk.CTkLabel(top, text="", width=52)
         self.lbl_icon.pack(side="left", padx=(0, 10))
         names = ctk.CTkFrame(top, fg_color="transparent")
@@ -484,7 +593,7 @@ class LauncherApp(ctk.CTk):
         self.lbl_desc = ctk.CTkLabel(tool, text="", font=_pal.font(12), text_color=_pal.TXT, anchor="w",
                                      justify="left", wraplength=700)
         self.lbl_desc.pack(fill="x", padx=12, pady=(0, 6))
-        self.tool_table = _theme.kv_table(tool, height=4, key_width=110, value_width=600)
+        self.tool_table = _theme.kv_table(tool, height=7, key_width=110, value_width=600)
         self.tool_table.heading("k", text="Item")
         self.tool_table.heading("v", text="Description")
         self.tool_table.column("v", anchor="w")
@@ -502,49 +611,86 @@ class LauncherApp(ctk.CTk):
         self.btn_methods = ctk.CTkButton(btns, text="Method notes", width=110, height=26,
                                          fg_color=_pal.BG_PANEL, hover_color=_pal.BG_HOVER, text_color=_pal.TXT,
                                          border_width=1, border_color=_pal.BORDER_HI, font=_pal.font(11),
-                                         corner_radius=_pal.R_PILL, command=lambda: self._open_url(METHODS_URL))
+                                         corner_radius=_pal.R_PILL, command=self._open_selected_methods)
         self.btn_methods.pack(side="right")
+        self.btn_guide = ctk.CTkButton(btns, text="User guide", width=96, height=26,
+                                       fg_color=_pal.BG_PANEL, hover_color=_pal.BG_HOVER, text_color=_pal.TXT,
+                                       border_width=1, border_color=_pal.BORDER_HI, font=_pal.font(11),
+                                       corner_radius=_pal.R_PILL, command=lambda: self.open_doc("USER_GUIDE"))
+        self.btn_guide.pack(side="right", padx=(0, 6))
         self.lbl_hint = ctk.CTkLabel(btns, text="Double-click a tool or press Enter to open it.",
                                      font=_pal.font(10), text_color=_pal.TXT_DIM)
         self.lbl_hint.pack(side="right", padx=10)
 
-        session = _theme.card(right)
-        session.pack(fill="x", pady=(8, 0))
-        sh = ctk.CTkLabel(session, text="Session", font=_pal.font(11, "bold"))
-        sh.pack(fill="x")
-        _theme.panel_header(sh, session)
-        self.session_table = _theme.kv_table(session, height=7, key_width=180, value_width=530)
+        self.tabs = ctk.CTkTabview(right, fg_color=_pal.BG_CARD, border_width=1, border_color=_pal.BORDER,
+                                   corner_radius=_pal.R_CARD, anchor="nw", height=250,
+                                   segmented_button_fg_color=_pal.BORDER_HI,
+                                   segmented_button_selected_color=_pal.ACCENT,
+                                   segmented_button_selected_hover_color=_pal.ACCENT_HOV,
+                                   segmented_button_unselected_color=_pal.BG_SUB,
+                                   segmented_button_unselected_hover_color=_pal.BG_HOVER,
+                                   text_color=_pal.TXT)
+        self.tabs.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
+        for name in ("Session", "Updates", "Recent folders", "Conventions"):
+            self.tabs.add(name)
+
+        self.session_table = _theme.kv_table(self.tabs.tab("Session"), height=7, key_width=180, value_width=530)
         self.session_table.heading("k", text="Setting")
         self.session_table.heading("v", text="Value")
         self.session_table.column("v", anchor="w")
-        self.session_table.pack(fill="x", padx=12, pady=(0, 10))
+        self.session_table.pack(fill="both", expand=True, padx=4, pady=(0, 4))
 
-        recent = _theme.card(right)
-        recent.pack(fill="x", pady=(8, 0))
-        rh = ctk.CTkLabel(recent, text="Recent folders", font=_pal.font(11, "bold"))
-        rh.pack(fill="x")
-        _theme.panel_header(rh, recent)
-        self.recent_table = ttk.Treeview(recent, columns=("folder", "tool"), show="headings", height=5,
+        upd = self.tabs.tab("Updates")
+        self.update_table = _theme.kv_table(upd, height=6, key_width=180, value_width=530)
+        self.update_table.heading("k", text="Item")
+        self.update_table.heading("v", text="Value")
+        self.update_table.column("v", anchor="w")
+        self.update_table.pack(fill="both", expand=True, padx=4, pady=(0, 6))
+        urow = ctk.CTkFrame(upd, fg_color="transparent")
+        urow.pack(fill="x", padx=4, pady=(0, 4))
+        ctk.CTkLabel(urow, text="Automatic updates", font=_pal.font(11), text_color=_pal.TXT_SUB).pack(side="left")
+        self._mode_labels = {"auto": "Download and install", "notify": "Only tell me", "off": "Off"}
+        self.update_mode_var = ctk.StringVar(value=self._mode_labels["auto"])
+        self.opt_update_mode = ctk.CTkOptionMenu(urow, values=list(self._mode_labels.values()), width=170, height=24,
+                                                 variable=self.update_mode_var, font=_pal.font(11),
+                                                 command=self._set_update_mode)
+        self.opt_update_mode.pack(side="left", padx=(8, 12))
+        ctk.CTkButton(urow, text="Check now", width=96, height=24, fg_color=_pal.BG_PANEL, hover_color=_pal.BG_HOVER,
+                      text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI, font=_pal.font(11),
+                      corner_radius=_pal.R_PILL, command=self._check_updates_now).pack(side="left")
+        self.btn_install_now = ctk.CTkButton(urow, text="Install now and restart", width=160, height=24,
+                                             fg_color=_pal.ACCENT, hover_color=_pal.ACCENT_HOV, text_color="white",
+                                             font=_pal.font(11, "bold"), corner_radius=_pal.R_PILL,
+                                             command=self._install_update_now)
+        ctk.CTkButton(urow, text="Release page", width=96, height=24, fg_color=_pal.BG_PANEL,
+                      hover_color=_pal.BG_HOVER, text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI,
+                      font=_pal.font(11), corner_radius=_pal.R_PILL,
+                      command=lambda: self._open_url(f"{REPO_URL}/releases/latest")).pack(side="right")
+        ctk.CTkButton(urow, text="What's new", width=90, height=24, fg_color=_pal.BG_PANEL,
+                      hover_color=_pal.BG_HOVER, text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI,
+                      font=_pal.font(11), corner_radius=_pal.R_PILL,
+                      command=self.show_whats_new).pack(side="right", padx=(0, 6))
+
+        rec = self.tabs.tab("Recent folders")
+        self.recent_table = ttk.Treeview(rec, columns=("folder", "tool"), show="headings", height=5,
                                          selectmode="browse")
         self.recent_table.heading("folder", text="Folder", anchor="w")
         self.recent_table.heading("tool", text="Tool", anchor="w")
         self.recent_table.column("folder", width=560, anchor="w", stretch=True)
         self.recent_table.column("tool", width=120, anchor="w", stretch=False)
-        self.recent_table.pack(fill="x", padx=12, pady=(0, 10))
+        self.recent_table.pack(fill="both", expand=True, padx=4, pady=(0, 4))
         self.recent_table.bind("<Double-1>", lambda e: self._open_recent())
         self._recent_rows = {}
 
-        conv = _theme.card(right)
-        conv.pack(fill="x", pady=(8, 0))
-        ch = ctk.CTkLabel(conv, text="Conventions", font=_pal.font(11, "bold"))
-        ch.pack(fill="x")
-        _theme.panel_header(ch, conv)
-        ctk.CTkLabel(conv, justify="left", anchor="w", wraplength=760, font=_pal.font(11), text_color=_pal.TXT_SUB,
+        ctk.CTkLabel(self.tabs.tab("Conventions"), justify="left", anchor="nw", wraplength=760, font=_pal.font(11),
+                     text_color=_pal.TXT_SUB,
                      text=("Current density in mA/cm², photocurrent plotted negative; energies in eV, wavelengths in nm; "
-                           "T = 298.15 K unless set. Jsc from EQE uses ASTM G173-03 AM1.5G (1000.4 W/m²). "
-                           "Every Excel export writes a .analysis.json side-car with the inputs, parameters and version; "
-                           "equations, defaults and references are in the method notes.")
-                     ).pack(fill="x", padx=12, pady=(0, 10))
+                           "T = 298.15 K unless set. Jsc from EQE uses ASTM G173-03 AM1.5G (1000.4 W/m²).\n\n"
+                           "Every Excel export writes a .analysis.json side-car with the inputs, parameters and version.\n\n"
+                           "Graphs follow OriginLab's look: black axis box, ticks in on all four sides, Arial, "
+                           "Origin's colour order (Settings: colour-blind-safe colours instead).\n\n"
+                           "Equations, defaults and references: Help → Methods and algorithms (offline copy).")
+                     ).pack(fill="both", expand=True, padx=8, pady=6)
 
     # ---------------- status bar ----------------
     def _build_statusbar(self):
@@ -710,9 +856,14 @@ class LauncherApp(ctk.CTk):
             where = BUILTIN_FALLBACK.get(mod_path, mod_path)
         self.lbl_cat.configure(text=f"{category}  ·  {where}")
         self.lbl_desc.configure(text=description)
-        inp, out, meth = TOOL_DETAILS.get(name, ("-", "-", "METHODS"))
+        d = TOOL_DETAILS.get(name, {})
         state, ok = self._tool_state(mod_path)
-        _theme.fill_kv(self.tool_table, [("Input", inp), ("Output", out), ("Method notes", meth), ("Status", state)])
+        secs = ", ".join(x.rstrip(".") for x in d.get("sections", []))
+        _theme.fill_kv(self.tool_table, [("Input", d.get("input", "-")), ("Output", d.get("output", "-")),
+                                         ("Results", d.get("results", "-")), ("Defaults", d.get("defaults", "-")),
+                                         ("References", d.get("refs", "-")),
+                                         ("Method notes", f"Methods and algorithms, section {secs}" if secs else "-"),
+                                         ("Status", state)])
         self.btn_open.configure(state="normal" if ok else "disabled",
                                 fg_color=_pal.ACCENT if ok else _pal.BG_SUB,
                                 text_color="white" if ok else _pal.TXT_DIM)
@@ -760,6 +911,100 @@ class LauncherApp(ctk.CTk):
         name, _cat, _icon, mod_path, _tab, _desc = tool
         if self._tool_state(mod_path)[1]:
             self.open_tool(mod_path, name)
+
+    def _open_selected_methods(self):
+        tool = self._selected_tool
+        secs = TOOL_DETAILS.get(tool[0], {}).get("sections", []) if tool else []
+        self.open_doc("METHODS", section=secs[0] if secs else None)
+
+    # ---------------- updates panel ----------------
+    _KIND_TEXT = {"win-setup": "Windows installer", "win-portable": "Windows portable folder",
+                  "mac-app": "macOS application bundle", "linux-deb": "Debian package (/opt/physiscore)",
+                  "unix-dir": "folder installation (tar.gz)", "pip": "pip package", "source": "source checkout"}
+
+    def _refresh_updates(self):
+        """Fill the Updates tab from the updater's state; repeats every 2 s."""
+        try:
+            self._fill_updates()
+        except Exception as e:  # noqa: BLE001 - the panel must never break the main window
+            print(f"[Physiscore] update panel: {e}")
+        try:
+            self.after(2000, self._refresh_updates)
+        except Exception:
+            pass
+
+    def _fill_updates(self):
+        tbl = getattr(self, "update_table", None)
+        if tbl is None:
+            return
+        up = self.updater
+        if up is None:
+            _theme.fill_kv(tbl, [("Installed version", APP_VERSION), ("Update support", "unavailable (see console)")])
+            return
+        import time as _time
+        import selfupdate
+        st = up._settings
+        last = st.get("last_check")
+        seen = st.get("last_seen") or ""
+        busy = bool(self.update_worker is not None and self.update_worker.busy)
+        if up.pending is not None:
+            state = f"{up.pending.version} downloaded and verified (SHA-256); installed when you close Physiscore"
+        elif busy:
+            state = "checking or downloading ..."
+        elif seen and selfupdate.is_newer(seen, APP_VERSION):
+            state = f"{seen} is available"
+        elif last:
+            state = "up to date"
+        else:
+            state = "not checked yet"
+        if selfupdate.disabled_by_environment(up.app):
+            checks = "disabled (PHYSISCORE_NO_UPDATE or CI is set)"
+        elif up.mode == "off":
+            checks = "off"
+        else:
+            checks = "once a day at start-up (GitHub releases), plus Check now"
+        inst = up.install
+        _theme.fill_kv(tbl, [
+            ("Installed version", f"Physiscore {APP_VERSION}"),
+            ("Installation", self._KIND_TEXT.get(inst.kind, inst.kind)),
+            ("Can update itself", "yes" if inst.can_apply else f"no - {inst.reason}"),
+            ("Checks", checks),
+            ("Last check", _time.strftime("%Y-%m-%d %H:%M", _time.localtime(float(last))) if last else "never"),
+            ("Latest release seen", seen or "-"),
+            ("State", state),
+        ])
+        label = self._mode_labels.get(up.mode, "")
+        if label and self.update_mode_var.get() != label:
+            self.update_mode_var.set(label)
+        packed = self.btn_install_now.winfo_manager() == "pack"   # the tab may be hidden: not "ismapped"
+        if up.pending is not None and not packed:
+            self.btn_install_now.pack(side="left", padx=(8, 0))
+        elif up.pending is None and packed:
+            self.btn_install_now.pack_forget()
+
+    def _set_update_mode(self, label):
+        mode = {v: k for k, v in self._mode_labels.items()}.get(label)
+        if self.updater is None or mode is None:
+            return
+        self.updater.mode = mode
+        var = getattr(self, "_selfupdate_mode_var", None)
+        if var is not None:
+            var.set(mode)
+        self.set_status(f"Automatic updates: {label}")
+
+    def _check_updates_now(self):
+        if self.update_worker is None:
+            self.set_status("Update support is unavailable in this copy.")
+            return
+        self.update_worker.check(manual=True)
+        self.set_status("Checking GitHub for a newer release ...")
+
+    def _install_update_now(self):
+        if self.updater is not None and self.updater.pending is not None:
+            if messagebox.askyesno("Update", f"Install Physiscore {self.updater.pending.version} now? "
+                                             "Physiscore closes and starts again.", parent=self):
+                if self.updater.apply_now(relaunch=True):
+                    self.on_closing()
 
     def _open_selected_autofit(self):
         tool = self._selected_tool
@@ -911,9 +1156,19 @@ def selftest(out=None) -> int:
     except Exception as e:  # noqa: BLE001
         checks["band_library_entries"] = f"failed: {e!r}"
         checks["library_ok"] = False
+    try:
+        from scripts.common import docs_viewer
+        found = [n for n in docs_viewer.DOCS if docs_viewer.doc_path(n) is not None]
+        checks["docs"] = found
+        checks["release_notes"] = docs_viewer.release_notes_path(APP_VERSION) is not None
+        html_ok = "<table>" in docs_viewer.markdown_to_html("| a | b |\n|---|---|\n| 1 | 2 |")
+        checks["docs_ok"] = bool(len(found) == len(docs_viewer.DOCS) and checks["release_notes"] and html_ok)
+    except Exception as e:  # noqa: BLE001
+        checks["docs"] = f"failed: {e!r}"
+        checks["docs_ok"] = False
     result["checks"] = checks
     ok = (all(v == "ok" for v in result["imports"].values())
-          and checks.get("jv_ok") and checks.get("sq_ok") and checks.get("library_ok"))
+          and checks.get("jv_ok") and checks.get("sq_ok") and checks.get("library_ok") and checks.get("docs_ok"))
     result["ok"] = bool(ok)
     result["executable"] = sys.executable
     result["config"] = app_config.config_path()
@@ -958,6 +1213,10 @@ if __name__ == "__main__":
     if "--selftest" in sys.argv:
         _out = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else None
         sys.exit(selftest(_out))
+    if "--doc" in sys.argv:
+        _i = sys.argv.index("--doc")
+        from scripts.common import docs_viewer as _dv
+        sys.exit(0 if _dv.open_doc(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "USER_GUIDE") else 1)
     if "--update" in sys.argv:
         import selfupdate
         sys.exit(selfupdate.cli(selfupdate.Updater(make_update_app(selfupdate))))

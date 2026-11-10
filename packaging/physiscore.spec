@@ -24,6 +24,11 @@ for src, dst in [
     if (ROOT / src).exists():
         datas.append((str(ROOT / src), dst))
 datas += collect_data_files("customtkinter")
+# offline documentation (Help menu, Method notes, What's new): Markdown, figures, release notes
+for pattern, dst in (("docs/*.md", "docs"), ("docs/images/*.png", "docs/images"),
+                     ("docs/release-notes/*.md", "docs/release-notes")):
+    for f in sorted(ROOT.glob(pattern)):
+        datas.append((str(f), dst))
 
 def package_modules(*packages):
     """Every module of the analysis packages, found on disk: the launcher imports

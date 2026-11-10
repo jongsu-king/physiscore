@@ -6,3 +6,13 @@ Exec=@EXEC@
 Icon=@ID@
 Terminal=false
 Categories=Science;Physics;
+Keywords=solar cell;photovoltaic;J-V;EQE;XRD;XPS;Raman;FTIR;PL;
+Actions=guide;methods;
+
+[Desktop Action guide]
+Name=User guide (offline)
+Exec=@EXEC@ --doc USER_GUIDE
+
+[Desktop Action methods]
+Name=Methods and algorithms (offline)
+Exec=@EXEC@ --doc METHODS

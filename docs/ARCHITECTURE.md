@@ -16,6 +16,7 @@ scripts/common/             shared, GUI-free unless noted
   iv_io.py                  generic CSV/Excel I-V reader, result-file detection
   provenance.py             .analysis.json side-cars
   report.py                 Markdown reports
+  docs_viewer.py            offline documentation: Markdown -> HTML, opened in the browser at a section
   app_config.py             physisfera_config.json (area, Origin path, API key, theme, presets)
   naming.py                 sample-name rules shared by the J-V parsers
   palette.py                light/dark colours, fonts, matplotlib style (no Tk)
@@ -81,6 +82,12 @@ the look by building group boxes the usual way (a `BG_CARD` frame whose first ch
 bold label) and calling `attach_chrome`; `theme.panel_header(label)` does the same for a
 title that is not inside such a box.
 
+Graphs: `palette.apply_mpl()` installs Origin-like rcParams (black 1.5 pt box, ticks in on
+four sides, one minor tick, no grid, Arial, Origin's colour order or Okabe-Ito), and
+`theme` wraps `FigureCanvasTkAgg.draw` so that `palette.originize(fig)` restyles every
+figure just before it is drawn - whatever a window's plotting code set. A user's grid
+(View -> Toggle grid) is kept through `ax._physiscore_grid`; twin axes keep their sides.
+
 ## Adding a tool
 
 1. Put the physics in `scripts/<Tool>/<tool>_core.py` with tests in `tests/`.
@@ -101,6 +108,7 @@ pytest -q tests                                   # unit tests
 python Physiscore_Launcher.py --selftest          # imports + reference physics
 python tools/gui_smoke.py                         # every window, the launcher, a session
 python tools/validation_report.py > /dev/null     # validation table still builds
+# the release notes docs/release-notes/<version>.md must exist: the self-test checks it
 python tools/screenshots.py                       # (macOS) docs/images; needs pyobjc-framework-Quartz
 pyinstaller --noconfirm packaging/physiscore.spec # frozen build
 dist/Physiscore.app/Contents/MacOS/Physiscore --selftest   # (macOS) frozen self-test
