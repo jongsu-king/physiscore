@@ -23,7 +23,7 @@ spectra_processor_v4/
     baseline.py          # AsLS baseline correction
     peak_detect.py       # Noise-adaptive peak detection
     fit_common.py        # Generic Voigt fitting utilities
-    report.py            # AI peak interpretation & report generation
+    report.py            # peak report with rule-based findings (scripts/common/interpret.py)
     utils.py             # Shared helper functions
   pipelines/
     run_xrd.py           # XRD analysis pipeline
@@ -32,9 +32,7 @@ spectra_processor_v4/
     tab_dashboard.py     # Unified GUI tab logic
 
 Installation
-pip install numpy pandas scipy matplotlib pybaselines lmfit pydantic openpyxl
-# Optional (AI features)
-pip install google-genai
+pip install numpy pandas scipy matplotlib pybaselines lmfit openpyxl
 
 Run
 python app.py

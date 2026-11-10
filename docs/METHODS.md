@@ -4,7 +4,7 @@ This document states, for every quantity Physiscore reports, the equation that i
 evaluated, the numerical procedure, its defaults, and the primary reference. It is
 written so that the methods section of a paper can cite it (or copy from it) and so
 that a reviewer can check a number against the code. File references are to the
-3.3.1 source tree; all functions are GUI-free and importable.
+3.4.0 source tree; all functions are GUI-free and importable.
 
 Conventions: J in mA cm⁻², V in V, R in Ω cm², E in eV, T = 298.15 K unless stated.
 Constants: q = 1.602176634×10⁻¹⁹ C, k = 1.380649×10⁻²³ J K⁻¹, hc = 1239.84198 eV nm.
@@ -260,3 +260,146 @@ are unit tests (`pytest`). Known limitations stated there: ALS cannot follow a s
 curved background exactly (a few percent bias), a single-Gaussian PL fit is biased by an
 unresolved neighbouring band (the multi-component fit removes most of it), and the
 detailed-balance quantities inherit the uncertainty of the sub-gap tail extrapolation.
+
+## 16. Rule-based interpretation (`scripts/common/interpret.py`)
+
+Every window's **Interpretation** action (toolbar, or *Analysis → Interpretation*) turns
+results that are already computed into findings. A finding has a level, a topic, a
+sentence, the evidence (the numbers it was drawn from), the rule (threshold or formula),
+a reference and a suggested next step. The rules are explicit code, so the same result
+always gives the same text and nothing leaves the computer; the text never feeds back
+into a number. It replaced the Gemini commentary of versions up to 3.3.
+
+Levels: **problem** (limits the device or invalidates a number), **warning** (worth
+acting on), **note** (context worth reporting), **good** (within the expected range).
+The window lists the findings worst first, with Copy and Save Markdown. Thresholds are
+the conventional ones of the cited literature; they are screening values, not
+pass/fail criteria for every material system.
+
+### 16.1 Illuminated J-V
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Fill-factor losses | FF₀ = (v_oc − ln(v_oc + 0.72))/(v_oc + 1), v_oc = Voc/(n kT/q); FF_s = FF₀(1 − 1.1 r_s) + r_s²/5.4; FF_sh = FF_s[1 − (v_oc + 0.7)/v_oc · FF_s/r_sh]; r_s = Rs Jsc/Voc, r_sh = Rsh Jsc/Voc. The FF gap to the ideal (n = 1, no resistance) splits into recombination, series and shunt parts; the largest part > 3 FF points is a warning | Green, Solid-State Electron. 24, 788 (1981); Green, *Solar Cells* (1982) |
+| Ideality factor | n < 0.95 problem; 1-1.3 good; 1.3-1.8 note; 1.8-2.2 warning; > 2.2 problem | Tress et al., Energy Environ. Sci. 11, 151 (2018) |
+| Series resistance | r_s > 0.05 warning, > 0.1 problem | Green (1982) |
+| Shunt resistance | r_sh < 50 warning, < 10 problem | Green (1982) |
+| Voc consistency | \|n kT/q ln(Jsc/J0 + 1) − Voc\| > 20 mV note | - |
+| Diode model | fit R² < 0.995 warning; Rs(slope at Voc)/Rs(fit) > 3 warning (S-shape, extraction barrier) | Wagenpfahl et al., Phys. Rev. B 82, 115306 (2010) |
+| Hysteresis | HI = (PCE_rev − PCE_fwd)/PCE_rev: \|HI\| > 5 % warning, > 15 % problem; HI < −5 % inverted (note) | Snaith et al., J. Phys. Chem. Lett. 5, 1511 (2014); Tress et al., Energy Environ. Sci. 8, 995 (2015) |
+
+### 16.2 Batch statistics (J-V conditions)
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Reproducibility | CV = sd/mean of PCE > 10 % warning; fewer than 3 cells: note | - |
+| Outliers | modified z-score \|0.6745 (x − median)/MAD\| > 3.5 | Iglewicz & Hoaglin, *How to Detect and Handle Outliers* (1993) |
+| Condition vs reference | Welch's t-test on PCE, Voc, Jsc, FF; Holm correction over the four; Hedges' g as effect size; significant if adjusted p < 0.05 (good if better, warning if worse); a significant difference below 1 % of the reference value is a note (practically negligible) | Welch, Biometrika 34, 28 (1947); Holm, Scand. J. Stat. 6, 65 (1979); Hedges, J. Educ. Stat. 6, 107 (1981) |
+
+### 16.3 Dark J-V
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Ideality (dark) | n ≤ 1.5 good, ≤ 2 note, > 2 warning; \|n(local) − n(full fit)\| > 0.3 note | Sze & Ng, *Physics of Semiconductor Devices* (2007) |
+| Leakage | Rsh,dark < 10³ Ω cm² problem, < 10⁴ warning | - |
+| Series resistance | Rs > 5 Ω cm² warning | - |
+| Fit quality | R² < 0.99 warning | - |
+
+### 16.4 EQE and voltage losses
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Urbach energy | Eu ≤ 18 meV good, ≤ 25 note, > 25 warning | De Wolf et al., J. Phys. Chem. Lett. 5, 1035 (2014) |
+| Current vs limit | Jsc(EQE)/Jsc,SQ ≥ 85 % good, < 75 % warning | Rühle, Sol. Energy 130, 139 (2016) |
+| Spectral losses | lost current ∫ q Φ_AM1.5G (1 − EQE) dλ split into < 450 nm, the middle, and the 50 nm below the edge; the largest region is named with its usual cause | ASTM G173-03 |
+| Peak EQE | max EQE < 80 % warning | - |
+| Radiative loss | ΔV₂ = Voc,SQ − Voc,rad > 50 mV note | Rau et al., Phys. Rev. Applied 7, 044016 (2017) |
+| Non-radiative loss | EQE_EL = exp(−ΔV₃ q/kT): ≥ 10⁻² good, ≥ 10⁻⁴ note, < 10⁻⁴ warning | Rau, Phys. Rev. B 76, 085303 (2007) |
+| Band-gap spread | σ(Eg) > 40 meV note | Rau et al. (2017) |
+
+### 16.5 Absorbance (Tauc)
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Band gap | x-intercept of the straight Tauc region (note, with its error and range) | Tauc, Grigorovici & Vancu, Phys. Status Solidi 15, 627 (1966) |
+| Linearity | R² of the linear region < 0.99 warning; region narrower than 0.05 eV warning | Makuła, Pacia & Macyk, J. Phys. Chem. Lett. 9, 6814 (2018) |
+| Edge position | Tauc gap and the steepest point of the edge differ by > 40 meV: note (tail or excitonic feature) | Makuła et al. (2018) |
+| Transition type | the other transition (direct/indirect) fits better by ΔR² > 0.005: warning | - |
+| Tail | Eu > 25 meV note | De Wolf et al. (2014) |
+
+### 16.6 Photoluminescence
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Line width | FWHM > 100 meV note, > 130 meV warning (also given in units of kT) | - |
+| Second emission | AICc prefers more than one band: note | Akaike, IEEE Trans. Autom. Control 19, 716 (1974) |
+| Quenching | η = 1 − A/A_ref: ≥ 90 % good, 50-90 % note, < −20 % enhancement (good, passivation) | - |
+| Peak shift | \|E − E_ref\| > 10 meV note | - |
+| Stokes shift | Eg − E_PL > 60 meV warning | - |
+
+### 16.7 XRD
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Crystallite size | Scherrer τ = Kλ/(β cos θ); without the instrument width the sizes are lower bounds; > 150 nm beyond resolution (note) | Langford & Wilson, J. Appl. Cryst. 11, 102 (1978) |
+| Williamson-Hall | β cos θ = Kλ/D + 4ε sin θ; ε < 0 warning (unphysical), ε > 0.1 % note; D(W-H) and median τ differ by > 2× note | Williamson & Hall, Acta Metall. 1, 22 (1953) |
+| Phase identification | reference-line coverage ≥ 80 % good, < 50 % warning; mean shift \|Δ2θ\| > 0.05° note | - |
+| Unassigned / known lines | unassigned reflections are compared with a list of common secondary phases and substrates (PbI₂ 12.7°, δ-FAPbI₃ 11.8°, FTO, ITO, Si, Au, Ag, TiO₂, ZnO; Cu Kα) | - |
+| Texture | Harris coefficient TC(hkl) = (I/I₀)/⟨I/I₀⟩ > 1.5 note | Harris, Philos. Mag. 43, 113 (1952) |
+| Crystallinity | index < 50 % note | - |
+
+### 16.8 FE-SEM grain size
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Sample size | N < 50 note | - |
+| Width | CV < 0.3 narrow (good), > 0.5 broad (warning); geometric SD reported | - |
+| Bimodality | bimodality coefficient BC = (g² + 1)/(κ + 3(n−1)²/((n−2)(n−3))), g skewness, κ excess kurtosis, n ≥ 20; BC > 0.555 (the value of a uniform distribution) warning | Pfister et al., Front. Psychol. 4, 700 (2013) |
+| Log-normal shape | Kolmogorov-Smirnov test on ln d, p < 0.05 note | - |
+| Small grains | fraction below half the median > 20 % note | - |
+
+### 16.9 Raman and FTIR
+
+Bands are assigned from the built-in library (nearest entries with a confidence and the
+other candidates); FTIR bands are also grouped by functional-group window (O-H
+3200-3600, N-H 3050-3200, C-H 2840-2960, C=O 1690-1760, C=N/N-H 1600-1720, C-O/C-N
+1000-1150 cm⁻¹). Against the reference layer: \|shift\| > 3 cm⁻¹ note (direction read as
+strain or bonding), width change > 20 % note (disorder or crystallite size). *Compare*
+on two selected bands gives the shift and width change; on two band lists (FTIR) the
+matched, new and missing bands within an 8 cm⁻¹ tolerance.
+
+### 16.10 XPS
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Broad component | FWHM > 2.5 eV warning (merged chemical states) | - |
+| Metallic lead | a Pb 4f component 1.3-2.2 eV below the main Pb²⁺ 4f₇/₂ (137.8-139.3 eV): warning, with its area fraction | Sadoughi et al., ACS Appl. Mater. Interfaces 7, 13440 (2015) |
+| Spin-orbit doublet | Pb 4f₅/₂ : 4f₇/₂ area ratio within 0.75 ± 0.1 good; split expected 4.87 eV | Moulder et al., *Handbook of XPS* (1992) |
+| Stoichiometry | I/Pb 2.7-3.3 good, otherwise warning | - |
+| Surface carbon | C > 40 at.% note | Greczynski & Hultman, Prog. Mater. Sci. 107, 100591 (2020) |
+| Charge reference | main C 1s component \|E − 284.8\| > 0.3 eV note, with the shift to enter | Greczynski & Hultman (2020) |
+| O 1s | area fraction at 530.8-532.3 eV is reported as hydroxyl/carbonate/adsorbed species, not as oxygen vacancies | Idriss, Surf. Sci. 712, 121894 (2021) |
+
+### 16.11 Auto-fit peak tables (XRD, PL, XPS workspaces)
+
+`interpret_peak_fit` reads the fitted table of `spectra/pipelines`:
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Detection limit | S/N = height/σ_noise < 3 warning | Currie, Anal. Chem. 40, 586 (1968) |
+| Quantification limit | 3 ≤ S/N < 10 note | Currie (1968) |
+| Unresolved peaks | neighbours with Δx < (w₁ + w₂)/2 note (correlated areas and widths) | - |
+| Fit residual | χ²_ν/σ²_noise > 4 in a fit region warning (missing component or wrong line shape) | Bevington & Robinson, *Data Reduction and Error Analysis* (2003) |
+
+then the technique rules: XRD Scherrer sizes (K = 0.9, Cu Kα₁ 0.15406 nm), a
+Williamson-Hall fit when three or more reflections exist, and the known-line list; PL
+in eV (nm converted with E = hc/λ, FWHM_E = hc Δλ/λ²) with the line-width and
+second-band rules; XPS with the rules of 16.10.
+
+### 16.12 Device summary
+
+J-V and EQE currents: \|mismatch\| ≤ 5 % good, > 10 % problem (Snaith, Energy Environ.
+Sci. 5, 9296 (2012)); EQE, Tauc and PL gaps agree within 30 meV good, > 60 meV warning
+(Rau et al. 2017); Voc, Jsc and FF as fractions of the detailed-balance limit; the
+voltage loss split into radiative and non-radiative parts, non-radiative > 150 mV
+warning.

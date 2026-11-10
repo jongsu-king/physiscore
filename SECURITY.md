@@ -5,12 +5,12 @@ to them, and makes network requests only for
 
 - the update check: one HTTPS request a day to the GitHub releases API of this repository
   (disable with Tools → Updates → Off or `PHYSISCORE_NO_UPDATE=1`); a downloaded update is
-  installed only if its SHA-256 matches the release's `SHA256SUMS.txt`;
-- the optional interpretation panels, which send result tables (not raw data files) to the
-  Gemini API when an API key is configured.
+  installed only if its SHA-256 matches the release's `SHA256SUMS.txt`.
 
-The API key is stored in plain text in `physisfera_config.json` on your computer; do not
-commit that file (it is in `.gitignore`).
+Since 3.4 the interpretation panels are rule-based and offline; no result or data leaves
+the computer. Versions up to 3.3 could send result tables to the Gemini API and stored the
+key in plain text in `physisfera_config.json`; 3.4 removes that key when the settings are
+next saved.
 
 To report a vulnerability, use GitHub's private vulnerability reporting on this repository
 (Security → Report a vulnerability) or e-mail the maintainer listed in `CITATION.cff`.

@@ -37,7 +37,7 @@ FILETYPES = [("Data", "*.txt *.csv *.tsv *.dat *.xy *.xlsx *.xls"), ("All files"
 
 
 class AnalysisWindow(ctk.CTkToplevel):
-    def __init__(self, parent, origin_path="", api_key=""):
+    def __init__(self, parent, origin_path=""):
         super().__init__(parent)
         self.title("Device summary")
         self.configure(fg_color=_pal.BG_WINDOW)
@@ -56,6 +56,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                 "excel": ("Excel", self.export_excel),
                 "png": True,
                 "report": ("Report", self.export_report),
+                "ai": ("Interpretation", self._interpret),
             }, hints="One file per technique; J-V and EQE are enough for the loss analysis  |  "
                      "Absorbance and PL add band-gap cross-checks  |  Wheel: zoom  |  Right-click: plot menu")
         self.protocol("WM_DELETE_WINDOW", self.destroy)
@@ -393,6 +394,14 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.canvas.draw_idle()
 
     # ---------------- export ----------------
+    def _interpret(self):
+        if not self.summary:
+            messagebox.showinfo("Interpretation", "Compute the summary first.", parent=self)
+            return
+        from scripts.common.interpret import interpret_device
+        from scripts.common.interpret_window import show
+        show(self, interpret_device(self.summary))
+
     def export_excel(self):
         if not self.summary:
             messagebox.showwarning("Export", "Compute first.", parent=self)

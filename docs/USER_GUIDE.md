@@ -1,6 +1,6 @@
 # Physiscore user guide
 
-This guide walks through every window of Physiscore 3.1: what to load, what each
+This guide walks through every window of Physiscore 3.4: what to load, what each
 control does, what is computed and where the results go. The equations behind the
 numbers are in [METHODS.md](METHODS.md); the accepted file layouts in
 [FILE_FORMATS.md](FILE_FORMATS.md); the command line in [CLI.md](CLI.md).
@@ -22,7 +22,8 @@ Contents
 13. [Comparing many files](#13-comparing-many-files)
 14. [Outputs, reports and side-car files](#14-outputs-reports-and-side-car-files)
 15. [Settings](#15-settings)
-16. [Troubleshooting](#16-troubleshooting)
+16. [Interpretation](#16-interpretation)
+17. [Troubleshooting](#17-troubleshooting)
 
 ---
 
@@ -53,8 +54,8 @@ The main window is a workbench (3.2):
   and *Method notes* (opens the offline methods document at that section).
 - Tabs below the tool panel:
   - **Session**: the device area used for current densities, the irradiance and
-    temperature defaults, the Origin path, whether the optional interpretation is on, the
-    settings file and the version.
+    temperature defaults, the Origin path, how interpretation works (rule-based, offline),
+    the settings file and the version.
   - **Updates**: the installed version, how this copy was installed and whether it can
     update itself, the automatic-update setting, the last check, the latest release seen
     and the state, with *Check now*, *Install now and restart*, *What's new* and *Release
@@ -68,8 +69,7 @@ The main window is a workbench (3.2):
 *The Updates tab of a copy run from source (it cannot update itself; automatic checks are
 switched off by `PHYSISCORE_NO_UPDATE`).*
 
-The status bar repeats the device area, the Origin and interpretation state and the
-version.
+The status bar repeats the device area, the Origin state and the version.
 
 Menus of the main window:
 
@@ -388,8 +388,11 @@ log-normal fit.
    bands present in only one of them.
 6. Clicking a band shows its fit and indicative assignments from the built-in band
    library (70 typical positions for PV materials; confirm against the literature).
-7. Optional **Interpretation** (Gemini) assigns the target's peaks or compares two
-   selected peaks; it needs an API key and never changes the numbers.
+7. **Assign bands (library)** gives each band of the target its nearest library entries
+   with a confidence and the other candidates; **Compare** reads the shift and width change
+   of two selected bands (or of the two whole band lists, FTIR). **Interpretation** in the
+   toolbar collects bands, assignments and shifts against the reference into rule-based
+   findings (section 16).
 
 Outputs: Excel, Report (band tables, library suggestions, shift table), Origin, Compare files.
 
@@ -402,7 +405,10 @@ Outputs: Excel, Report (band tables, library suggestions, shift table), Origin, 
 **Auto-fit workspace** (PL, XRD, XPS) - a parameter-driven pipeline: Savitzky-Golay
 smoothing, background, noise-adaptive peak detection and Voigt fitting; *Before / After*
 shows the processing steps; *Batch Folder* runs the same parameters over every file of a
-folder and writes `summary.xlsx`; *Peak report* writes a Markdown report.
+folder and writes `summary.xlsx`; *Peak report* writes a Markdown report with the
+rule-based findings; **Interpret fit** shows them in a window (detection and
+quantification limits, unresolved neighbours, residual against noise, then the XRD, PL or
+XPS rules - section 16).
 
 XPS block: **Background** (Shirley by default, or AsLS), **Charge shift** (eV added to
 every binding energy, e.g. 284.8 minus the measured C 1s), **Doublet split** and **area
@@ -442,7 +448,6 @@ as inputs.
 |---|---|
 | Device active area (cm²) | current density = current / area; scales Jsc and PCE linearly; read again for every analysis |
 | OriginLab executable | enables the Origin buttons (Windows) |
-| Gemini API key | enables the optional *Interpretation* panels only; no number depends on it |
 | Appearance | Light (default) or Dark; applies after a restart (graphs stay white, as in Origin) |
 | Plot colours | Origin (default: black, red, blue, magenta, olive, navy ...) or Colour-blind safe (Okabe-Ito); applies after a restart |
 
@@ -451,7 +456,49 @@ Settings live in `physisfera_config.json` (installed copies: the per-user folder
 `PHYSISCORE_THEME=dark` overrides the appearance for one run; `PHYSISCORE_NO_UPDATE=1`
 disables the update check.
 
-## 16. Troubleshooting
+## 16. Interpretation
+
+![interpretation](images/interpretation.png)
+
+*Interpretation of a J-V batch: summary (top), findings worst first (middle), and the
+evidence, rule, reference and next step of the selected finding (bottom). Synthetic
+example data.*
+
+Every analysis window has **Interpretation** at the right end of the toolbar (also
+*Analysis → Interpretation*). It reads the results already on screen and lists findings,
+worst first:
+
+| Level | Meaning |
+|---|---|
+| Problem | limits the device or invalidates a number |
+| Warning | worth acting on |
+| Note | context worth reporting |
+| Good | within the expected range |
+
+Selecting a finding shows its **evidence** (the numbers it came from), the **rule**
+(threshold or formula), the **reference** and a suggested **next step**. *Copy as text* puts the
+whole report on the clipboard; *Save report (Markdown)* writes it to a file for a lab notebook or
+the supplementary information.
+
+| Window | What is checked |
+|---|---|
+| J-V Curve | fill-factor loss split (recombination, series, shunt; Green), ideality factor, normalised Rs and Rsh, S-shape, hysteresis index; between conditions: CV, outliers (modified z-score), Welch t-test with Holm correction and Hedges' g |
+| J-V Dark | dark ideality factor, leakage (dark Rsh), Rs, fit quality |
+| EQE | Urbach energy, Jsc against the detailed-balance limit, where the current is lost (AM1.5G-weighted), peak EQE, radiative and non-radiative voltage losses (EQE_EL) |
+| Absorbance | linearity and width of the Tauc region, the other transition type, edge position |
+| PL | line width (also in kT), quenching or enhancement against the reference, peak and Stokes shifts, extra bands |
+| XRD | Scherrer sizes, Williamson-Hall strain, phase coverage and shift, unassigned reflections against common secondary phases (PbI₂, δ-phase, substrate lines), texture coefficient, crystallinity |
+| FE-SEM | sample size, width, bimodality, log-normal shape, small-grain fraction, process hints |
+| Raman / FTIR | band list, library assignments, functional groups, shifts and width changes against the reference |
+| XPS (auto-fit) | metallic Pb, Pb 4f doublet ratio and split, broad components, C 1s charge reference, O 1s caution, detection limits |
+| Device summary | Jsc cross-check, band-gap agreement, fractions of the detailed-balance limit, voltage-loss split |
+
+The rules, thresholds and references are listed in
+[METHODS §16](METHODS.md#16-rule-based-interpretation-scriptscommoninterpretpy). They are
+screening values from the literature, not pass/fail criteria for every material; the
+interpretation never changes a number and needs no account or network.
+
+## 17. Troubleshooting
 
 | Symptom | What to check |
 |---|---|

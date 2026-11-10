@@ -1,19 +1,5 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, Tuple
-from pydantic import BaseModel, Field, conlist
-
-# ---- Gemini structured output models ----
-class PeakInit(BaseModel):
-    center: float = Field(..., description="Peak center in x units")
-    height: float = Field(..., description="Approx peak height (normalized 0..1)")
-    fwhm: float = Field(..., description="Approx FWHM in x units")
-    kind: str = Field("voigt", description="Line shape suggestion")
-
-class GeminiPeakHint(BaseModel):
-    region: Tuple[float, float] = Field(..., description="Region [x_min, x_max]")
-    peaks: conlist(PeakInit, min_length=1, max_length=10) = Field(...)
-    notes: str = Field("", description="Short notes")
 
 @dataclass
 class PipelineConfig:
@@ -30,10 +16,6 @@ class PipelineConfig:
     overlap_merge_dx: float = 0.6
     region_half_width: float = 1.5
     fit_pad: float = 2.5
-    use_gemini: bool = False
-    gemini_model: str = "gemini-2.5-flash"
-    gemini_temperature: float = 0.2
-    gemini_max_points: int = 600
 
     # PL
     pl_enable_aic: bool = True

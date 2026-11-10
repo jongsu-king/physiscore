@@ -97,3 +97,38 @@ def test_autofit_keeps_a_small_peak_next_to_a_large_one(tmp_path):
         return float(fitted.iloc[(fitted["center"] - c).abs().argmin()]["area_amplitude"])
     assert area_at(143.47) / area_at(138.60) == pytest.approx(0.75, rel=0.05)
     assert area_at(136.85) / area_at(138.60) == pytest.approx(0.095, rel=0.35)
+
+
+def test_autofit_interpretation_and_report_flag_metallic_lead(tmp_path):
+    """The rule engine reads the auto-fit table: the Pb0 shoulder 1.75 eV below
+    Pb2+ is reported, the 4f doublet ratio is in range, and the peak report holds
+    the rule-based findings (3.4: no Gemini section any more)."""
+    import numpy as np
+    from scripts.common.interpret import interpret_peak_fit
+    from spectra.app import build_default_configs
+    from spectra.core.report import generate_peak_report
+    from spectra.pipelines.run_xps import run_xps_pipeline
+
+    be = np.arange(132.0, 150.0, 0.05)
+    rng = np.random.default_rng(7)
+
+    def gl(c, fwhm, area, m=0.3):
+        s = fwhm / 2.355
+        gauss = np.exp(-((be - c) ** 2) / (2 * s * s)) / (s * np.sqrt(2 * np.pi))
+        lor = (fwhm / 2) / np.pi / ((be - c) ** 2 + (fwhm / 2) ** 2)
+        return area * ((1 - m) * gauss + m * lor)
+    peaks = gl(138.60, 0.95, 4000) + gl(143.47, 0.95, 3000) + gl(136.85, 0.8, 380) + gl(141.72, 0.8, 285)
+    step = 900 + 0.12 * np.cumsum(peaks[::-1])[::-1] * 0.05
+    y = rng.poisson(np.clip(peaks + step, 1, None)).astype(float)
+
+    _, _, cfg = build_default_configs()
+    proc, cand, fitted = run_xps_pipeline(be, y, str(tmp_path), cfg, log_cb=lambda m: None)
+    lv = {f.topic: f.level for f in interpret_peak_fit("XPS", fitted).findings}
+    assert lv["Metallic lead"] == "warning"
+    assert lv["Spin-orbit doublet"] == "good"
+
+    md = generate_peak_report(proc=proc, cand=cand, fitted=fitted, cfg=cfg, outdir=str(tmp_path),
+                              file_label="Pb4f.csv")
+    text = open(md, encoding="utf-8").read()
+    assert "## Rule-based findings" in text and "Metallic lead" in text
+    assert "Gemini" not in text

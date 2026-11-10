@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 os.environ.setdefault("PHYSISCORE_NO_UPDATE", "1")
 
 NAMES = ("launcher", "updates", "jv", "device", "dark", "eqe", "abs", "pl", "xrd", "sem",
-         "raman", "ftir", "xps", "compare")
+         "raman", "ftir", "xps", "compare", "interpretation")
 HC = 1239.84198
 TOOL_SIZE = "1440x900+30+40"
 
@@ -328,7 +328,7 @@ def shot_tool(name, outdir, tmp):
 
     if name == "jv":
         from scripts.JV import run_jv
-        win = run_jv.AnalysisWindow(root, "", "")
+        win = run_jv.AnalysisWindow(root, "")
         win.geometry(TOOL_SIZE)
         win.directory_path.set(write_jv_folder(os.path.join(tmp, "jv")))
         win.start_processing()
@@ -339,9 +339,25 @@ def shot_tool(name, outdir, tmp):
             win._on_tree_select(None)
         ok = grab(win, out) and bool(kids)
 
+    elif name == "interpretation":
+        from scripts.JV import run_jv
+        from scripts.common import interpret as _interp
+        from scripts.common.interpret_window import InterpretationWindow
+        jv = run_jv.AnalysisWindow(root, "")
+        jv.geometry(TOOL_SIZE)
+        jv.directory_path.set(write_jv_folder(os.path.join(tmp, "jv")))
+        jv.start_processing()
+        pump(root, 40, until=lambda: jv.processed_data is not None and bool(jv.tree.get_children()))
+        win = InterpretationWindow(jv, _interp.interpret_jv_results(jv.processed_data))
+        win.transient("")          # a free window, so the capture holds only this one
+        jv.withdraw()
+        win.geometry("1180x760+60+60")
+        pump(root, 2)
+        ok = grab(win, out) and bool(win.tree.get_children())
+
     elif name == "dark":
         from scripts.Dark_JV import run_jv_dark
-        win = run_jv_dark.DarkAnalysisWindow(root, "", "")
+        win = run_jv_dark.DarkAnalysisWindow(root, "")
         win.geometry(TOOL_SIZE)
         win.directory_path.set(write_dark_folder(os.path.join(tmp, "dark")))
         win.start_processing()
@@ -355,7 +371,7 @@ def shot_tool(name, outdir, tmp):
     elif name == "eqe":
         from pathlib import Path
         from scripts.EQE import run_eqe
-        win = run_eqe.AnalysisWindow(root, "", "")
+        win = run_eqe.AnalysisWindow(root, "")
         win.geometry(TOOL_SIZE)
         win.target_file = Path(write_eqe(os.path.join(tmp, "device_A_EQE.csv")))
         win.entry_file.insert(0, str(win.target_file))
@@ -369,7 +385,7 @@ def shot_tool(name, outdir, tmp):
         from pathlib import Path
         from scripts.Abs import run_abs
         path = write_abs_xlsx(os.path.join(tmp, "films_abs.xlsx"))
-        win = run_abs.AnalysisWindow(root, "", "")
+        win = run_abs.AnalysisWindow(root, "")
         win.geometry(TOOL_SIZE)
         win.entry_file.insert(0, path)
         win.target_file = Path(path)
@@ -384,7 +400,7 @@ def shot_tool(name, outdir, tmp):
 
     elif name == "pl":
         from scripts.PL import run_pl
-        win = run_pl.PLAnalysisWindow(root, "", "")
+        win = run_pl.PLAnalysisWindow(root, "")
         win.geometry(TOOL_SIZE)
         win.file_path_var.set(write_pl(os.path.join(tmp, "films_PL.csv")))
         win.load_data()
@@ -399,7 +415,7 @@ def shot_tool(name, outdir, tmp):
 
     elif name == "xrd":
         from scripts.XRD import run_xrd
-        win = run_xrd.AnalysisWindow(root, "", "")
+        win = run_xrd.AnalysisWindow(root, "")
         win.geometry(TOOL_SIZE)
         tab = win.tab
         x, y = xrd_pattern()
@@ -417,7 +433,7 @@ def shot_tool(name, outdir, tmp):
 
     elif name == "sem":
         from scripts.SEM import run_sem
-        win = run_sem.AnalysisWindow(root, "", "")
+        win = run_sem.AnalysisWindow(root, "")
         win.geometry(TOOL_SIZE)
         answer_file_dialog(run_sem, write_sem_image(os.path.join(tmp, "film_A_SEM.png")))
         win.load_image()
@@ -435,7 +451,7 @@ def shot_tool(name, outdir, tmp):
         import importlib
         mod = importlib.import_module(mod_name)
         path = write_raman(os.path.join(tmp, "raman.csv")) if name == "raman" else write_ftir(os.path.join(tmp, "ftir.csv"))
-        win = mod.AnalysisWindow(root, "", "")
+        win = mod.AnalysisWindow(root, "")
         win.geometry(TOOL_SIZE)
         answer_file_dialog(mod, path)
         win.load_data()
@@ -447,7 +463,7 @@ def shot_tool(name, outdir, tmp):
 
     elif name == "device":
         from scripts.Device import run_device
-        win = run_device.AnalysisWindow(root, "", "")
+        win = run_device.AnalysisWindow(root, "")
         win.geometry(TOOL_SIZE)
         for k, p in write_device_inputs(tmp).items():
             win.paths[k].set(p)

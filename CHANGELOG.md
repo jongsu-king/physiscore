@@ -3,6 +3,41 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
+## [3.4.0] - 2026-11-10
+
+### Changed
+- Interpretation is rule-based and offline in every window. The Gemini panels, chat and
+  advisor (J-V, PL, XRD, Raman, FTIR, SEM, the auto-fit workspaces) and the API-key field
+  are removed; `scripts/common/interpret.py` produces findings with level, evidence, rule,
+  reference and next step, shown in one window (`interpret_window.py`) with Copy and Save
+  Markdown. Same input, same text; nothing is sent over the network.
+- Raman/FTIR *Assign bands* and *Compare* use the band library and the peak matching
+  (`vib_interpret.py`) instead of Gemini requests.
+- The auto-fit peak report (`spectra/core/report.py`, `generate_peak_report`) carries the
+  rule-based findings in place of the Gemini section; the XRD/PL/XPS workspaces have an
+  **Interpret fit** button.
+- `google-generativeai` and `pydantic` are no longer dependencies; the installers exclude
+  the Google SDK. A `gemini_api_key` stored by an older version is removed from
+  `physisfera_config.json` the next time the settings are saved.
+- Analysis windows take `(parent, origin_path)`; the API-key argument is gone.
+
+### Added
+- Rule sets (METHODS §16): Green's FF loss split (recombination, series, shunt), ideality
+  regimes, normalised Rs/Rsh, S-shape and hysteresis; batch statistics (CV, modified
+  z-score outliers, Welch t-test with Holm correction, Hedges' g, practical-significance
+  note); dark J-V; EQE (Urbach, Jsc vs the detailed-balance limit, AM1.5G-weighted
+  spectral losses, radiative and non-radiative voltage losses with EQE_EL); Tauc
+  (linearity, the other transition, edge position); PL (width in kT, quenching, shifts,
+  Stokes shift); XRD (Scherrer, Williamson-Hall, coverage, secondary-phase lines, Harris
+  texture); SEM (width, bimodality coefficient, log-normal KS test); FTIR functional
+  groups and Raman/FTIR shifts; XPS (metallic Pb, Pb 4f doublet, I/Pb, C 1s reference,
+  O 1s caution); auto-fit tables (Currie detection and quantification limits, unresolved
+  neighbours, residual against noise); device summary.
+- Interpretation in the Device summary window.
+- Tests: `test_interpret.py` (25), `test_vib_interpret.py` (4), an end-to-end XPS
+  auto-fit interpretation test, and a check that no source module imports an LLM SDK.
+- User guide section 16 (Interpretation) with a screenshot.
+
 ## [3.3.1] - 2026-11-10
 
 First published build of 3.3.0 (the program is unchanged).

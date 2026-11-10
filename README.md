@@ -28,6 +28,12 @@ quality. The algorithms are documented with equations and references in
 | **XPS** | Shirley background, Voigt singlet/doublet fitting, charge referencing, atomic concentration |
 | **Device summary** | J-V + EQE (+ absorbance, PL) of one device: Jsc cross-check, band gap from three techniques, Voc vs Voc,rad and Voc,SQ with the loss breakdown, fractions of the SQ limits |
 
+**Interpretation** in every window turns the results into findings by explicit rules -
+fill-factor loss split, ideality regime, statistics between conditions, voltage losses,
+Williamson–Hall strain, secondary phases, metallic lead in XPS and more - each with its
+evidence, threshold, reference and next step. It runs offline, needs no account and gives
+the same text for the same data ([METHODS §16](docs/METHODS.md#16-rule-based-interpretation-scriptscommoninterpretpy)).
+
 Many files at once: *Compare files* in the spectroscopy tools and `physiscore batch` on the
 command line tabulate whole series; XRD patterns can be matched against reference peak
 lists; J-V curves can come from instrument text exports or from CSV/Excel files.
@@ -46,7 +52,7 @@ All screenshots show synthetic example data (analytical models with noise), prod
 | ![XRD](docs/images/xrd.png) | ![XPS](docs/images/xps.png) |
 | XRD: pseudo-Voigt fit, reference peak list with hkl ticks, unassigned peak | XPS auto-fit: Shirley background, four Pb 4f components |
 
-More: [updates tab](docs/images/updates.png), [dark J-V](docs/images/dark.png), [absorbance](docs/images/abs.png),
+More: [interpretation](docs/images/interpretation.png), [updates tab](docs/images/updates.png), [dark J-V](docs/images/dark.png), [absorbance](docs/images/abs.png),
 [PL](docs/images/pl.png), [FE-SEM](docs/images/sem.png), [Raman](docs/images/raman.png),
 [FTIR](docs/images/ftir.png), [comparing files](docs/images/compare.png).
 
@@ -145,10 +151,9 @@ per-user settings folder of an installed copy: `%APPDATA%\Physiscore`,
 | `cell_area_cm2` | device area for the current-density conversion (scales Jsc and PCE linearly; re-read for every analysis) | `0.04` |
 | `theme` | `light` or `dark` appearance (applies after restart) | `light` |
 | `origin_path` | OriginLab executable for the optional Origin export (Windows) | `""` |
-| `gemini_api_key` | optional; enables the "Interpretation" commentary panels only | `""` |
 
-No numerical result depends on the API key; the commentary is produced after the
-physics and is never part of an exported table. See [CONFIG.md](CONFIG.md).
+The interpretation panels need no key and no network: they are rule-based (see
+[METHODS §16](docs/METHODS.md#16-rule-based-interpretation-scriptscommoninterpretpy)). See [CONFIG.md](CONFIG.md).
 
 ## Tests and validation
 
@@ -168,7 +173,7 @@ absent.
 A software paper is in preparation; please cite the archived release in the meantime:
 
 > Kim, K., Shin, J., Lim, J., Ji, H., Lee, S.-E., & Lee, J. (2026). *Physiscore*
-> (Version 3.3.1) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
+> (Version 3.4.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
 
 The concept DOI always resolves to the latest archived release. Full metadata is in
 `CITATION.cff`; the methods and their references are in [docs/METHODS.md](docs/METHODS.md).

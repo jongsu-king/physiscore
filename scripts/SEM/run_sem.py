@@ -81,16 +81,15 @@ except Exception:
 # Main GUI
 # =========================
 class AnalysisWindow(ctk.CTkToplevel):
-    def __init__(self, parent, origin_path="", api_key=""):
+    def __init__(self, parent, origin_path=""):
         super().__init__(parent)
-        self.title("SEM Grain Analysis (Gemini 3.0 / 2.5)")
+        self.title("FE-SEM Grain Analysis")
         # Wider to accommodate expanded right panel without clipping
         self.geometry("1460x900")
         self.minsize(1460, 900)
 
         # Store data received from main window (per spec)
         self.passed_origin_path = origin_path
-        self.passed_api_key = api_key
 
         self.SET = Settings()
         self.img_path = ""
@@ -110,21 +109,6 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.zoom_scale = 1.0
         self.current_mean_nm = None
         self.advice_items = []
-        self.comp_ratio_var = tk.StringVar(value="")
-        self.use_antisolvent_var = tk.BooleanVar(value=True)
-        self.antisolvent_var = tk.StringVar(value="")
-        self.extra_info_var = tk.StringVar(value="")
-        self._advisor_win = None
-        self.chat_history = []
-        self.advisor_model_var = tk.StringVar(value="gemini-3-flash-preview")
-        self._advisor_models = {
-            "Gemini": [
-                "gemini-3-flash-preview",
-                "gemini-2.5-flash",
-                "gemini-2.0-flash-exp",
-                "gemini-1.5-flash",
-            ],
-        }
 
         self.mode_add = True
         self.mode_edit = False
@@ -134,8 +118,6 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.dragging_calib = False
         self.draw_path = []
         self.footer_cutoff = None
-        self.initial_api_key = ""
-        self._nano_win = None
 
         # Widen SEM right panel to match JV Statistics card visual width
         self.right_width = 380
@@ -157,10 +139,6 @@ class AnalysisWindow(ctk.CTkToplevel):
 
         self.config_file = os.path.join(SCRIPT_DIR, "sem_config.json")
         self.load_settings()
-        if self.passed_api_key:
-            self.entry_api_key.delete(0, "end")
-            self.entry_api_key.insert(0, self.passed_api_key)
-        self.initial_api_key = self.passed_api_key or self.entry_api_key.get().strip()
 
         self.bind("<Key>", self.on_key_press)
         self.bind("<Button-1>", self.on_global_click)
@@ -317,54 +295,25 @@ class AnalysisWindow(ctk.CTkToplevel):
                       fg_color=self.accent_blue, hover_color=_pal.ACCENT_HOV,
                       corner_radius=_pal.R_CARD, height=28, font=_pal.font(11)).pack(pady=(8, 16), padx=16, fill="x")
 
-        # 6. Process Advisor (Gemini)
+        # 6. Interpretation (rule-based, offline; 3.4 replaced the Gemini process advisor)
         advisor_card = ctk.CTkFrame(left_content, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
-        advisor_card.pack(pady=8, padx=12, fill="both", expand=True)
-        advisor_card.bind("<Button-1>", lambda e: self.open_advisor_dialog())
-
-        header_row = ctk.CTkFrame(advisor_card, fg_color="transparent")
-        header_row.pack(pady=(16, 6), padx=16, fill="x")
-        header_row.bind("<Button-1>", lambda e: self.open_advisor_dialog())
-
-        ctk.CTkLabel(header_row, text="Process Advisor", font=_pal.font(12, "bold"),
-                     text_color=self.text_primary).pack(side="left")
-        ctk.CTkLabel(header_row, text="Click to open", font=_pal.font(11),
-                     text_color=self.text_secondary).pack(side="right")
-
-        ctk.CTkLabel(advisor_card,
-                     text="Enter composition / antisolvent conditions\nto get grain-size based advice.",
-                     text_color=self.text_secondary,
-                     font=_pal.font(11),
-                     justify="left").pack(pady=(0, 8), padx=16, anchor="w")
-
+        advisor_card.pack(pady=8, padx=12, fill="x")
+        ctk.CTkLabel(advisor_card, text="Interpretation", font=_pal.font(12, "bold"),
+                     text_color=self.text_primary).pack(pady=(16, 6), padx=16, anchor="w")
         self.lbl_advice_status = ctk.CTkLabel(
-            advisor_card,
-            text="Ready",
-            text_color=self.text_secondary,
-            font=_pal.font(11),
-            wraplength=240,
-            justify="left"
-        )
+            advisor_card, text="Distribution width, bimodality, log-normal fit, sample size and process hints.",
+            text_color=self.text_secondary, font=_pal.font(11), wraplength=240, justify="left")
         self.lbl_advice_status.pack(pady=(0, 8), padx=16, anchor="w", fill="x")
-
         ctk.CTkButton(
-            advisor_card, text="Open Advisor", command=self.open_advisor_dialog,
-            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=26, font=_pal.font(12), text_color=_pal.TXT).pack(padx=16, pady=(0, 16), fill="x")
+            advisor_card, text="Interpret grain statistics", command=self.open_advisor_dialog,
+            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=26,
+            font=_pal.font(12), text_color=_pal.TXT).pack(padx=16, pady=(0, 16), fill="x")
 
-        # Hidden entries for settings (API key, Origin path) & model combo
+        # Hidden entry for the Origin path (read by the Origin export)
         self.entry_origin = ctk.CTkEntry(self.left_frame, height=1)
         detected = find_origin_exe_from_registry()
         if detected:
             self.entry_origin.insert(0, detected)
-        self.entry_api_key = ctk.CTkEntry(self.left_frame, show="*", height=1)
-        model_list = [
-            "gemini-3-flash-preview",
-            "gemini-2.5-flash",
-            "gemini-2.0-flash-exp",
-            "gemini-1.5-flash"
-        ]
-        self.combo_model = ctk.CTkComboBox(self.left_frame, values=model_list, height=1)
-        self.combo_model.set("gemini-3-flash-preview")
 
         # Spacer to push shortcuts to bottom
         spacer = ctk.CTkFrame(left_content, fg_color="transparent")
@@ -380,19 +329,6 @@ class AnalysisWindow(ctk.CTkToplevel):
         shortcuts_text = "M Save  •  N Discard  •  Z/X Undo/Redo\n[/] Size  •  P Eraser  •  Right-click Toggle"
         ctk.CTkLabel(shortcuts_card, text=shortcuts_text, justify="left",
                      text_color=_pal.TXT_DIM, font=_pal.font(11)).pack(padx=16, pady=(0, 12), anchor="w")
-
-    def open_nano_banana(self):
-        api_key = self.initial_api_key or self.entry_api_key.get().strip()
-        if api_key:
-            self.clipboard_clear()
-            self.clipboard_append(api_key)
-
-        url = (
-            "https://aistudio.google.com/app/prompts/new_chat"
-            "?model=models%2Fgemini-3-pro-image-preview"
-            "&prompt=Generate%20an%20image%20of%20a%20banana%20wearing%20a%20costume."
-        )
-        webbrowser.open_new_tab(url)
 
     def create_center_panel(self):
         self.center_frame = ctk.CTkFrame(self, corner_radius=0, fg_color=_pal.BG_WINDOW)
@@ -564,42 +500,15 @@ class AnalysisWindow(ctk.CTkToplevel):
                     data = json.load(f)
                     self.entry_origin.delete(0, "end")
                     self.entry_origin.insert(0, data.get("origin_path", ""))
-                    self.entry_api_key.delete(0, "end")
-                    self.entry_api_key.insert(0, data.get("api_key", ""))
-                    saved_model = data.get("model_name", "")
-                    if saved_model:
-                        self.combo_model.set(saved_model)
-                    saved_ratio = data.get("composition_ratio", "")
-                    if saved_ratio:
-                        self.comp_ratio_var.set(saved_ratio)
-                    self.use_antisolvent_var.set(True)
-                    saved_anti = data.get("antisolvent_condition", "")
-                    if saved_anti:
-                        self.antisolvent_var.set(saved_anti)
-                    saved_extra = data.get("extra_info", "")
-                    if saved_extra:
-                        self.extra_info_var.set(saved_extra)
-                    saved_model = data.get("advisor_model", "")
-                    if saved_model:
-                        self.advisor_model_var.set(saved_model)
-            except:
+            except Exception:
                 pass
 
     def save_settings(self):
-        data = {
-            "origin_path": self.entry_origin.get().strip(),
-            "api_key": self.entry_api_key.get().strip(),
-            "model_name": self.combo_model.get().strip(),
-            "composition_ratio": self.comp_ratio_var.get().strip(),
-            "use_antisolvent": bool(self.use_antisolvent_var.get()),
-            "antisolvent_condition": self.antisolvent_var.get().strip(),
-            "extra_info": self.extra_info_var.get().strip(),
-            "advisor_model": self.advisor_model_var.get().strip(),
-        }
+        data = {"origin_path": self.entry_origin.get().strip()}
         try:
             with open(self.config_file, "w") as f:
                 json.dump(data, f)
-        except:
+        except Exception:
             pass
 
     # =====================
@@ -662,9 +571,6 @@ class AnalysisWindow(ctk.CTkToplevel):
         if not self.records:
             self.canvas_hist.draw()
             self.current_mean_nm = None
-            self.lbl_advice_status.configure(text="Ready", text_color=self.text_secondary)
-            if hasattr(self, "list_advice"):
-                self.list_advice.delete(0, "end")
             self.advice_items = []
             return
         vals = [r["nm"] for r in self.records]
@@ -751,292 +657,24 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.canvas.create_image(0, 0, image=self.photo_img, anchor="nw")
 
     # =====================
-    # Process Advisor (Gemini)
+    # Interpretation (rule-based)
     # =====================
-    def _set_advice_status(self, text, color=None):
-        if color is None:
-            color = self.text_secondary
-        self.lbl_advice_status.configure(text=text, text_color=color)
-
-    def _append_chat(self, role, text):
-        if self._advisor_win is None or not self._advisor_win.winfo_exists():
-            return
-        if not hasattr(self, "chat_log"):
-            return
-        self.chat_log.configure(state="normal")
-        prefix = "You: " if role == "user" else "Gemini: "
-        self.chat_log.insert("end", f"{prefix}{text}\n\n")
-        self.chat_log.configure(state="disabled")
-        self.chat_log.see("end")
-
-    def _append_chat_rich(self, role, text):
-        if self._advisor_win is None or not self._advisor_win.winfo_exists():
-            return
-        if not hasattr(self, "chat_log"):
-            return
-        if text is None:
-            return
-        prefix = "You: " if role == "user" else "Gemini: "
-        self.chat_log.configure(state="normal")
-        self.chat_log.insert("end", prefix)
-        parts = re.split(r"(\[RED\].*?\[/RED\])", text, flags=re.IGNORECASE | re.DOTALL)
-        for part in parts:
-            if not part:
-                continue
-            m = re.match(r"\[RED\](.*?)\[/RED\]", part, flags=re.IGNORECASE | re.DOTALL)
-            if m:
-                self.chat_log.insert("end", m.group(1), ("red",))
-            else:
-                self.chat_log.insert("end", part)
-        self.chat_log.insert("end", "\n\n")
-        self.chat_log.configure(state="disabled")
-        self.chat_log.see("end")
-
-    def _append_chat_streamed(self, role, text, delay_ms=15, chunk_size=20):
-        if self._advisor_win is None or not self._advisor_win.winfo_exists():
-            return
-        if not hasattr(self, "chat_log"):
-            return
-
-        prefix = "You: " if role == "user" else "Gemini: "
-        self.chat_log.configure(state="normal")
-        self.chat_log.insert("end", prefix)
-        self.chat_log.configure(state="disabled")
-        self.chat_log.see("end")
-
-        chunks = [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
-
-        def _step(idx=0):
-            if self._advisor_win is None or not self._advisor_win.winfo_exists():
-                return
-            if not hasattr(self, "chat_log"):
-                return
-            if idx >= len(chunks):
-                self.chat_log.configure(state="normal")
-                self.chat_log.insert("end", "\n\n")
-                self.chat_log.configure(state="disabled")
-                self.chat_log.see("end")
-                return
-            self.chat_log.configure(state="normal")
-            self.chat_log.insert("end", chunks[idx])
-            self.chat_log.configure(state="disabled")
-            self.chat_log.see("end")
-            self.after(delay_ms, lambda: _step(idx + 1))
-
-        _step()
-
-    def _update_advice_list(self, items):
-        self.advice_items = items
-        if not items:
-            self._set_advice_status("No suggestions", _pal.ORANGE)
-            self._append_chat_rich("assistant", "No suggestions returned.")
-            return
-        msg = "\n".join([f"- {line}" for line in items])
-        self._append_chat_rich("assistant", msg)
-
-    def _build_context_text(self):
-        comp_ratio = self.comp_ratio_var.get().strip()
-        anti_text = self.antisolvent_var.get().strip()
-        extra_info = self._get_extra_info()
-        vals = [r["nm"] for r in self.records]
-        mean_nm = float(np.mean(vals)) if vals else 0.0
-        std_nm = float(np.std(vals)) if vals else 0.0
-        min_nm = float(np.min(vals)) if vals else 0.0
-        max_nm = float(np.max(vals)) if vals else 0.0
-        n = len(vals)
-        anti_part = f"Antisolvent condition: {anti_text}." if anti_text else "Antisolvent condition: not provided."
-        extra_part = f"Extra conditions: {extra_info}." if extra_info else "Extra conditions: not provided."
-        return (
-            f"Composition ratio: {comp_ratio}.\n"
-            f"{anti_part}\n"
-            f"{extra_part}\n"
-            f"Grain stats: N={n}, mean={mean_nm:.1f} nm, std={std_nm:.1f} nm, "
-            f"min={min_nm:.1f} nm, max={max_nm:.1f} nm."
-        )
-
-    def _get_extra_info(self):
-        if self._advisor_win is not None and self._advisor_win.winfo_exists():
-            if hasattr(self, "txt_extra_info"):
-                try:
-                    return self.txt_extra_info.get("1.0", "end").strip()
-                except Exception:
-                    pass
-        return self.extra_info_var.get().strip()
-
-    def _get_advisor_model(self):
-        model = self.advisor_model_var.get().strip()
-        if not model:
-            model = (self._advisor_models.get("Gemini") or [""])[0]
-        return model
-
-    def _call_gemini(self, model, api_key, prompt):
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        gmodel = genai.GenerativeModel(model)
-        resp = gmodel.generate_content(prompt)
-        return (resp.text or "").strip()
-
-    def _format_advisor_text(self, text):
-        # Remove markdown-like symbols and normalize into a readable list + summary
-        if not text:
-            return ""
-        cleaned = text.replace("***", "").replace("**", "").replace("*", "")
-        lines = [ln.strip() for ln in cleaned.splitlines() if ln.strip()]
-        out = []
-        idx = 1
-        in_summary = False
-        for ln in lines:
-            l = ln.lstrip("-•").strip()
-            if l.lower().startswith("summary") or l.startswith("Summary"):
-                in_summary = True
-                continue
-            if in_summary:
-                continue
-            out.append(f"{idx}) {l}")
-            idx += 1
-        return "\n".join(out)
-
     def open_advisor_dialog(self):
-        if self._advisor_win is not None and self._advisor_win.winfo_exists():
-            self._advisor_win.focus()
+        """Rule-based interpretation of the grain statistics plus process hints (3.4; replaced the
+        Gemini advisor): distribution width, bimodality, log-normal fit, sample size."""
+        if not self.records:
+            messagebox.showinfo("Interpretation", "Measure some grains first (Auto Segment or by hand).", parent=self)
             return
-
-        win = ctk.CTkToplevel(self)
-        win.title("Process Advisor")
-        win.geometry("520x540")
-        win.attributes("-topmost", True)
-        self._advisor_win = win
-
-        header = ctk.CTkFrame(win, fg_color="transparent")
-        header.pack(fill="x", padx=16, pady=(16, 8))
-        ctk.CTkLabel(header, text="Process Advisor", font=_pal.font(12, "bold")).pack(side="left")
-
-        ctk.CTkLabel(win, text="Composition", font=_pal.font(12, "bold")).pack(anchor="w", padx=16)
-        entry_comp = ctk.CTkEntry(win, textvariable=self.comp_ratio_var,
-                                  placeholder_text="FA:MA:Cs=0.8:0.1:0.1")
-        entry_comp.pack(fill="x", padx=16, pady=(4, 10))
-
-        model_row = ctk.CTkFrame(win, fg_color="transparent")
-        model_row.pack(fill="x", padx=16, pady=(0, 8))
-        model_row.grid_columnconfigure(0, weight=1)
-
-        ctk.CTkLabel(model_row, text="Gemini model", font=_pal.font(12, "bold")).pack(anchor="w")
-        self.combo_advisor_model = ctk.CTkComboBox(
-            model_row,
-            values=[],
-            command=lambda v: self.advisor_model_var.set(v),
-        )
-        self.combo_advisor_model.pack(fill="x", pady=(4, 0))
-
-        anti_row = ctk.CTkFrame(win, fg_color="transparent")
-        anti_row.pack(fill="x", padx=16, pady=(0, 6))
-        chk = ctk.CTkSwitch(
-            anti_row,
-            text="Antisolvent used",
-            variable=self.use_antisolvent_var,
-            command=lambda: toggle_anti_entry(),
-        )
-        chk.pack(side="left")
-        chk.configure(state="disabled")
-
-        entry_anti = ctk.CTkEntry(
-            win,
-            textvariable=self.antisolvent_var,
-            placeholder_text="Antisolvent (e.g., CB 150uL @ 15s)",
-        )
-        entry_anti.pack(fill="x", padx=16, pady=(0, 10))
-
-        ctk.CTkLabel(win, text="Extra conditions", font=_pal.font(12, "bold")).pack(anchor="w", padx=16)
-        self.txt_extra_info = ctk.CTkTextbox(win, height=90)
-        self.txt_extra_info.pack(fill="x", padx=16, pady=(4, 10))
-        if self.extra_info_var.get().strip():
-            self.txt_extra_info.insert("1.0", self.extra_info_var.get().strip())
-
-        def update_model_list():
-            models = self._advisor_models.get("Gemini", [])
-            if not models:
-                models = ["gemini-2.5-flash"]
-            self.combo_advisor_model.configure(values=models)
-            current = self.advisor_model_var.get().strip()
-            if current not in models:
-                current = models[0]
-                self.advisor_model_var.set(current)
-            self.combo_advisor_model.set(current)
-
-        def toggle_anti_entry():
-            if self.use_antisolvent_var.get():
-                entry_anti.configure(state="normal")
-            else:
-                self.antisolvent_var.set("")
-                entry_anti.configure(state="disabled")
-
-        update_model_list()
-        toggle_anti_entry()
-
-        def on_close():
-            self.extra_info_var.set(self._get_extra_info())
-            win.destroy()
-
-        win.protocol("WM_DELETE_WINDOW", on_close)
-
-        btn_row = ctk.CTkFrame(win, fg_color="transparent")
-        btn_row.pack(fill="x", padx=16, pady=(0, 8))
-        self.btn_advice = ctk.CTkButton(
-            btn_row, text="Get Suggestions", command=self.get_process_advice,
-            fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER, corner_radius=_pal.R_PILL, height=26, font=_pal.font(12), text_color=_pal.TXT)
-        self.btn_advice.pack(side="left", fill="x", expand=True)
-
-        status = ctk.CTkLabel(
-            win,
-            text="Ready",
-            text_color=self.text_secondary,
-            font=_pal.font(11),
-            wraplength=460,
-            justify="left"
-        )
-        status.pack(padx=16, pady=(0, 6), anchor="w", fill="x")
-        self.lbl_advice_status = status
-
-        chat_frame = ctk.CTkFrame(win, fg_color=_pal.BG_SUB, corner_radius=_pal.R_PILL)
-        chat_frame.pack(padx=16, pady=(0, 10), fill="both", expand=True)
-        chat_frame.grid_rowconfigure(0, weight=1)
-        chat_frame.grid_columnconfigure(0, weight=1)
-
-        self.chat_log = tk.Text(
-            chat_frame,
-            height=10,
-            bg=_pal.BG_CARD,
-            fg=_pal.TXT,
-            wrap="word",
-            highlightthickness=0,
-            spacing1=4,
-            spacing2=2,
-            spacing3=6,
-        )
-        self.chat_log.tag_config("red", foreground=_pal.RED)
-        self.chat_log.grid(row=0, column=0, sticky="nsew", padx=(6, 0), pady=6)
-        chat_scroll = ctk.CTkScrollbar(chat_frame, orientation="vertical", command=self.chat_log.yview)
-        chat_scroll.grid(row=0, column=1, sticky="ns", padx=6, pady=6)
-        self.chat_log.configure(yscrollcommand=chat_scroll.set, state="disabled")
-
-        input_row = ctk.CTkFrame(win, fg_color="transparent")
-        input_row.pack(fill="x", padx=16, pady=(0, 16))
-        input_row.grid_columnconfigure(0, weight=1)
-
-        self.entry_chat = ctk.CTkEntry(input_row, placeholder_text="Enter a question or comment...")
-        self.entry_chat.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        self.entry_chat.bind("<Return>", lambda e: self.send_chat_message())
-
-        ctk.CTkButton(
-            input_row, text="Send", command=self.send_chat_message,
-            fg_color=self.accent_blue, hover_color=_pal.ACCENT_HOV, corner_radius=_pal.R_PILL, height=26
-        ).grid(row=0, column=1)
-
-        if self.chat_history:
-            for msg in self.chat_history:
-                self._append_chat(msg["role"], msg["content"])
-        elif self.advice_items:
-            self._update_advice_list(self.advice_items)
+        from scripts.common import interpret as _interp
+        from scripts.common import interpret_window as _iw
+        d = np.array([r["nm"] for r in self.records], float)
+        rep = _interp.interpret_sem(d, subject=os.path.basename(getattr(self, "img_path", "") or ""))
+        for tip in self._fallback_advice(float(d.mean()), float(d.std(ddof=1)) if len(d) > 1 else 0.0,
+                                         float(d.min()), float(d.max()), len(d)):
+            rep.add("note", "Process hint", tip, f"mean {d.mean():.0f} nm, sd {d.std(ddof=1) if len(d) > 1 else 0:.0f} nm",
+                    "rule of thumb for solution-processed films (grain size and spread)")
+        self.lbl_advice_status.configure(text=rep.summary())
+        _iw.show(self, rep)
 
     def _fallback_advice(self, mean_nm, std_nm, min_nm, max_nm, n):
         tips = []
@@ -1054,166 +692,6 @@ class AnalysisWindow(ctk.CTkToplevel):
         tips.append("Adjust precursor concentration and solvent ratio to control nucleation density.")
         tips.append("If film roughness is high, reduce antisolvent amount or switch to a milder antisolvent.")
         return tips[:5]
-
-    def get_process_advice(self):
-        # Ensure chat window is visible for live interaction
-        if self._advisor_win is None or not self._advisor_win.winfo_exists():
-            self.open_advisor_dialog()
-
-        comp_ratio = self.comp_ratio_var.get().strip()
-        if not comp_ratio:
-            messagebox.showwarning("Advisor", "Enter a composition ratio first.")
-            return
-        if self.current_mean_nm is None or not self.records:
-            messagebox.showwarning("Advisor", "Mean grain size is not available yet.")
-            return
-
-        self.extra_info_var.set(self._get_extra_info())
-
-        api_key = self.passed_api_key or self.entry_api_key.get().strip()
-        model_name = self._get_advisor_model()
-        if not api_key:
-            messagebox.showwarning("Advisor", "API Key Required")
-            return
-
-        self.save_settings()
-        self.btn_advice.configure(state="disabled", text="Analyzing...")
-        self._set_advice_status("Connecting to Gemini...", _pal.ORANGE)
-
-        def _worker():
-            try:
-                import google.generativeai as genai
-            except ImportError:
-                msg = "Missing dependency: google-generativeai"
-                self.after(0, lambda: messagebox.showerror("Advisor", msg))
-                vals = [r["nm"] for r in self.records]
-                mean_nm = float(np.mean(vals)) if vals else 0.0
-                std_nm = float(np.std(vals)) if vals else 0.0
-                min_nm = float(np.min(vals)) if vals else 0.0
-                max_nm = float(np.max(vals)) if vals else 0.0
-                n = len(vals)
-                tips = self._fallback_advice(mean_nm, std_nm, min_nm, max_nm, n)
-                self.after(0, lambda: self._update_advice_list(tips))
-                self.after(0, lambda: self._set_advice_status("Fallback suggestions", _pal.ORANGE))
-                self.after(0, lambda: self.btn_advice.configure(state="normal", text="Get Suggestions"))
-                return
-
-            error_msg = ""
-            try:
-                prompt = (
-                    "You are a process advisor for SEM grain size optimization. "
-                    "Given composition ratio and current SEM grain statistics, suggest practical changes. "
-                    "Respond in English with detailed, structured guidance like a lab mentor. "
-                    "Include rationale, expected effects, and potential trade-offs. "
-                    "Provide exactly 3 high-impact strategies (no more). Do NOT add a summary.\n"
-                    "Highlight important phrases by wrapping with [RED]...[/RED].\n"
-                    "Do NOT use markdown or special symbols (no *, **, ***, #, bullets). Plain text only.\n\n"
-                    f"{self._build_context_text()}"
-                )
-                full = self._call_gemini(model_name, api_key, prompt)
-                if not (full or "").strip():
-                    raise RuntimeError("Empty response from Gemini.")
-                formatted = self._format_advisor_text(full)
-                items = [line.strip() for line in formatted.splitlines() if line.strip()]
-            except Exception as e:
-                error_msg = str(e)
-                items = []
-
-            if not items:
-                vals = [r["nm"] for r in self.records]
-                mean_nm = float(np.mean(vals)) if vals else 0.0
-                std_nm = float(np.std(vals)) if vals else 0.0
-                min_nm = float(np.min(vals)) if vals else 0.0
-                max_nm = float(np.max(vals)) if vals else 0.0
-                n = len(vals)
-                items = self._fallback_advice(mean_nm, std_nm, min_nm, max_nm, n)
-                status = "Fallback suggestions"
-                if error_msg:
-                    status = f"Fallback suggestions (Gemini error: {error_msg})"
-                self.after(0, lambda s=status: self._set_advice_status(s, _pal.ORANGE))
-            else:
-                self.after(0, lambda: self._set_advice_status("Suggestions ready", self.text_secondary))
-
-            if items:
-                msg = "\n".join(items)
-                self.after(0, lambda t=msg: self._append_chat_rich("assistant", t))
-                self.chat_history.append({"role": "assistant", "content": msg})
-            else:
-                self.after(0, lambda: self._append_chat_rich("assistant", "No suggestions returned."))
-            self.after(0, lambda: self.btn_advice.configure(state="normal", text="Get Suggestions"))
-
-        threading.Thread(target=_worker, daemon=True).start()
-
-    def send_chat_message(self):
-        if not hasattr(self, "entry_chat"):
-            return
-        msg = self.entry_chat.get().strip()
-        if not msg:
-            return
-        if self.current_mean_nm is None or not self.records:
-            messagebox.showwarning("Advisor", "Mean grain size is not available yet.")
-            return
-
-        api_key = self.passed_api_key or self.entry_api_key.get().strip()
-        model_name = self._get_advisor_model()
-        if not api_key:
-            messagebox.showwarning("Advisor", "API Key Required")
-            return
-
-        self.extra_info_var.set(self._get_extra_info())
-        self.entry_chat.delete(0, "end")
-        self.chat_history.append({"role": "user", "content": msg})
-        self._append_chat("user", msg)
-        self._set_advice_status("Thinking...", _pal.ORANGE)
-
-        def _worker():
-            try:
-                import google.generativeai as genai
-            except ImportError:
-                reply = "Required library is missing. (install google-generativeai)"
-                self.after(0, lambda: self._append_chat_rich("assistant", reply))
-                self.after(0, lambda: self._set_advice_status("Fallback", _pal.ORANGE))
-                return
-
-            error_msg = ""
-            try:
-                history_text = ""
-                for h in self.chat_history[-6:]:
-                    role = "User" if h["role"] == "user" else "Assistant"
-                    history_text += f"{role}: {h['content']}\n"
-                prompt = (
-                    "You are a process advisor for SEM grain size optimization. "
-                    "Respond in English with detailed, structured guidance like a lab mentor. "
-                    "Be technical and practical. "
-                    "If the question is complex, answer with best-effort reasoning and note assumptions; "
-                    "do NOT ask the user to simplify. If information is missing, ask one targeted question "
-                    "and still provide actionable guidance. "
-                    "Include rationale, expected effects, and potential trade-offs. "
-                    "Provide exactly 3 high-impact strategies (no more). Do NOT add a summary.\n"
-                    "Highlight important phrases by wrapping with [RED]...[/RED].\n"
-                    "Do NOT use markdown or special symbols (no *, **, ***, #, bullets). Plain text only.\n\n"
-                    f"{self._build_context_text()}\n\n"
-                    f"Conversation:\n{history_text}\n"
-                    "Assistant:"
-                )
-                reply = self._call_gemini(model_name, api_key, prompt)
-            except Exception as e:
-                error_msg = str(e)
-                reply = "Failed to generate a response. Try describing the conditions more simply."
-
-            if not (reply or "").strip():
-                if not error_msg:
-                    error_msg = "Empty response"
-                reply = "Failed to generate a response. I will still estimate as best I can. Providing key conditions (composition/solvent/spin/annealing) improves accuracy."
-            reply = self._format_advisor_text(reply)
-            self.chat_history.append({"role": "assistant", "content": reply})
-            self.after(0, lambda t=reply: self._append_chat_rich("assistant", t))
-            if error_msg:
-                self.after(0, lambda s=f"Fallback reply (Gemini error: {error_msg})": self._set_advice_status(s, _pal.ORANGE))
-            else:
-                self.after(0, lambda: self._set_advice_status("Ready", self.text_secondary))
-
-        threading.Thread(target=_worker, daemon=True).start()
 
     def on_zoom(self, e):
         if self.cv_bgr is None:
@@ -1719,167 +1197,6 @@ class AnalysisWindow(ctk.CTkToplevel):
                 self.after(0, lambda err=str(e): messagebox.showerror("Error", err))
 
         threading.Thread(target=_worker, daemon=True).start()
-
-    # =====================
-    # Gemini Auto-Detection
-    # =====================
-    def run_gemini_detection(self):
-        self.save_settings()
-        api_key = self.passed_api_key or self.entry_api_key.get().strip()
-        model_name = self.combo_model.get().strip()
-
-        if not api_key:
-            messagebox.showwarning("Gemini", "API Key Required")
-            return
-        if self.cv_bgr is None:
-            messagebox.showwarning("Gemini", "Load Image First")
-            return
-
-        try:
-            import google.generativeai as genai
-        except ImportError:
-            messagebox.showerror("Error", "pip install google-generativeai needed")
-            return
-
-        # Progress Popup
-        self.progress_window = ctk.CTkToplevel(self)
-        self.progress_window.title("Interpretation")
-        self.progress_window.geometry("300x150")
-        self.progress_window.attributes("-topmost", True)
-
-        lbl_info = ctk.CTkLabel(self.progress_window, text="Initializing...", font=_pal.font(11))
-        lbl_info.pack(pady=20)
-
-        pbar = ctk.CTkProgressBar(self.progress_window, width=250)
-        pbar.pack(pady=10)
-        pbar.set(0)
-
-        self.btn_gemini.configure(state="disabled")
-
-        def update_popup(text, val):
-            if self.progress_window.winfo_exists():
-                lbl_info.configure(text=text)
-                pbar.set(val)
-
-        def _worker():
-            try:
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel(model_name)
-
-                safety = [
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-                ]
-
-                # 1. Tiling
-                self.after(0, lambda: update_popup("Tiling Image...", 0.1))
-                tiles = get_tiles(self.cv_bgr, grid=(2, 2), overlap=100)
-                all_points = []
-
-                total_tiles = len(tiles)
-                start_time = time.time()
-
-                for i, (tile_img, off_x, off_y) in enumerate(tiles):
-                    elapsed = time.time() - start_time
-                    if i > 0:
-                        avg_t = elapsed / i
-                        rem_t = avg_t * (total_tiles - i)
-                        eta = f"{int(rem_t)}s"
-                    else:
-                        eta = "..."
-
-                    prog = 0.1 + 0.8 * (i / total_tiles)
-                    msg = f"Analyzing... {int(prog * 100)}% (ETA: {eta})"
-                    self.after(0, lambda m=msg, p=prog: update_popup(m, p))
-
-                    th, tw = tile_img.shape[:2]
-                    scale = 1.0
-                    if max(th, tw) > 1024:
-                        scale = 1024 / max(th, tw)
-                        tile_resized = cv2.resize(tile_img, (0, 0), fx=scale, fy=scale)
-                    else:
-                        tile_resized = tile_img
-
-                    rgb = cv2.cvtColor(tile_resized, cv2.COLOR_BGR2RGB)
-                    pil_img = Image.fromarray(rgb)
-
-                    prompt = (
-                        "Detect the center [x, y] of EVERY SINGLE grain in this SEM image tile. "
-                        "Do NOT miss small grains. "
-                        "Return ONLY JSON: { \"points\": [[x1, y1], [x2, y2], ...] }"
-                    )
-
-                    try:
-                        resp = model.generate_content([prompt, pil_img], safety_settings=safety)
-                        txt = resp.text.strip()
-                        match = re.search(r'\{.*\}', txt, re.DOTALL)
-                        if match:
-                            txt = match.group(0)
-
-                        if not txt.endswith("}"):
-                            txt += "]}"
-                        data = json.loads(txt)
-
-                        for pt in data.get("points", []):
-                            gx = int(pt[0] / scale) + off_x
-                            gy = int(pt[1] / scale) + off_y
-                            all_points.append((gx, gy))
-
-                    except Exception as e:
-                        print(f"Tile {i} error: {e}")
-                        continue
-
-                    time.sleep(1.0)
-
-                # 2. Remove duplicates
-                self.after(0, lambda: update_popup("Merging Results...", 0.95))
-                final_pts = remove_duplicate_points(all_points, threshold=20)
-
-                if not final_pts:
-                    raise Exception("No grains found")
-
-                self.after(0, lambda: self._process_gemini_results(final_pts))
-                self.after(0, lambda: self.progress_window.destroy())
-                self.after(0, lambda: messagebox.showinfo("Done", f"Detected {len(final_pts)} grains."))
-
-            except Exception as e:
-                self.after(0, lambda: self.progress_window.destroy())
-                self.after(0, lambda err=str(e): messagebox.showerror("Gemini Error", err))
-            finally:
-                self.after(0, lambda: self.btn_gemini.configure(state="normal"))
-
-        threading.Thread(target=_worker, daemon=True).start()
-
-    def _process_gemini_results(self, points):
-        count = 0
-        h, w = self.cv_bgr.shape[:2]
-
-        for pt in points:
-            x, y = int(pt[0]), int(pt[1])
-            if 0 <= x < w and 0 <= y < h:
-                if is_point_in_existing(self.records, x, y):
-                    continue
-
-                self._perform_auto_segment(x, y)
-
-                if self.mask is not None:
-                    if check_mask_overlap(self.records, self.mask):
-                        self.mask = None
-                        self.mode_edit = False
-                        self.update_display()
-                        continue
-
-                    _, _, eq_d_nm = area_and_eq_diameter(self.mask, self.nm_per_px)
-                    if eq_d_nm < 100.0:
-                        self.mask = None
-                        self.mode_edit = False
-                        self.update_display()
-                        continue
-
-                    self.save_grain()
-                    count += 1
 
 
 # =========================

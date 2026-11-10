@@ -69,14 +69,13 @@ def _shunt_text(value, unit: str = " Ω") -> str:
 
 
 class DarkAnalysisWindow(ctk.CTkToplevel):
-    def __init__(self, parent, origin_path="", api_key=""):
+    def __init__(self, parent, origin_path=""):
         super().__init__(parent)
         self.title("Dark J-V Curve Analysis")
         self.geometry("1200x800")
 
         # Data from main window
         self.passed_origin_path = origin_path
-        self.passed_api_key = api_key
 
         # Settings
         self.settings = DarkJVSettings()
@@ -127,7 +126,8 @@ class DarkAnalysisWindow(ctk.CTkToplevel):
                     "excel": ("Excel", self.open_excel),
                     "png": True,
                     "report": ("Report", self.export_report),
-                    "origin": ("Origin", self.send_iv_to_origin)
+                    "origin": ("Origin", self.send_iv_to_origin),
+                    "ai": ("Interpretation", self._interpret),
                 }, hints="Wheel: zoom (Ctrl = x only, Shift = y only)  |  Drag: pan  |  Double-click: auto range  |  "
                          "F2: rename sample  |  Right-click: table and plot menus")
             except Exception as _ce:
@@ -882,6 +882,16 @@ class DarkAnalysisWindow(ctk.CTkToplevel):
     # =====================
     # Actions
     # =====================
+    def _interpret(self):
+        """Rule-based interpretation of the selected sample (or of all samples)."""
+        if not self.processed_data:
+            messagebox.showinfo("Interpretation", "Process a folder first.", parent=self)
+            return
+        from scripts.common import interpret as _interp
+        from scripts.common import interpret_window as _iw
+        _iw.show(self, _interp.interpret_dark_results(self.processed_data.get('summary_df'),
+                                                       selected=self.selected_sample))
+
     def export_report(self):
         if not self.processed_data:
             messagebox.showwarning("Report", "Process a folder first.")

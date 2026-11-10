@@ -24,14 +24,11 @@ def build_default_configs():
         use_noise_based_prominence=True, noise_k=8.0,
         min_peak_separation_x=0.15,
         overlap_merge_dx=0.8, region_half_width=2.0, fit_pad=3.5,
-        use_gemini=False,
     )
 
     # ===== PL =====
     pl_cfg = PipelineConfig(
         technique="PL",
-        use_gemini=True,  # PL now supports Gemini AI
-        gemini_model="gemini-2.5-flash",
         pl_enable_aic=True,
         pl_max_peaks=3,
         pl_defect_fwhm_threshold=0.25,
@@ -45,7 +42,6 @@ def build_default_configs():
         min_peak_separation_x=0.6,
         overlap_merge_dx=1.5, region_half_width=3.0, fit_pad=3.0,
         xps_background="shirley",
-        use_gemini=False,
     )
 
     return xrd_cfg, pl_cfg, xps_cfg

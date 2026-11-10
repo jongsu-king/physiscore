@@ -79,7 +79,7 @@ Physiscore/install.sh          # installs for the current user, no root
 removes all three. You can also run `Physiscore/Physiscore` without installing.
 Settings live in `~/.config/Physiscore`.
 
-The Origin export (Windows COM automation) is available on Windows only; every analysis and the CSV/Excel/PNG exports work on all three systems. The optional AI report needs `GEMINI_API_KEY` or a key entered in ⚙ Settings.
+The Origin export (Windows COM automation) is available on Windows only; every analysis and the CSV/Excel/PNG exports work on all three systems. The interpretation panels are rule-based and work offline on every system; no account or key is needed.
 
 ## From source (Python)
 

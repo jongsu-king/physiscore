@@ -135,46 +135,9 @@ class AIResultDialog(ctk.CTkToplevel):
         self.lbl_status.configure(text="Copied to clipboard!", text_color=_pal.GREEN)
         self.after(2000, lambda: self.lbl_status.configure(text=""))
 
-class AIConfigDialog(ctk.CTkToplevel):
-    def __init__(self, parent, api_key, on_confirm):
-        super().__init__(parent)
-        self.title("Interpretation settings")
-        self.geometry("500x400")
-        self.api_key = api_key
-        self.on_confirm = on_confirm
-        self.attributes('-topmost', True)
-        
-        ctk.CTkLabel(self, text="Select Gemini Model:", font=_pal.font(12, "bold")).pack(pady=(20, 5))
-        self.combo_model = ctk.CTkComboBox(self, values=["Fetching models..."], width=300)
-        self.combo_model.pack(pady=5)
-        
-        ctk.CTkLabel(self, text="Sample Context / Additional Info:", font=_pal.font(12, "bold")).pack(pady=(15, 5))
-        self.txt_context = ctk.CTkTextbox(self, width=400, height=150)
-        self.txt_context.pack(pady=5)
-        
-        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28, text_color=_pal.TXT).pack(pady=20)
-        
-        threading.Thread(target=self.fetch_models, daemon=True).start()
-        
-    def fetch_models(self):
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=self.api_key)
-            models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            if not models: models = ["models/gemini-2.5-flash"]
-            self.after(0, lambda: self.combo_model.configure(values=models))
-            self.after(0, lambda: self.combo_model.set(models[0]))
-        except: self.after(0, lambda: self.combo_model.configure(values=["models/gemini-2.5-flash"]))
-
-    def on_click_run(self):
-        self.on_confirm(self.combo_model.get(), self.txt_context.get("1.0", "end").strip())
-        self.destroy()
-
 class XRDAnalysisTab(ctk.CTkFrame):
-    def __init__(self, parent, api_key_var, model_var, origin_path=""):
+    def __init__(self, parent, origin_path=""):
         super().__init__(parent, fg_color=COL_BG)
-        self.api_key_var = api_key_var # linked to the main GUI API key
-        self.model_var = model_var
         self.origin_path = origin_path
         self.current_peaks_df = pd.DataFrame()
         self.x_data = None
@@ -466,37 +429,25 @@ class XRDAnalysisTab(ctk.CTkFrame):
             self.log(f"Analysis Error: {e}")
 
     def trigger_ai(self):
-        if self.current_peaks_df.empty: return
-        if not self.api_key_var.get():
-            messagebox.showwarning("Warning", "API Key is missing.")
+        """Rule-based interpretation (3.4; replaced Gemini): sizes, Williamson-Hall strain, phase
+        identification, unassigned reflections against common secondary phases, texture."""
+        if self.current_peaks_df is None or self.current_peaks_df.empty:
+            messagebox.showinfo("Interpretation", "Run the fitting first.", parent=self)
             return
+        from scripts.common import interpret as _interp
+        from scripts.common import interpret_window as _iw
+        wh = self.wh_result
+        if wh is None:
+            try:
+                inst, K = self._analysis_options()
+                d2 = self.current_peaks_df
+                wh = xrd_core.williamson_hall(d2["2Theta"].values, d2["FWHM"].values, instrumental_fwhm_deg=inst, k=K)
+            except Exception:
+                wh = None
+        ci = (self.ci_result or {}).get("CI_percent") if isinstance(getattr(self, "ci_result", None), dict) else None
+        _iw.show(self, _interp.interpret_xrd(self.current_peaks_df, wh=wh,
+                                             match=getattr(self, "reference_match", None), crystallinity=ci))
 
-        AIConfigDialog(self, self.api_key_var.get(), self.start_ai_thread)
-
-    def start_ai_thread(self, model, context):
-        self.log(f"Requesting AI analysis ({model})...")
-        self.btn_ai.configure(state="disabled")
-        api_key = self.api_key_var.get()
-        threading.Thread(target=self._run_ai_analysis, args=(api_key, model, context), daemon=True).start()
-
-    def _run_ai_analysis(self, api_key, model, context):
-        try:
-            comment = xrd_core.analyze_with_gemini(
-                api_key, 
-                model, 
-                context, 
-                self.current_peaks_df.head(10)
-            )
-            self.after(0, lambda: self.update_ai_ui(comment))
-        except Exception as e:
-            self.after(0, lambda err=str(e): self.update_ai_ui(f"Error: {err}"))
-
-    def update_ai_ui(self, text):
-        self.log("Interpretation Complete.")
-        # Show Result in Popup
-        AIResultDialog(self, "XRD Interpretation", text)
-        self.btn_ai.configure(state="normal")
-        
     def plot_to_origin(self):
         if self.x_data is None: return
         self.log("Connecting to Origin...")
@@ -945,16 +896,14 @@ class XRDAnalysisTab(ctk.CTkFrame):
 
 # Main Window Wrapper
 class AnalysisWindow(ctk.CTkToplevel):
-    def __init__(self, parent, origin_path="", api_key=""):
+    def __init__(self, parent, origin_path=""):
         super().__init__(parent)
         self.title("XRD Analysis")
         self.geometry("1100x750")
         
         # Variables
-        self.api_key_var = ctk.StringVar(value=api_key)
-        self.model_var = ctk.StringVar(value="gemini-2.5-flash")
         
-        self.tab = XRDAnalysisTab(self, self.api_key_var, self.model_var, origin_path)
+        self.tab = XRDAnalysisTab(self, origin_path)
         self.tab.pack(fill="both", expand=True)
 
         # Shared chrome: common toolbar/status bar across all tools (unified button order/position)

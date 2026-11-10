@@ -48,7 +48,7 @@ def package_modules(*packages):
 hiddenimports = (
     package_modules("scripts", "spectra")
     + ["selfupdate", "physiscore_cli", "PIL._tkinter_finder", "matplotlib.backends.backend_tkagg",
-       "pybaselines", "lmfit", "pydantic", "openpyxl", "xlrd", "cycler"]
+       "pybaselines", "lmfit", "openpyxl", "xlrd", "cycler"]
 )
 if sys.platform == "win32":
     hiddenimports += ["win32com", "win32com.client"]
@@ -58,7 +58,7 @@ a = Analysis(
     pathex=[str(ROOT)],
     datas=datas,
     hiddenimports=hiddenimports,
-    excludes=["pytest", "IPython", "PyQt5", "PyQt6", "PySide6", "_legacy"],
+    excludes=["pytest", "IPython", "PyQt5", "PyQt6", "PySide6", "_legacy", "google.generativeai", "google.genai"],
 )
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Physiscore", console=False, icon=icon)

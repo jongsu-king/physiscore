@@ -4,12 +4,6 @@ pl_core.py - Fixed Origin Connection & Gaussian Fit Visualization
 import pandas as pd
 from typing import Any, Dict, Optional
 import numpy as np
-try:
-    import google.generativeai as genai
-    GENAI_AVAILABLE = True
-except Exception:
-    genai = None
-    GENAI_AVAILABLE = False
 from scipy.signal import find_peaks, savgol_filter
 from scipy.integrate import simpson
 from scipy import sparse
@@ -342,38 +336,6 @@ def calculate_quenching_efficiency_integral(x, y_sample, y_ref):
         return 0.0, A_sample, A_ref
     eta = (A_ref - A_sample) / A_ref
     return eta, A_sample, A_ref
-
-def analyze_pl_with_gemini(api_key, model_name, context, data_summary):
-    if genai is None:
-        raise RuntimeError("google-generativeai package is not installed. (pip install google-generativeai)")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
-    prompt = f"""
-    You are an expert in semiconductor photoluminescence (PL). Analyze the
-    following PL analysis results and provide a concise interpretation.
-
-    User context: {context}
-
-    Data (per-sample peak position, FWHM, max intensity, and quenching
-    efficiency computed both by peak height and by integrated area):
-    {data_summary}
-
-    Please cover:
-    1. Peak position and any shifts (band gap / defect / strain implications).
-    2. FWHM changes (crystallinity / disorder).
-    3. Quenching efficiency: compare the peak-based and integral-based values;
-       if they differ notably, explain why (peak shift or width change) and
-       which is more reliable here.
-    4. Overall interpretation for solar-cell / thin-film quality.
-
-    Keep the answer clear and well-structured in English.
-    """
-    try:
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"AI analysis failed: {e}"
-
 
 # =========================
 # Energy axis, multi-component fitting and peak metrics

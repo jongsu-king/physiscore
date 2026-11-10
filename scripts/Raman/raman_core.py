@@ -7,14 +7,6 @@ import os
 
 from scripts.common.origin import WIN32COM_AVAILABLE, connect_to_origin
 from scipy.signal import find_peaks
-try:
-    import google.generativeai as genai
-    GENAI_AVAILABLE = True
-except Exception:
-    genai = None
-    GENAI_AVAILABLE = False
-import json
-import re
 
 def load_data(file_path, max_layers=10):
     try:
@@ -70,70 +62,6 @@ def detect_peaks(wavenumbers, intensities):
     peak_indices, _ = find_peaks(intensities, prominence=data_range * 0.02)
     peaks = wavenumbers[peak_indices]
     return peaks, peak_indices
-
-def analyze_with_gemini(api_key, model_name, context, peaks, peak_indices, intensities):
-    if genai is None:
-        raise RuntimeError("google-generativeai package is not installed. (pip install google-generativeai)")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
-    
-    min_T, max_T = intensities.min(), intensities.max()
-    range_T = max_T - min_T
-    peak_details = []
-
-    for idx, wn in zip(peak_indices, peaks):
-        val = intensities[idx]
-        # Raman: Higher value = Stronger signal
-        rel_str = (val - min_T) / range_T if range_T != 0 else 0
-        s_str = "Very Strong" if rel_str > 0.8 else "Strong" if rel_str > 0.5 else "Medium" if rel_str > 0.2 else "Weak"
-        peak_details.append(f"{{Wavenumber: {wn:.1f}, Strength: {s_str}}}")
-
-    prompt = f"""
-    You are an expert in Raman Spectroscopy. Analyze the following peaks.
-
-    [Sample Context]
-    {context}
-
-    [Detected Peaks (cm-1)]
-    {chr(10).join(peak_details)}
-    
-    [Task]
-    Analyze peaks for Raman spectroscopy assignment. Provide the description in **English**.
-    Return JSON list: [{{ "wavenumber": float, "assignment": str, "material": str, "description": str, "confidence": str, "other_possibilities": str }}]
-    """
-    
-    response = model.generate_content(prompt)
-    clean = re.sub(r"```json|```", "", response.text).strip()
-    try:
-        return json.loads(clean)
-    except:
-        start = clean.find('[')
-        end = clean.rfind(']') + 1
-        if start != -1 and end != -1: return json.loads(clean[start:end])
-        return []
-
-def analyze_peak_shift(api_key, model_name, context, name_a, pa, name_b, pb):
-    if genai is None:
-        raise RuntimeError("google-generativeai package is not installed. (pip install google-generativeai)")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
-    shift = pb - pa
-    prompt = f"""
-    Context: {context}
-    Compare (Raman): {name_a} ({pa:.1f}) vs {name_b} ({pb:.1f})
-    Shift: {shift:.2f} cm-1
-    Explain chemical cause (e.g., stress, crystallinity, temperature, doping) in English (Focus on Raman).
-    Provide a detailed explanation and a summary. 
-    Return JSON: {{ "shift_value": float, "shift_type": str, "cause": str, "detailed_explanation": str, "summary": str, "implication": str }}
-    """
-    response = model.generate_content(prompt)
-    clean = re.sub(r"```json|```", "", response.text).strip()
-    try:
-        return json.loads(clean)
-    except:
-        start = clean.find('{')
-        end = clean.rfind('}') + 1
-        return json.loads(clean[start:end]) if start != -1 else {"error": "Parsing failed"}
 
 def save_all_layers_to_excel(file_path, layers):
     all_data = []

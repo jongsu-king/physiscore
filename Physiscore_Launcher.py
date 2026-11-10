@@ -26,7 +26,7 @@ from scripts.common import app_config  # noqa: E402
 from scripts.common import palette as _pal  # noqa: E402
 
 CONFIG_FILE = app_config.config_path()
-APP_VERSION = "3.3.1"
+APP_VERSION = "3.4.0"
 REPO_URL = "https://github.com/jongsu-king/physiscore"
 
 ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
@@ -235,23 +235,6 @@ class SettingsDialog(ctk.CTkToplevel):
                       text_color=_pal.TXT, corner_radius=_pal.R_PILL, font=_pal.font(11),
                       command=self._browse).pack(side="left", padx=(8, 0))
 
-        # API key
-        label("Gemini API key (optional; enables the interpretation panels only)")
-        row2 = ctk.CTkFrame(body, fg_color="transparent")
-        row2.pack(fill="x", padx=16)
-        self.ent_key = field("AIza...", show="*")
-        self.ent_key.pack(side="left", fill="x", expand=True)
-        if parent.gemini_api_key:
-            self.ent_key.insert(0, parent.gemini_api_key)
-        self._shown = False
-        ctk.CTkButton(row2, text="Show", width=64, height=28, fg_color=_pal.BG_SUB,
-                      hover_color=_pal.BG_HOVER, border_width=1, border_color=_pal.BORDER_HI,
-                      text_color=_pal.TXT, corner_radius=_pal.R_PILL, font=_pal.font(11),
-                      command=self._toggle_show).pack(side="left", padx=(8, 0))
-        ctk.CTkLabel(body, text="Stored only in physisfera_config.json on this computer. "
-                                "No numerical result depends on it.",
-                     font=_pal.font(10), text_color=_pal.TXT_DIM, anchor="w").pack(fill="x", padx=16)
-
         # theme
         label("Appearance (applies after restart)")
         self.theme_var = ctk.StringVar(value=_pal.THEME.capitalize())
@@ -290,10 +273,6 @@ class SettingsDialog(ctk.CTkToplevel):
             self.ent_origin.delete(0, "end")
             self.ent_origin.insert(0, path)
 
-    def _toggle_show(self):
-        self._shown = not self._shown
-        self.ent_key.configure(show="" if self._shown else "*")
-
     def _save(self):
         try:
             area = float(self.ent_area.get())
@@ -303,7 +282,6 @@ class SettingsDialog(ctk.CTkToplevel):
             messagebox.showwarning("Settings", "The device area must be a positive number (cm²).", parent=self)
             return
         self.parent.origin_path = self.ent_origin.get().strip()
-        self.parent.gemini_api_key = self.ent_key.get().strip()
         theme = self.theme_var.get().lower()
         colors = "origin" if self.colors_var.get() == "Origin" else "colorblind"
         self.parent.save_config(extra={"cell_area_cm2": area, "theme": theme, "plot_colors": colors})
@@ -327,7 +305,6 @@ class LauncherApp(ctk.CTk):
         self.configure(fg_color=_pal.BG_WINDOW)
 
         self.origin_path = ""
-        self.gemini_api_key = ""
         self.load_config()
 
         self.logo_dir = resource_dir("logo")
@@ -356,22 +333,17 @@ class LauncherApp(ctk.CTk):
     def load_config(self):
         data = app_config.load(refresh=True)
         self.origin_path = data.get("origin_path", "")
-        self.gemini_api_key = data.get("gemini_api_key", "")
-        if self.gemini_api_key:
-            os.environ["GEMINI_API_KEY"] = self.gemini_api_key
-            os.environ.setdefault("GOOGLE_API_KEY", self.gemini_api_key)
 
     def save_config(self, extra=None):
-        values = {"origin_path": self.origin_path, "gemini_api_key": self.gemini_api_key}
+        values = {"origin_path": self.origin_path}
         if extra:
             values.update(extra)
         try:
-            app_config.update(values)
+            # 3.4 removed the Gemini panels; a key stored by an older version is
+            # dropped from the settings file on the next save
+            app_config.update(values, drop=app_config.RETIRED_KEYS)
         except Exception as e:
             print(f"Config save error: {e}")
-        if self.gemini_api_key:
-            os.environ["GEMINI_API_KEY"] = self.gemini_api_key
-            os.environ.setdefault("GOOGLE_API_KEY", self.gemini_api_key)
 
     # ---------------- menu bar ----------------
     def _build_menubar(self):
@@ -706,15 +678,14 @@ class LauncherApp(ctk.CTk):
     def refresh_statusbar(self):
         area = app_config.cell_area_cm2()
         o = "Origin: configured" if self.origin_path else "Origin: not set"
-        k = "Interpretation: on" if self.gemini_api_key else "Interpretation: off"
-        self.lbl_env.configure(text=f"Cell area {area:g} cm²   |   {o}   |   {k}   |   v{APP_VERSION}")
+        self.lbl_env.configure(text=f"Cell area {area:g} cm²   |   {o}   |   Interpretation: rule-based, offline   |   v{APP_VERSION}")
         if getattr(self, "session_table", None) is not None:
             _theme.fill_kv(self.session_table, [
                 ("Device active area", f"{area:g} cm²  (current density = current / area)"),
                 ("Irradiance for PCE", "100 mW/cm² (one sun; set per analysis)"),
                 ("Temperature", "298.15 K (J-V, diode fits); 300 K (detailed balance)"),
                 ("OriginLab", self.origin_path or "not set (Origin export on Windows)"),
-                ("Interpretation (Gemini)", "on" if self.gemini_api_key else "off - no number depends on it"),
+                ("Interpretation", "rule-based and offline (scripts/common/interpret.py); nothing leaves this computer"),
                 ("Settings file", str(CONFIG_FILE)),
                 ("Version", f"Physiscore {APP_VERSION}, Python {sys.version.split()[0]}"),
             ])
@@ -1039,7 +1010,7 @@ class LauncherApp(ctk.CTk):
             return
         try:
             self.iconify()
-            win = win_cls(self, self.origin_path, self.gemini_api_key)
+            win = win_cls(self, self.origin_path)
             if folder and hasattr(win, "directory_path"):
                 try:
                     win.directory_path.set(folder)
@@ -1056,7 +1027,7 @@ class LauncherApp(ctk.CTk):
                 pass
 
     def _sync_config_to(self, folder):
-        """Share Origin path and API key with the external program's config."""
+        """Share the Origin path and the cell area with the external program's config."""
         try:
             target = os.path.join(folder, "physisfera_config.json")
             data = {}
@@ -1065,8 +1036,6 @@ class LauncherApp(ctk.CTk):
                     data = json.load(f)
             if self.origin_path:
                 data["origin_path"] = self.origin_path
-            if self.gemini_api_key:
-                data["gemini_api_key"] = self.gemini_api_key
             data["cell_area_cm2"] = app_config.cell_area_cm2()
             with open(target, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
@@ -1200,7 +1169,7 @@ def _open_single_tool(name: str) -> int:
     root = ctk.CTk()
     root.withdraw()
     data = app_config.load(refresh=True)
-    win = mod.AnalysisWindow(root, data.get("origin_path", ""), data.get("gemini_api_key", ""))
+    win = mod.AnalysisWindow(root, data.get("origin_path", ""))
     win.protocol("WM_DELETE_WINDOW", lambda: (root.quit(), root.destroy()))
     root.mainloop()
     return 0

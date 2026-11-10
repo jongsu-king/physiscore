@@ -43,13 +43,12 @@ except Exception:
 
 
 class AnalysisWindow(ctk.CTkToplevel):
-    def __init__(self, parent, origin_path="", api_key=""):
+    def __init__(self, parent, origin_path=""):
         super().__init__(parent)
         self.title("Absorbance / Tauc Plot Analyzer")
         self.geometry("1400x900")
 
         self.passed_origin_path = origin_path
-        self.passed_api_key = api_key
 
         # -------------------------
         # Style
@@ -111,7 +110,8 @@ class AnalysisWindow(ctk.CTkToplevel):
                     "excel": ("Excel", self.save_to_excel),
                     "png": True,
                     "report": ("Report", self.export_report),
-                    "origin": ("Origin", self.send_to_origin)
+                    "origin": ("Origin", self.send_to_origin),
+                    "ai": ("Interpretation", self._interpret),
                 }, hints="Drag on the Tauc plot: linear fit of that range  |  Auto fit: automatic region  |  "
                          "Wheel: zoom (Ctrl = x, Shift = y)  |  Right-click: plot menu")
             except Exception as _ce:
@@ -830,6 +830,28 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.btn_export_excel.configure(state="normal")
         self.btn_export_origin.configure(state="normal")
 
+    def _interpret(self):
+        """Rule-based interpretation of the Tauc fit; also tests the other transition type."""
+        r = self.fit_result
+        if not r:
+            messagebox.showinfo("Interpretation", "Fit the Tauc plot first (Auto fit or drag a range).", parent=self)
+            return
+        from scripts.common import interpret as _interp
+        from scripts.common import interpret_window as _iw
+        other_r2 = None
+        try:
+            mode = "indirect" if r["mode"] == "Direct" else "direct"
+            x, y, _ = abs_core.tauc_transform(r["raw_x"], r["raw_y"], mode=mode)
+            reg = abs_core.auto_linear_region(x, y)
+            other_r2 = reg.get("R2")
+        except Exception:
+            pass
+        res = {"Eg": r["Eg"], "Eg_err": r.get("Eg_err"), "R2": r.get("R2"), "lo": r.get("fitMin"),
+               "hi": r.get("fitMax"), "mode": str(r.get("mode", "")).lower(),
+               "Eg_derivative": r.get("Eg_derivative"), "Eu_meV": r.get("Eu_meV")}
+        name = self.target_file.name if getattr(self, "target_file", None) else ""
+        _iw.show(self, _interp.interpret_absorbance(res, other_mode_r2=other_r2, subject=name))
+
     def open_compare(self):
         """Several absorbance files side by side (automatic Tauc Eg, Urbach) with an overlay."""
         from scripts.common.compare_window import CompareWindow
@@ -1057,7 +1079,7 @@ class AnalysisWindow(ctk.CTkToplevel):
 def main():
     root = ctk.CTk()
     root.withdraw()
-    AnalysisWindow(root, "", "")
+    AnalysisWindow(root, "")
     root.mainloop()
 
 

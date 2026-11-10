@@ -33,8 +33,9 @@ env/
 htmlcov/
 
 # Local machine configuration.
-# Both config files hold machine-specific paths (Origin install location) and a
-# Gemini API key. Ship the *.example templates instead -- never the real ones.
+# Both config files hold machine-specific paths (Origin install location); files
+# written by versions before 3.4 may also hold a Gemini API key. Ship the
+# *.example templates instead -- never the real ones.
 physisfera_config.json
 jv_config.json
 scripts/*/[a-z]*_config.json

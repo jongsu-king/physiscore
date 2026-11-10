@@ -51,40 +51,8 @@ except ImportError:
         plot_box_to_origin,
     )
 
-# Interpretation (Gemini) Integration
-AI_AVAILABLE = False
-MODEL_OPTIONS = ["gemini-2.0-flash"]
-JVAIIntegration = None
-AIWindow = None
-
-try:
-    import warnings
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=FutureWarning)
-        from .jv_ai_assistant import JVAIIntegration
-        from .jv_ai_panel import AIWindow, MODEL_OPTIONS
-        from .jv_ai_panel import AIWindow, MODEL_OPTIONS as _OPTS
-        MODEL_OPTIONS = _OPTS
-        AI_AVAILABLE = True
-except (ImportError, Exception):
-    try:
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning)
-            from jv_ai_assistant import JVAIIntegration
-            from jv_ai_panel import AIWindow, MODEL_OPTIONS
-            from jv_ai_panel import AIWindow, MODEL_OPTIONS as _OPTS
-            MODEL_OPTIONS = _OPTS
-            AI_AVAILABLE = True
-    except (ImportError, Exception) as e:
-        AI_AVAILABLE = False
-        JVAIIntegration = None
-        AIWindow = None
-        MODEL_OPTIONS = ["gemini-2.0-flash"]
-        print(f"AI features not available: {e}")
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "jv_config.json")
-AI_CONFIG_FILE = os.path.join(BASE_DIR, "jv_ai_config.json")
 try:
     from scripts.common import analysis_shell as _shell
 except Exception:
@@ -93,135 +61,16 @@ except Exception:
 
 
 # =========================
-# AI Result Dialog (copyable result window)
-# =========================
-class AIResultDialog(ctk.CTkToplevel):
-    """Dialog showing AI analysis result as copyable text"""
-
-    def __init__(self, parent, title: str, content: str):
-        super().__init__(parent)
-        self.title(title)
-        self.geometry("600x500")
-        self.resizable(True, True)
-
-        # Dark theme colors
-        self.card_bg = _pal.BG_CARD
-
-        # Center on parent
-        self.transient(parent)
-
-        self._create_widgets(content)
-
-        # Bring to front
-        self.attributes('-topmost', True)
-        self.after(100, lambda: self.attributes('-topmost', False))
-        self.focus()
-
-    def _create_widgets(self, content: str):
-        # Main frame
-        main_frame = ctk.CTkFrame(self, fg_color=self.card_bg, corner_radius=0)
-        main_frame.pack(fill="both", expand=True)
-
-        # Header
-        header_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        header_frame.pack(fill="x", padx=16, pady=(16, 8))
-
-        ctk.CTkLabel(
-            header_frame,
-            text="Interpretation result",
-            font=_pal.font(13, "bold"),
-            text_color=_pal.TXT
-        ).pack(side="left")
-
-        # Copy button
-        self.btn_copy = ctk.CTkButton(
-            header_frame,
-            text="Copy All",
-            width=80,
-            height=26,
-            fg_color=_pal.ACCENT,
-            hover_color=_pal.ACCENT_HOV,
-            command=self._copy_content
-        )
-        self.btn_copy.pack(side="right")
-
-        # Text display (scrollable, selectable)
-        self.text_display = ctk.CTkTextbox(
-            main_frame,
-            font=_pal.mono(11),
-            fg_color=_pal.BG_SUB,
-            text_color=_pal.TXT_MUTED,
-            corner_radius=_pal.R_PILL,
-            wrap="word"
-        )
-        self.text_display.pack(fill="both", expand=True, padx=16, pady=(8, 8))
-
-        # Insert content
-        self.text_display.insert("1.0", content)
-
-        # Bottom buttons
-        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=16, pady=(0, 16))
-
-        self.lbl_status = ctk.CTkLabel(
-            btn_frame,
-            text="",
-            text_color=_pal.TXT_SUB,
-            font=_pal.font(11)
-        )
-        self.lbl_status.pack(side="left")
-
-        ctk.CTkButton(
-            btn_frame,
-            text="Close",
-            width=80,
-            height=26,
-            fg_color=_pal.BG_SUB,
-            hover_color=_pal.TXT_DIM,
-            command=self.destroy, text_color=_pal.TXT).pack(side="right")
-
-    def _copy_content(self):
-        """Copy all text"""
-        content = self.text_display.get("1.0", "end-1c")
-        self.clipboard_clear()
-        self.clipboard_append(content)
-        self.lbl_status.configure(text="Copied to clipboard!", text_color=_pal.GREEN)
-        self.after(2000, lambda: self.lbl_status.configure(text=""))
-
-
-# =========================
 # Main GUI
 # =========================
 class AnalysisWindow(ctk.CTkToplevel):
-    def __init__(self, parent, origin_path="", api_key=""):
+    def __init__(self, parent, origin_path=""):
         super().__init__(parent)
         self.title("J-V Curve Analysis")
         self.geometry("1400x900")
 
         # Data from main window
         self.passed_origin_path = origin_path
-        self.passed_api_key = api_key
-
-        # AI Integration
-        self._ai_window = None
-        if AI_AVAILABLE and JVAIIntegration is not None:
-            try:
-                self.ai_model_name = "gemini-2.0-flash"
-                self.ai_integration = JVAIIntegration(db_path=os.path.join(BASE_DIR, "jv_ai_history.db"))
-                # API key priority: passed key > config file
-                ai_config = self._load_ai_config()
-                effective_api_key = api_key or ai_config.get("api_key", "")
-                effective_model = ai_config.get("model_name", "")
-                if effective_api_key:
-                    if effective_model:
-                        self.ai_model_name = effective_model
-                    self.ai_integration.initialize(effective_api_key, model_name=effective_model)
-                    self.passed_api_key = effective_api_key
-            except Exception as e:
-                print(f"AI initialization failed: {e}")
-                self.ai_integration = None
-        else:
-            self.ai_integration = None
 
         # Settings
         self.settings = JVSettings()
@@ -275,7 +124,7 @@ class AnalysisWindow(ctk.CTkToplevel):
                     "png": True,
                     "report": ("Report", self.export_report),
                     "origin": [("Origin J-V", self.send_iv_to_origin), ("Origin Box", self.send_box_to_origin)],
-                    "ai": ("Interpretation", self._open_ai_window)
+                    "ai": ("Interpretation", self._interpret)
                 }, hints="Wheel: zoom (Ctrl = x only, Shift = y only)  |  Drag: pan  |  Double-click: auto range  |  "
                          "F2: rename condition  |  Right-click: table and plot menus")
             except Exception as _ce:
@@ -284,18 +133,6 @@ class AnalysisWindow(ctk.CTkToplevel):
     # =====================
     # Config I/O
     # =====================
-    def _load_ai_config(self):
-        """Load AI API key from config file"""
-        if os.path.exists(AI_CONFIG_FILE):
-            try:
-                with open(AI_CONFIG_FILE, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                    if isinstance(config, dict):
-                        return config
-            except Exception as e:
-                print(f"AI config load error: {e}")
-        return {}
-
     def load_config(self):
         if os.path.exists(CONFIG_FILE):
             try:
@@ -433,47 +270,21 @@ class AnalysisWindow(ctk.CTkToplevel):
                                              state="disabled", text_color=_pal.TXT)
         self.btn_origin_box.pack(fill="x", pady=3)
 
-        # 4. Interpretation (Gemini) Card
-        if AI_AVAILABLE:
-            ai_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
-            ai_card.pack(pady=8, padx=12, fill="x")
-
-            ctk.CTkLabel(ai_card, text="Interpretation (Gemini)", font=_pal.font(12, "bold"),
-                         text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
-
-            # Model Selection
-            model_frame = ctk.CTkFrame(ai_card, fg_color="transparent")
-            model_frame.pack(fill="x", padx=16, pady=(0, 8))
-            
-            ctk.CTkLabel(model_frame, text="Model:", font=_pal.font(12), 
-                         text_color=self.text_secondary).pack(side="left", padx=(0, 5))
-            
-            self.combo_ai_model = ctk.CTkComboBox(model_frame, values=MODEL_OPTIONS, 
-                                                  command=self._on_ai_model_change, height=24)
-            self.combo_ai_model.set(self.ai_model_name)
-            self.combo_ai_model.pack(side="left", fill="x", expand=True)
-
-            ai_btn_frame = ctk.CTkFrame(ai_card, fg_color="transparent")
-            ai_btn_frame.pack(fill="x", padx=12, pady=(0, 12))
-
-            self.btn_quick_ai = ctk.CTkButton(ai_btn_frame, text="Quick interpretation",
-                                               command=self._run_quick_ai_analysis,
-                                               fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
-                                               corner_radius=_pal.R_PILL, height=28, font=_pal.font(12),
-                                               state="disabled", text_color=_pal.TXT)
-            self.btn_quick_ai.pack(fill="x", pady=3)
-
-            self.btn_ai_panel = ctk.CTkButton(ai_btn_frame, text="Open Interpretation (Gemini)",
-                                               command=self._open_ai_window,
-                                               fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
-                                               corner_radius=_pal.R_PILL, height=28, font=_pal.font(12), text_color=_pal.TXT)
-            self.btn_ai_panel.pack(fill="x", pady=3)
-
-            # AI Status
-            self.lbl_ai_status = ctk.CTkLabel(ai_card, text="", text_color=self.text_secondary,
-                                               font=_pal.font(11))
-            self.lbl_ai_status.pack(pady=(0, 12))
-            self._update_ai_status()
+        # 4. Interpretation card: rule-based, offline (3.4; replaces the Gemini panel)
+        ai_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
+        ai_card.pack(pady=8, padx=12, fill="x")
+        ctk.CTkLabel(ai_card, text="Interpretation", font=_pal.font(12, "bold"),
+                     text_color=self.text_primary).pack(pady=(16, 8), padx=16, anchor="w")
+        self.btn_interpret = ctk.CTkButton(ai_card, text="Interpret results", command=self._interpret,
+                                           fg_color=_pal.BG_SUB, hover_color=_pal.BG_HOVER,
+                                           corner_radius=_pal.R_PILL, height=28, font=_pal.font(12),
+                                           state="disabled", text_color=_pal.TXT)
+        self.btn_interpret.pack(fill="x", padx=12, pady=3)
+        self.lbl_ai_status = ctk.CTkLabel(ai_card, text="FF-loss breakdown, ideality factor, resistances, "
+                                          "hysteresis and condition statistics (rule-based, offline).",
+                                          text_color=self.text_secondary, font=_pal.font(10), wraplength=240,
+                                          justify="left")
+        self.lbl_ai_status.pack(padx=12, pady=(2, 12), anchor="w")
 
         # 6. Status Card
         status_card = ctk.CTkFrame(self.left_frame, corner_radius=_pal.R_CARD, fg_color=self.card_bg)
@@ -1162,21 +973,13 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.log(f"Saved: {self.excel_file_path}")
         self.log(f"Total files: {self.processed_data['total_files']}")
 
-        # Enable AI button after processing
-        if AI_AVAILABLE:
-            self.btn_quick_ai.configure(state="normal")
-
-            # Auto-save to AI database
-            if self.ai_integration and self.ai_integration.is_ready():
-                try:
-                    save_result = self.ai_integration.assistant.db_manager.save_batch_samples(
-                        self.processed_data['best_performance']
-                    )
-                    new_count = save_result.get('new', 0)
-                    if new_count > 0:
-                        self.log(f"[AI] Saved {new_count} new samples to database")
-                except Exception as e:
-                    self.log(f"[AI] Database save error: {e}")
+        # Interpretation is available once there are results
+        try:
+            self.btn_interpret.configure(state="normal")
+            from scripts.common import interpret as _interp
+            self.lbl_ai_status.configure(text=_interp.interpret_jv_results(self.processed_data).summary())
+        except Exception as e:  # noqa: BLE001 - the summary line is optional
+            self.log(f"Interpretation summary: {e}")
 
         # Reset selection
         self.selected_sample = None
@@ -1521,231 +1324,19 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.after(0, lambda: self.btn_origin_box.configure(state="normal"))
 
     # =====================
-    # Interpretation (Gemini) Methods
+    # Interpretation (rule-based)
     # =====================
-    def _on_ai_model_change(self, selected_model: str):
-        """AI model change handler"""
-        if not AI_AVAILABLE or not self.ai_integration:
-            return
-
-        try:
-            self.ai_model_name = selected_model
-            # Initialize a new model with the current API key
-            if self.passed_api_key:
-                self.ai_integration.initialize(self.passed_api_key, model_name=selected_model)
-                self.log(f"[AI] Model changed to: {selected_model}")
-        except Exception as e:
-            self.log(f"[AI] Model change failed: {e}")
-
-    def _update_ai_status(self):
-        """Update AI status"""
-        if not AI_AVAILABLE:
-            return
-
-        if self.ai_integration and self.ai_integration.is_ready():
-            self.lbl_ai_status.configure(text="API key configured", text_color=_pal.GREEN)
-        else:
-            # Check whether the API key file exists
-            if os.path.exists(AI_CONFIG_FILE):
-                self.lbl_ai_status.configure(text="API Key found (not loaded)", text_color=_pal.ORANGE)
-            else:
-                self.lbl_ai_status.configure(text="API Key: Not configured", text_color=_pal.RED)
-
-
-    def _set_ai_activity_status(self, state: str):
-        if state == "running":
-            if self._ai_status_prev is None:
-                self._ai_status_prev = self.lbl_status.cget("text")
-            self.lbl_status.configure(text="Interpretation: Running...")
-        elif state == "done":
-            self.lbl_status.configure(text="Interpretation: Complete")
-            self.after(2000, self._clear_ai_activity_status)
-        elif state == "error":
-            self.lbl_status.configure(text="Interpretation: Error")
-            self.after(3000, self._clear_ai_activity_status)
-        elif state == "idle":
-            self._clear_ai_activity_status()
-
-    def _clear_ai_activity_status(self):
-        if self._ai_status_prev is not None:
-            self.lbl_status.configure(text=self._ai_status_prev)
-            self._ai_status_prev = None
-
-    def _run_quick_ai_analysis(self):
-        """Run quick AI analysis"""
-        if not AI_AVAILABLE:
-            messagebox.showwarning("Warning", "AI features not available.")
-            return
-
+    def _interpret(self):
+        """Open the rule-based interpretation of the processed folder (or of the selected condition)."""
         if not self.processed_data:
-            messagebox.showwarning("Warning", "Process data first.")
+            messagebox.showinfo("Interpretation", "Process a folder first.", parent=self)
             return
-
-        if not self.ai_integration or not self.ai_integration.is_ready():
-            # Open AI window if no API key
-            self.log("[AI] API key not configured. Opening AI settings...")
-            self._open_ai_window()
-            return
-
-        self.btn_quick_ai.configure(state="disabled", text="Analyzing...")
-        self.log("[AI] Starting quick analysis...")
-
-        # Start Progress Bar (Indeterminate)
-        self.progress_bar.configure(mode="indeterminate")
-        self.progress_bar.start()
-        self._set_ai_activity_status("running")
-
-        analysis_state = {"error": False}
-
-        def analyze():
-            try:
-                self.after(0, lambda: self.log("[AI] Calling Gemini API..."))
-                result = self.ai_integration.analyze_processed_data(self.processed_data)
-
-                # Error check
-                if 'error' in result:
-                    error_msg = result['error']
-                    def show_error(msg=error_msg):
-                        self.log(f"[AI Error] {msg}")
-                        error_content = f"Interpretation Error\n\n{msg}\n\nPlease check:\n- API key is valid\n- Internet connection\n- Gemini API status"
-                        AIResultDialog(self, "AI Error", error_content)
-                    self.after(0, show_error)
-                    analysis_state["error"] = True
-                    return
-
-                # Handle result
-                summary = result.get('summary', '')
-                quality_score = result.get('quality_score')
-                anomalies = result.get('anomalies', [])
-                next_priority = result.get('next_priority', '')
-
-                # Check if result is empty
-                if not summary and quality_score is None and not anomalies and not next_priority:
-                    def show_empty():
-                        self.log("[AI] Analysis returned empty results. Check API connection.")
-                        messagebox.showwarning("Quick interpretation", "No analysis results. Check API key and connection.")
-                    self.after(0, show_empty)
-                    return
-
-                # Print result to log (late-binding fix)
-                def log_complete():
-                    self.log("[AI] Analysis complete!")
-                self.after(0, log_complete)
-
-                if summary:
-                    def log_summary(s=summary):
-                        self.log(f"[AI Summary] {s}")
-                    self.after(0, log_summary)
-
-                if quality_score is not None:
-                    def log_score(qs=quality_score):
-                        self.log(f"[AI] Quality Score: {qs}/100")
-                    self.after(0, log_score)
-
-                if anomalies:
-                    for a in anomalies[:3]:
-                        filename = a.get('filename', 'Unknown')
-                        issue = a.get('issue', 'Unknown issue')
-                        def log_anomaly(f=filename, i=issue):
-                            self.log(f"[AI Warning] {f}: {i}")
-                        self.after(0, log_anomaly)
-
-                if next_priority:
-                    def log_recommend(np=next_priority):
-                        self.log(f"[AI Recommend] {np}")
-                    self.after(0, log_recommend)
-
-                # Show in a copyable result dialog
-                msg_parts = []
-                msg_parts.append("=" * 50)
-                msg_parts.append("AI QUICK ANALYSIS RESULT")
-                msg_parts.append("=" * 50)
-                msg_parts.append("")
-
-                if summary:
-                    msg_parts.append("[Summary]")
-                    msg_parts.append(summary)
-                    msg_parts.append("")
-
-                if quality_score is not None:
-                    msg_parts.append(f"[Quality Score] {quality_score}/100")
-                    msg_parts.append("")
-
-                if anomalies:
-                    msg_parts.append("[Detected Issues]")
-                    for i, a in enumerate(anomalies, 1):
-                        filename = a.get('filename', 'Unknown')
-                        issue = a.get('issue', 'Unknown issue')
-                        severity = a.get('severity', 'N/A')
-                        cause = a.get('cause', '')
-                        msg_parts.append(f"  {i}. {filename}")
-                        msg_parts.append(f"     Issue: {issue}")
-                        msg_parts.append(f"     Severity: {severity}")
-                        if cause:
-                            msg_parts.append(f"     Cause: {cause}")
-                    msg_parts.append("")
-
-                if next_priority:
-                    msg_parts.append("[Recommendation]")
-                    msg_parts.append(next_priority)
-                    msg_parts.append("")
-
-                msg_parts.append("=" * 50)
-                msg_parts.append(f"Analyzed: {result.get('sample_count', 'N/A')} samples")
-                msg_parts.append(f"Time: {result.get('timestamp', 'N/A')}")
-
-                final_msg = "\n".join(msg_parts)
-
-                def show_result(msg=final_msg):
-                    AIResultDialog(self, "Quick interpretation", msg)
-                self.after(0, show_result)
-
-            except Exception as e:
-                error_str = str(e)
-                analysis_state["error"] = True
-                def show_error(err=error_str):
-                    self.log(f"[AI Error] {err}")
-                    error_content = f"Interpretation Error\n\n{err}\n\nPlease check:\n- API key is valid\n- Internet connection\n- Gemini API status"
-                    AIResultDialog(self, "AI Error", error_content)
-                self.after(0, show_error)
-
-            finally:
-                def reset_button():
-                    self.btn_quick_ai.configure(state="normal", text="Quick interpretation")
-                    self.progress_bar.stop()
-                    self.progress_bar.configure(mode="determinate")
-                    self.progress_bar.set(1.0)
-                    if analysis_state["error"]:
-                        self._set_ai_activity_status("error")
-                    else:
-                        self._set_ai_activity_status("done")
-                self.after(0, reset_button)
-
-        thread = threading.Thread(target=analyze, daemon=True)
-        thread.start()
-
-    def _open_ai_window(self):
-        """Open Interpretation (Gemini) window"""
-        if not AI_AVAILABLE or AIWindow is None:
-            messagebox.showwarning("Warning", "AI features not available.\nInstall: pip install google-generativeai")
-            return
-
-        try:
-            if self._ai_window is None or not self._ai_window.winfo_exists():
-                self._ai_window = AIWindow(
-                    self,
-                    api_key=self.passed_api_key,
-                    processed_data=self.processed_data,
-                    activity_callback=self._set_ai_activity_status
-                )
-            else:
-                # If a window already exists, update data and focus it
-                self._ai_window.update_data(self.processed_data)
-                self._ai_window.focus()
-                self._ai_window.lift()
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to open AI window:\n{e}")
-            print(f"AI window error: {e}")
+        from scripts.common import interpret as _interp
+        from scripts.common import interpret_window as _iw
+        selected = self.selected_sample if len(self.selected_samples) <= 1 else None
+        report = _interp.interpret_jv_results(self.processed_data, selected=self._original_name(selected)
+                                              if selected else None)
+        _iw.show(self, report)
 
 
 # =========================

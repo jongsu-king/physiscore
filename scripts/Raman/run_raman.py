@@ -36,62 +36,6 @@ except Exception:
 # Color palette
 LAYER_COLORS = list(_pal.SERIES_COLORS)
 
-class AIConfigDialog(ctk.CTkToplevel):
-    def __init__(self, parent, api_key, on_confirm):
-        super().__init__(parent)
-        self.title("Interpretation settings")
-        self.geometry("500x400")
-        self.api_key = api_key
-        self.on_confirm = on_confirm
-        self.attributes('-topmost', True)
-        
-        ctk.CTkLabel(self, text="Select Gemini Model:", font=_pal.font(12, "bold")).pack(pady=(20, 5))
-        self.combo_model = ctk.CTkComboBox(self, values=["Fetching models..."], width=300)
-        self.combo_model.pack(pady=5)
-        
-        ctk.CTkLabel(self, text="Sample Context / Additional Info:", font=_pal.font(12, "bold")).pack(pady=(15, 5))
-        self.txt_context = ctk.CTkTextbox(self, width=400, height=150)
-        self.txt_context.pack(pady=5)
-        
-        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28, text_color=_pal.TXT).pack(pady=20)
-        
-        threading.Thread(target=self.fetch_models, daemon=True).start()
-        
-    def fetch_models(self):
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=self.api_key)
-            models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            if not models: models = ["models/gemini-2.5-flash"]
-            
-            def do_update():
-                try:
-                    if self.winfo_exists():
-                        self.combo_model.configure(values=models)
-                        self.combo_model.set(models[0])
-                except (tk.TclError, AttributeError): pass
-
-            # NOTE: do not call winfo_exists() from the worker thread; after()
-            # itself is the thread-safe hand-off and raises if the widget died
-            try:
-                self.after(0, do_update)
-            except Exception:
-                pass
-        except Exception:
-            def do_err():
-                try:
-                    if self.winfo_exists():
-                        self.combo_model.configure(values=["models/gemini-2.5-flash"])
-                except (tk.TclError, AttributeError): pass
-            try:
-                self.after(0, do_err)
-            except Exception:
-                pass
-
-    def on_click_run(self):
-        self.on_confirm(self.combo_model.get(), self.txt_context.get("1.0", "end").strip())
-        self.destroy()
-
 class LoadingPopup(ctk.CTkToplevel):
     def __init__(self, parent):
         super().__init__(parent)
@@ -180,15 +124,13 @@ class PeakListPopup(ctk.CTkToplevel):
             ))
 
 class AnalysisWindow(ctk.CTkToplevel):
-    def __init__(self, parent, origin_path, api_key):
+    def __init__(self, parent, origin_path=""):
         super().__init__(parent)
         self.title("Raman Analysis")
         self.geometry("1600x950")
         self.origin_path = origin_path
         
         self.initial_dir = "/"
-        self.api_key_var = ctk.StringVar(value=api_key)
-        self.model_var = ctk.StringVar(value="gemini-3-flash-preview")
         
         self.layers = []
         self.target_layer_idx = 0
@@ -229,7 +171,8 @@ class AnalysisWindow(ctk.CTkToplevel):
                     "excel": ("Excel", self.save_all_results),
                     "png": True,
                     "report": ("Report", self.export_report),
-                    "origin": ("Origin", self.plot_to_origin)
+                    "origin": ("Origin", self.plot_to_origin),
+                    "ai": ("Interpretation", self._interpret),
                 }, hints="Keys 1-9: show one layer  |  Left/Right: step through bands  |  R: reset view  |  "
                          "Ctrl+wheel: zoom  |  Ctrl+drag: pan  |  Enter: confirm an added band")
             except Exception as _ce:
@@ -245,7 +188,7 @@ class AnalysisWindow(ctk.CTkToplevel):
             try:
                 with open(CONFIG_FILE, "r") as f:
                     data = json.load(f)
-                    if not self.api_key_var.get(): self.api_key_var.set(data.get("api_key", ""))
+                    pass
             except: pass
 
     def _init_bindings(self):
@@ -319,7 +262,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.lbl_edit_status.pack(pady=(0, 10))
 
         self.add_card_label("Analysis (Target Layer)")
-        self.btn_ai = ctk.CTkButton(self.left_scroll, text="Assign peaks (Gemini)", command=self.analyze_target_thread, fg_color=_pal.BG_SUB, text_color=_pal.TXT)
+        self.btn_ai = ctk.CTkButton(self.left_scroll, text="Assign bands (library)", command=self.analyze_target_thread, fg_color=_pal.BG_SUB, text_color=_pal.TXT)
         self.btn_ai.pack(fill="x", padx=10, pady=5)
         ctk.CTkButton(self.left_scroll, text="View Peak List (Table)", command=self.show_peak_list, fg_color=_pal.BG_SUB, text_color=_pal.TXT).pack(fill="x", padx=10, pady=5)
         self.btn_origin = ctk.CTkButton(self.left_scroll, text="Plot to Origin", command=self.plot_to_origin, fg_color=_pal.BG_SUB, text_color=_pal.TXT)
@@ -803,40 +746,14 @@ class AnalysisWindow(ctk.CTkToplevel):
     # Logic: Analysis & Info
     # ==========================================
     def analyze_target_thread(self):
-        if not self.layers: return
-        if not self.api_key_var.get():
-            messagebox.showerror("Error", "API Key required")
+        """Indicative band assignment from the built-in band library (3.4; replaced Gemini)."""
+        if not self.layers:
             return
-        
-        AIConfigDialog(self, self.api_key_var.get(), self.start_ai_thread)
-
-    def start_ai_thread(self, model, context):
-        threading.Thread(target=self._run_analysis, args=(self.api_key_var.get(), model, context), daemon=True).start()
-        self.show_loading()
-
-    def _run_analysis(self, api_key, model, context):
-        try:
-            idx = self.target_layer_idx
-            L = self.layers[idx]
-            
-            # Request English output and other possibilities via context injection
-            # (the old "[OUTPUT: Korean]" here silently overrode the English
-            # instruction inside raman_core's prompt)
-            req_context = context + "\n[OUTPUT: English]\n[INCLUDE: 'other_possibilities' if applicable]"
-            results = raman_core.analyze_with_gemini(
-                api_key, model, req_context,
-                L['peaks'], L['indices'], L['intensities']
-            )
-            
-            for item in results:
-                L['peak_data'][item.get("wavenumber", 0)] = item
-                
-            if self.winfo_exists():
-                self.after(0, lambda: self.finish_analysis(idx, len(results)) if self.winfo_exists() else None)
-        except Exception as e:
-            if self.winfo_exists():
-                self.after(0, lambda err=str(e): messagebox.showerror("Error", err) if self.winfo_exists() else None)
-                self.after(0, lambda: self.hide_loading() if self.winfo_exists() else None)
+        from scripts.common import vib_interpret as _vi
+        idx = self.target_layer_idx
+        L = self.layers[idx]
+        L['peak_data'] = _vi.library_peak_data(L['peaks'], "raman")
+        self.finish_analysis(idx, len(L['peak_data']))
 
     def finish_analysis(self, idx, count):
         self.hide_loading()
@@ -847,11 +764,20 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.show_peak_info(L['peaks'][0])
         messagebox.showinfo("Analysis Complete", f"Analyzed {count} peaks for {self.layers[idx]['name']}.")
 
+    def _interpret(self):
+        """Rule-based interpretation of the target layer (bands, assignments, shifts against the reference)."""
+        if not self.layers:
+            messagebox.showinfo("Interpretation", "Load a file first.", parent=self)
+            return
+        from scripts.common import vib_interpret as _vi
+        from scripts.common import interpret_window as _iw
+        _iw.show(self, _vi.interpret_layers("raman", self.layers, self.target_layer_idx, self.ref_layer_idx))
+
     def show_peak_list(self):
         if not self.layers: return
         L = self.layers[self.target_layer_idx]
         if not L['peak_data']:
-            messagebox.showinfo("Info", "No analysis data yet. Please run 'Assign peaks (Gemini)' first.")
+            messagebox.showinfo("Info", "No analysis data yet. Run 'Assign bands (library)' first.")
             return
         PeakListPopup(self, L['name'], L['peak_data'])
 
@@ -1016,33 +942,15 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.run_compare_thread()
 
     def run_compare_thread(self):
-        self.btn_compare.configure(text="Analyzing...", fg_color=_pal.BG_SUB)
-        api_key = self.api_key_var.get()
-        model = self.model_var.get()
-        threading.Thread(target=self._run_compare, args=(api_key, model), daemon=True).start()
-        self.show_loading()
-
-    def _run_compare(self, api_key, model):
-        try:
-            idx_a, idx_b = self.compare_indices
-            pa, pb = self.compare_peaks
-            L_a, L_b = self.layers[idx_a], self.layers[idx_b]
-            
-            # Build context including Sample Info from both layers
-            combined_context = f"Sample A ({L_a['name']}) Info: {L_a['context']}\nSample B ({L_b['name']}) Info: {L_b['context']}"
-            
-            res = raman_core.analyze_peak_shift(
-                api_key, model, 
-                combined_context, 
-                L_a['name'], pa, L_b['name'], pb
-            )
-            self.after(0, lambda: self.show_compare_result(res, pa, pb, L_a['name'], L_b['name']))
-        except Exception as e:
-            self.after(0, lambda err=str(e): messagebox.showerror("Error", err))
-            self.after(0, self.hide_loading)
+        """Shift and width change of the selected band between the two layers (algorithmic)."""
+        from scripts.common import vib_interpret as _vi
+        idx_a, idx_b = self.compare_indices
+        pa, pb = self.compare_peaks
+        L_a, L_b = self.layers[idx_a], self.layers[idx_b]
+        res = _vi.pair_compare("raman", L_a, float(pa), L_b, float(pb))
+        self.show_compare_result(res, pa, pb, L_a['name'], L_b['name'])
 
     def show_compare_result(self, res, pa, pb, na, nb):
-        self.hide_loading()
         self.compare_mode = False
         self.compare_step = 0
         self.compare_peaks = [None, None]
@@ -1210,5 +1118,5 @@ class AnalysisWindow(ctk.CTkToplevel):
 
 if __name__ == "__main__":
     root = ctk.CTk()
-    AnalysisWindow(root, "", "")
+    AnalysisWindow(root, "")
     root.mainloop()

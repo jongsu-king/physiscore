@@ -31,48 +31,12 @@ try:
 except ImportError:
     import pl_core
 
-class AIConfigDialog(ctk.CTkToplevel):
-    def __init__(self, parent, api_key, on_confirm):
-        super().__init__(parent)
-        self.title("Interpretation settings")
-        self.geometry("500x400")
-        self.api_key = api_key
-        self.on_confirm = on_confirm
-        self.attributes('-topmost', True)
-        
-        ctk.CTkLabel(self, text="Select Gemini Model:", font=_pal.font(12, "bold")).pack(pady=(20, 5))
-        self.combo_model = ctk.CTkComboBox(self, values=["Fetching models..."], width=300)
-        self.combo_model.pack(pady=5)
-        
-        ctk.CTkLabel(self, text="Sample Context / Additional Info:", font=_pal.font(12, "bold")).pack(pady=(15, 5))
-        self.txt_context = ctk.CTkTextbox(self, width=400, height=150)
-        self.txt_context.pack(pady=5)
-        
-        ctk.CTkButton(self, text="Run Analysis", command=self.on_click_run, fg_color=_pal.BG_SUB, width=200, height=28, text_color=_pal.TXT).pack(pady=20)
-        
-        threading.Thread(target=self.fetch_models, daemon=True).start()
-        
-    def fetch_models(self):
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=self.api_key)
-            models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            if not models: models = ["models/gemini-2.5-flash"]
-            self.after(0, lambda: self.combo_model.configure(values=models))
-            self.after(0, lambda: self.combo_model.set(models[0]))
-        except: self.after(0, lambda: self.combo_model.configure(values=["models/gemini-2.5-flash"]))
-
-    def on_click_run(self):
-        self.on_confirm(self.combo_model.get(), self.txt_context.get("1.0", "end").strip())
-        self.destroy()
-
 class PLAnalysisWindow(ctk.CTkToplevel):
-    def __init__(self, parent, origin_path="", api_key=""):
+    def __init__(self, parent, origin_path=""):
         super().__init__(parent)
         self.title("PL Analysis")
         self.geometry("1400x900")
         self.origin_path = origin_path
-        self.api_key = api_key
         
         self.df = None
         self.preview_timer = None
@@ -853,36 +817,16 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         messagebox.showinfo("Success", "Plots sent to Origin!", parent=self)
 
     def run_ai_analysis(self):
-        if not self.api_key:
-            messagebox.showerror("Error", "API Key Missing", parent=self)
+        """Rule-based interpretation (3.4; replaces the Gemini text): line widths, quenching or
+        enhancement against the reference, peak shifts, extra emission components."""
+        if self.last_results_df is None or self.last_results_df.empty:
+            messagebox.showinfo("Interpretation", "Run the analysis first.", parent=self)
             return
-        
-        AIConfigDialog(self, self.api_key, self.start_ai_thread)
-
-    def start_ai_thread(self, model_name, context):
-        # Gather data in main thread
-        last_results_df = self.last_results_df
-        self.btn_ai.configure(text="Analyzing...", state="disabled")
-        threading.Thread(target=self._ai_thread, args=(model_name, context, self.api_key, last_results_df), daemon=True).start()
-
-    def _ai_thread(self, model_name, context, api_key, last_results_df):
-        try:
-            if last_results_df is None: return
-            summary = last_results_df.to_string()
-            response = pl_core.analyze_pl_with_gemini(api_key, model_name, context, summary)
-            self.ai_result_text = response
-            self.after(0, lambda: self.show_result_popup(response, "Interpretation result"))
-        finally:
-            self.after(0, lambda: self.btn_ai.configure(state="normal"))
-
-    def show_result_popup(self, text, title):
-        top = ctk.CTkToplevel(self)
-        top.title(title)
-        top.geometry("700x600")
-        top.attributes("-topmost", True)
-        txt = ctk.CTkTextbox(top, font=_pal.font(12))
-        txt.pack(fill="both", expand=True, padx=10, pady=10)
-        txt.insert("1.0", text)
+        from scripts.common import interpret as _interp
+        from scripts.common import interpret_window as _iw
+        rows = self.last_results_df.to_dict("records")
+        ref = self.var_ref_col.get() if hasattr(self, "var_ref_col") else ""
+        _iw.show(self, _interp.interpret_pl(rows, reference=ref))
 
     def open_compare(self):
         """Several PL files side by side (peak, FWHM in nm and meV, integrated intensity)."""
@@ -947,7 +891,7 @@ AnalysisWindow = PLAnalysisWindow
 def main():
     root = ctk.CTk()
     root.withdraw()
-    PLAnalysisWindow(root, "", "")
+    PLAnalysisWindow(root, "")
     root.mainloop()
 
 

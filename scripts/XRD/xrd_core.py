@@ -5,13 +5,6 @@ import math
 import pandas as pd
 from typing import Any, Dict, Optional
 import numpy as np
-try:
-    import google.generativeai as genai
-    GENAI_AVAILABLE = True
-except Exception:
-    genai = None
-    GENAI_AVAILABLE = False
-import json, re
 from scipy.signal import find_peaks, peak_widths
 import os
 
@@ -242,52 +235,6 @@ def _make_peak_row(center, height, fwhm_deg, eta, r2, instrumental_fwhm_deg, sch
         "eta_pV": float(eta) if np.isfinite(eta) else np.nan,
         "Fit_R2": float(r2) if np.isfinite(r2) else np.nan,
     }
-
-def analyze_with_gemini(api_key, model_name, context, peaks_df):
-    """
-    Generate an expert Gemini comment based on the measured peaks_df
-    """
-    if peaks_df.empty:
-        return "No peak data to analyze."
-
-    if genai is None:
-        raise RuntimeError("google-generativeai package is not installed. (pip install google-generativeai)")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
-    
-    # 1. Data summary (for Gemini)
-    peak_summary = peaks_df.to_dict('records')
-    
-    # 2. Prompt design
-    prompt = f"""
-    You are an expert in Crystallography and XRD Analysis. Analyze the following XRD data.
-
-    [Sample Context]
-    {context}
-
-    [Peak Data (Top Peaks)]
-    {json.dumps(peak_summary, indent=2)}
-
-    [Analysis Request]
-    Please provide a professional report in **English** covering:
-    1. **Phase Identification**: Identify the material phases based on 2-Theta peaks.
-    2. **Crystallinity**: Evaluate crystal quality using FWHM, Intensity, and the
-       Scherrer crystallite size (Crystallite_nm column, K=0.9, Cu K-alpha).
-    3. **Lattice Strain**: Discuss any d-spacing shifts indicating strain.
-    4. **Action Items**: Suggest next steps for validation.
-
-    **Format**: Use Markdown with clear bullet points.
-    """
-    
-    try:
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"Error during AI analysis: {str(e)}"
-
-# connect_to_origin lives in scripts/common/origin.py (imported above); all nine
-# tools share one connection routine.
-
 
 def plot_xrd_to_origin(origin, x, y, y_fit, peaks_df=None, log_callback=None):
     """

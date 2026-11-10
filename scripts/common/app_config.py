@@ -22,7 +22,7 @@ import shutil
 import sys
 import tempfile
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional
 
 CONFIG_FILENAME = "physisfera_config.json"
 
@@ -129,12 +129,16 @@ def get(key: str, default: Any = None) -> Any:
     return load().get(key, default)
 
 
-def update(values: Dict[str, Any]) -> str:
+# keys older versions wrote that nothing reads any more (the Gemini key, 3.4)
+RETIRED_KEYS = ("gemini_api_key", "GEMINI_API_KEY", "GOOGLE_API_KEY")
+
+
+def update(values: Dict[str, Any], drop: Iterable[str] = ()) -> str:
     """Merge ``values`` into the config and write it back atomically.
 
-    Merge-preserving on purpose: the launcher owns ``origin_path`` and
-    ``gemini_api_key``, the naming helper owns ``name_presets``, and neither may
-    drop the other's keys. The write goes to a temporary file in the same
+    Merge-preserving on purpose: the launcher owns ``origin_path`` and the
+    appearance keys, the naming helper owns ``name_presets``, and neither may
+    drop the other's keys. ``drop`` names keys to remove (retired settings). The write goes to a temporary file in the same
     directory and is then replaced into place, so an interrupted save cannot
     leave a truncated config behind.
     """
@@ -142,6 +146,8 @@ def update(values: Dict[str, Any]) -> str:
     path = config_path()
     data = dict(load(refresh=True))
     data.update(values)
+    for k in drop:
+        data.pop(k, None)
 
     directory = os.path.dirname(path) or "."
     os.makedirs(directory, exist_ok=True)
@@ -191,24 +197,3 @@ def current_conversion_factor(area_cm2: Optional[float] = None) -> float:
 def origin_path() -> str:
     """Configured path to ``Origin.exe``; empty string disables Origin export."""
     return str(get("origin_path", "") or "")
-
-
-def api_key() -> Optional[str]:
-    """Resolve the Gemini API key: environment first, then the config file.
-
-    A key found in the config is exported into the environment so that modules
-    reached later in the call chain -- including the Google SDK's own implicit
-    lookup -- see it without repeating this search.
-    """
-    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if key:
-        return key
-
-    data = load()
-    for name in ("gemini_api_key", "GEMINI_API_KEY", "GOOGLE_API_KEY"):
-        key = data.get(name)
-        if key:
-            os.environ.setdefault("GEMINI_API_KEY", str(key))
-            os.environ.setdefault("GOOGLE_API_KEY", str(key))
-            return str(key)
-    return None

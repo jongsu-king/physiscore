@@ -17,7 +17,7 @@ scripts/common/             shared, GUI-free unless noted
   provenance.py             .analysis.json side-cars
   report.py                 Markdown reports
   docs_viewer.py            offline documentation: Markdown -> HTML, opened in the browser at a section
-  app_config.py             physisfera_config.json (area, Origin path, API key, theme, presets)
+  app_config.py             physisfera_config.json (area, Origin path, theme, presets)
   naming.py                 sample-name rules shared by the J-V parsers
   palette.py                light/dark colours, fonts, matplotlib style (no Tk)
   theme.py                  customtkinter theme from the palette, widget helpers, panel headers, table stripes (GUI)
@@ -56,8 +56,9 @@ docs/                       USER_GUIDE, METHODS, VALIDATION, FILE_FORMATS, CLI, 
    documented defaults (METHODS.md), not hidden literals.
 4. **Outputs are traceable.** Exports carry a side-car; reports list inputs, version and
    method notes.
-5. **The optional interpretation never touches numbers.** Gemini calls only produce text
-   next to results that already exist.
+5. **The interpretation never touches numbers.** `scripts/common/interpret.py` reads results
+   that already exist and turns them into findings by explicit rules (threshold, formula,
+   reference). It is deterministic, offline and has its own tests (`tests/test_interpret.py`).
 
 ## Threading
 

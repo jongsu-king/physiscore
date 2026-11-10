@@ -55,7 +55,7 @@ def run_one(key) -> int:
         _pump(app, 100, 0.02)
         for name, mod_name in TOOLS.items():
             mod = importlib.import_module(mod_name)
-            win = mod.CompareWindow(app, "xrd") if name == "Compare" else mod.AnalysisWindow(app, "", "")
+            win = mod.CompareWindow(app, "xrd") if name == "Compare" else mod.AnalysisWindow(app, "")
             _pump(win, 15)
             win.destroy()
             _pump(app, 5)
@@ -65,7 +65,7 @@ def run_one(key) -> int:
     root = ctk.CTk()
     root.withdraw()
     mod = importlib.import_module(TOOLS[key])
-    win = mod.CompareWindow(root, "xrd") if key == "Compare" else mod.AnalysisWindow(root, "", "")
+    win = mod.CompareWindow(root, "xrd") if key == "Compare" else mod.AnalysisWindow(root, "")
     _pump(root, 20)
     win.destroy()
     _pump(root, 5)
@@ -86,7 +86,7 @@ def main(names) -> int:
             failures += 1
             print(f"FAIL  {key}  (exit {r.returncode})")
             tail = [ln for ln in (r.stdout + r.stderr).splitlines()
-                    if ln.strip() and "FutureWarning" not in ln and "generativeai" not in ln][-25:]
+                    if ln.strip() and "FutureWarning" not in ln][-25:]
             print("\n".join("      " + ln for ln in tail))
     return failures
 

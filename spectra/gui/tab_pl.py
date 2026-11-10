@@ -19,21 +19,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from tkinter import filedialog, messagebox
 
-from scripts.common import app_config
 from spectra.core.config import PipelineConfig
 from spectra.core.utils import safe_sorted_xy, robust_read_csv
 from spectra.pipelines.run_pl import run_pl_pipeline
-from spectra.core.report import generate_ai_peak_report
+from scripts.common.interpret import interpret_pl, interpret_peak_fit, Report
 from scripts.common import palette as _pal
 
-
-def _resolve_api_key() -> str | None:
-    """Environment first, then physisfera_config.json - see app_config.api_key.
-
-    The local copy this replaced walked three directories up from spectra/gui/,
-    one level above the project root, so a key in the config was never found.
-    """
-    return app_config.api_key()
 
 # Theme
 COL_BG = _pal.BG_WINDOW
@@ -62,13 +53,6 @@ class PLAnalysisTab(ctk.CTkFrame):
 
         # Layer Mode
         self.var_layer_mode = ctk.StringVar(value="Bulk")
-
-        # Gemini AI - Load API key
-        api_key = _resolve_api_key()
-        use_gemini = bool(api_key) and getattr(self.cfg_default, "use_gemini", False)
-        self.var_use_gemini = ctk.IntVar(value=1 if use_gemini else 0)
-        self.var_model = ctk.StringVar(value=getattr(self.cfg_default, "gemini_model", "gemini-2.5-flash"))
-        self._gemini_api_key = api_key
 
         self._build_layout()
         try:
@@ -138,20 +122,8 @@ class PLAnalysisTab(ctk.CTkFrame):
         self.btn_export.grid(row=2, column=0, sticky="ew", pady=(0, 8))
         self.btn_export.configure(state="disabled")
 
-        # AI options
-        ai_row = ctk.CTkFrame(body, fg_color="transparent")
-        ai_row.grid(row=3, column=0, sticky="ew", pady=(6, 6))
-        ai_row.grid_columnconfigure(1, weight=1)
-
-        self.chk_ai = ctk.CTkCheckBox(ai_row, text="Gemini AI", variable=self.var_use_gemini, onvalue=1, offvalue=0)
-        self.chk_ai.grid(row=0, column=0, sticky="w")
-
-        self.ent_ai_model = ctk.CTkEntry(ai_row)
-        self.ent_ai_model.insert(0, self.var_model.get())
-        self.ent_ai_model.grid(row=0, column=1, sticky="ew", padx=(8, 0))
-
-        self.btn_ai = ctk.CTkButton(body, text="Interpretation", command=self._ai_comment, fg_color=COL_ACC, height=28)
-        self.btn_ai.grid(row=4, column=0, sticky="ew", pady=(0, 8))
+        self.btn_ai = ctk.CTkButton(body, text="Interpret (rule-based)", command=self._ai_comment, fg_color=COL_ACC, height=28)
+        self.btn_ai.grid(row=3, column=0, sticky="ew", pady=(0, 8))
         self.btn_ai.configure(state="disabled")
 
     def _build_params(self):
@@ -561,51 +533,39 @@ class PLAnalysisTab(ctk.CTkFrame):
                     ctk.CTkLabel(row_frame, text="-", width=90, text_color=COL_MUT).pack(side="left", padx=4)
 
     def _ai_comment(self):
-        try:
-            if not self.layers:
-                messagebox.showwarning("AI", "No data loaded.")
-                return
-
-            idx = self.selected_layers[0] if self.selected_layers else 0
-            layer = self.layers[idx]
-            fitted = layer.get("fitted")
-            proc = layer.get("proc")
-            if fitted is None or fitted.empty or proc is None or proc.empty:
-                messagebox.showwarning("AI", "Run analysis first.")
-                return
-
-            # Ensure API key is available
-            api_key = _resolve_api_key()
-            if not api_key:
-                messagebox.showwarning("AI", "Gemini API key not found. Set in Setup page.")
-                return
-            
-            self.cfg_default.use_gemini = bool(self.var_use_gemini.get())
-            self.cfg_default.gemini_model = self.ent_ai_model.get().strip() or self.var_model.get()
-
-            outdir_base = os.path.join(os.path.dirname(self.file_path) if self.file_path else os.getcwd(), "_pl_ai_report")
-            report_path = generate_ai_peak_report(
-                proc=proc,
-                cand=fitted,
-                fitted=fitted,
-                cfg=self.cfg_default,
-                outdir=outdir_base,
-                file_label=f"PL:{layer.get('name','')}",
-                log_cb=self._log,
-                topn=8,
-            )
-
-            preview = ""
-            try:
-                with open(report_path, "r", encoding="utf-8") as f:
-                    preview = f.read()
-            except Exception:
-                preview = f"Report written: {report_path}"
-
-            self._show_ai_report_popup(preview)
-
-        except Exception as e:
-            messagebox.showerror("AI Error", str(e))
+        """Rule-based interpretation of every analysed layer (offline, reproducible)."""
+        if not self.layers:
+            messagebox.showwarning("Interpretation", "No data loaded.")
+            return
+        done = [ly for ly in self.layers if ly.get("fitted") is not None and not ly["fitted"].empty]
+        if not done:
+            messagebox.showwarning("Interpretation", "Run the analysis first.")
+            return
+        reference = ""
+        if self.var_layer_mode.get() == "Interface" and self.ref_layer_idx is not None:
+            reference = str(self.layers[self.ref_layer_idx].get("name", ""))
+        rows = []
+        for ly in done:
+            lam = float(ly.get("peak_wavelength") or 0.0)
+            fw = float(ly.get("fwhm_nm") or 0.0)
+            row = {"Sample": str(ly.get("name", "")),
+                   "Peak (eV)": ly.get("bandgap_ev"),
+                   "FWHM (meV)": 1000 * 1239.84193 * fw / lam ** 2 if lam > 0 and fw > 0 else None}
+            if "plqe" in ly:
+                row["Quench eta (integral)"] = ly["plqe"]
+            rows.append(row)
+        rep = Report("PL", os.path.basename(self.file_path or ""))
+        rep.extend(interpret_pl(rows, reference=reference))
+        idx = self.selected_layers[0] if self.selected_layers else self.layers.index(done[0])
+        ly = self.layers[idx]
+        if ly.get("fitted") is not None and not ly["fitted"].empty:
+            sub = interpret_peak_fit("PL", ly["fitted"], subject=str(ly.get("name", "")))
+            for f in sub.findings:
+                if f.topic in ("Second band", "Unresolved peaks", "Detection limit", "Quantification limit"):
+                    rep.findings.append(f)
+        from scripts.common.interpret_window import show
+        self._log("Interpretation: " + rep.summary())
+        show(self.winfo_toplevel(), rep)
 
     def _export_excel(self):
         if not self.layers:
@@ -642,76 +602,3 @@ class PLAnalysisTab(ctk.CTkFrame):
 
         except Exception as e:
             messagebox.showerror("Export Error", str(e))
-    def _show_ai_report_popup(self, text: str):
-        """Show AI report in a large, readable popup window."""
-        popup = ctk.CTkToplevel(self)
-        popup.title("Interpretation Peak Explanation Report")
-        popup.geometry("1000x700")
-        popup.resizable(True, True)
-        
-        # Header
-        header = ctk.CTkFrame(popup, fg_color=COL_ACC, height=50)
-        header.pack(fill="x")
-        header.pack_propagate(False)
-        ctk.CTkLabel(
-            header, 
-            text="Peak report", 
-            text_color="black",
-            font=ctk.CTkFont(size=16, weight="bold")
-        ).pack(pady=10)
-        
-        # Main content frame
-        content = ctk.CTkFrame(popup, fg_color=COL_BG)
-        content.pack(fill="both", expand=True, padx=10, pady=10)
-        content.grid_rowconfigure(0, weight=1)
-        content.grid_columnconfigure(0, weight=1)
-        
-        # Textbox with scrollbar
-        txt = ctk.CTkTextbox(
-            content,
-            fg_color=COL_CARD,
-            text_color=COL_TXT,
-            font=ctk.CTkFont(family="Courier", size=11),
-            corner_radius=_pal.R_PILL,
-            border_width=1,
-            border_color=COL_STROKE,
-            wrap="word"
-        )
-        txt.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-        txt.insert("1.0", text)
-        txt.configure(state="disabled")
-        
-        # Button frame
-        btn_frame = ctk.CTkFrame(popup, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=10, pady=10)
-        
-        ctk.CTkButton(
-            btn_frame,
-            text="Copy to clipboard",
-            command=lambda: self._copy_to_clipboard(text),
-            fg_color=COL_ACC,
-            text_color="black",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            height=28
-        ).pack(side="left", padx=5)
-        
-        ctk.CTkButton(
-            btn_frame,
-            text="Close",
-            command=popup.destroy,
-            fg_color="gray",
-            height=28,
-            font=ctk.CTkFont(size=11, weight="bold"), text_color=_pal.TXT).pack(side="right", padx=5)
-        
-        popup.grab_set()
-        popup.focus()
-
-    def _copy_to_clipboard(self, text: str):
-        """Copy text to clipboard."""
-        try:
-            self.clipboard_clear()
-            self.clipboard_append(text)
-            self._log("Report copied to clipboard")
-            messagebox.showinfo("Success", "Report copied to clipboard!")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to copy: {e}")

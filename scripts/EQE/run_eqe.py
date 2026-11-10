@@ -100,13 +100,12 @@ _eqe_to_fraction = eqe_core.eqe_to_fraction
 # UI (ABS-style) + EQE_core features
 # ============================================================
 class EQEWindow(ctk.CTkToplevel):
-    def __init__(self, parent, origin_path="", api_key=""):
+    def __init__(self, parent, origin_path=""):
         super().__init__(parent)
         self.title("EQE Analyzer")
         self.geometry("1500x920")
 
         self.origin_path = origin_path or find_origin_path()
-        self.api_key = api_key  # stored for potential future use
 
         # colors
         self.card_bg = _pal.BG_CARD
@@ -174,7 +173,8 @@ class EQEWindow(ctk.CTkToplevel):
                     "excel": ("Excel", self._save_excel),
                     "png": True,
                     "report": ("Report", self._export_report),
-                    "origin": ("Origin", self._send_origin)
+                    "origin": ("Origin", self._send_origin),
+                    "ai": ("Interpretation", self._interpret),
                 }, hints="Drag on ln(EQE): Urbach fit  |  Drag on EQE vs E: derivative band gap  |  "
                          "Wheel: zoom (Ctrl = x, Shift = y)  |  Right-click: plot menu")
             except Exception as _ce:
@@ -948,6 +948,16 @@ class EQEWindow(ctk.CTkToplevel):
             return t if 100 < t < 500 else 300.0
         except (ValueError, AttributeError):
             return 300.0
+
+    def _interpret(self):
+        """Rule-based interpretation: Urbach tail, collection, spectral current losses, voltage losses."""
+        if self.eqe_summary is None or self.raw_x is None:
+            messagebox.showinfo("Interpretation", "Load a spectrum and run Auto fit first.", parent=self)
+            return
+        from scripts.common import interpret as _interp
+        from scripts.common import interpret_window as _iw
+        name = self.target_file.name if getattr(self, "target_file", None) else ""
+        _iw.show(self, _interp.interpret_eqe(self.eqe_summary, self.raw_x, self.raw_y, subject=name))
 
     def _update_detailed_balance(self):
         """Band gap (Rau), Urbach energy, J0,rad / Voc,rad, SQ limits and voltage losses."""

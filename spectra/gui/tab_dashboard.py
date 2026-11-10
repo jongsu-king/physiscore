@@ -4,7 +4,7 @@
 #
 # requires:
 #   pip install customtkinter matplotlib numpy pandas openpyxl
-#   (pipeline deps) scipy pybaselines lmfit pydantic
+#   (pipeline deps) scipy pybaselines lmfit
 # ------------------------------------------------------------
 
 from __future__ import annotations
@@ -27,7 +27,6 @@ except ImportError:
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from scripts.common import app_config
 from scripts.common import theme as _theme
 from spectra.core.config import PipelineConfig
 from spectra.core.utils import safe_sorted_xy, robust_read_csv
@@ -36,18 +35,11 @@ from spectra.pipelines.run_xrd import run_xrd_pipeline
 from spectra.pipelines.run_pl import run_pl_pipeline
 from spectra.pipelines.run_xps import run_xps_pipeline
 
-from spectra.core.report import generate_ai_peak_report
+from spectra.core.report import generate_peak_report
+from scripts.common.interpret import interpret_peak_fit
 from scripts.common import palette as _pal
 
 
-
-def _resolve_api_key() -> str | None:
-    """Environment first, then physisfera_config.json - see app_config.api_key.
-
-    The local copy this replaced walked three directories up from spectra/gui/,
-    one level above the project root, so a key in the config was never found.
-    """
-    return app_config.api_key()
 
 # -------------------------
 # Theme (you can tweak)
@@ -97,10 +89,6 @@ class SpectraDashboardTab(ctk.CTkFrame):
         self.var_use_noise_prom = ctk.IntVar(value=1 if self.cfg_default.use_noise_based_prominence else 0)
         self.var_noise_k        = ctk.DoubleVar(value=self.cfg_default.noise_k)
         self.var_min_sep_x      = ctk.DoubleVar(value=self.cfg_default.min_peak_separation_x)
-
-        # AI
-        self.var_use_gemini = ctk.IntVar(value=1 if self.cfg_default.use_gemini else 0)
-        self.var_model      = ctk.StringVar(value=self.cfg_default.gemini_model)
 
         # PL
         self.var_pl_aic     = ctk.IntVar(value=1 if self.cfg_default.pl_enable_aic else 0)
@@ -179,8 +167,8 @@ class SpectraDashboardTab(ctk.CTkFrame):
         self.card_params.grid(row=1, column=0, sticky="ew", pady=(0, 12))
         self._build_params_card(self.card_params)
 
-        # AI
-        self.card_ai = self._card(self.left, "Interpretation (Gemini, optional)")
+        # Interpretation (rule-based, offline)
+        self.card_ai = self._card(self.left, "Interpretation")
         self.card_ai.grid(row=2, column=0, sticky="ew", pady=(0, 12))
         self._build_ai_card(self.card_ai)
 
@@ -313,10 +301,16 @@ class SpectraDashboardTab(ctk.CTkFrame):
 
         self.btn_report = ctk.CTkButton(grid, text="Peak report", command=self.make_report, fg_color=COL_CARD2, hover_color=COL_STROKE, text_color=_pal.TXT)
         self.btn_report.grid(row=1, column=1, sticky="ew", padx=(6, 0))
+        self.btn_interpret = ctk.CTkButton(grid, text="Interpret fit", command=self.interpret_clicked,
+                                           state="disabled", fg_color=COL_CARD2, hover_color=COL_STROKE,
+                                           text_color=_pal.TXT)
         if self.cfg_default.technique == "XPS":
+            self.btn_interpret.grid(row=2, column=0, sticky="ew", padx=(0, 6), pady=(8, 0))
             self.btn_quant = ctk.CTkButton(grid, text="Quantify (atomic %)...", command=self.quantify_dialog,
                                            fg_color=COL_CARD2, hover_color=COL_STROKE, text_color=_pal.TXT)
-            self.btn_quant.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+            self.btn_quant.grid(row=2, column=1, sticky="ew", padx=(6, 0), pady=(8, 0))
+        else:
+            self.btn_interpret.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
 
         # hide sheet selector initially
         self._set_sheet_ui(False)
@@ -400,24 +394,21 @@ class SpectraDashboardTab(ctk.CTkFrame):
 
     def _build_ai_card(self, card):
         body = card.winfo_children()[1]
-        body.grid_columnconfigure(1, weight=1)
+        body.grid_columnconfigure(0, weight=1)
+        self.lbl_interp = ctk.CTkLabel(
+            body, text="Interpret fit (Actions) checks detection limits, resolution, the residual and the "
+                       "technique rules; offline.",
+            text_color=COL_MUT, wraplength=300, justify="left")
+        self.lbl_interp.grid(row=0, column=0, padx=10, pady=(6, 10), sticky="w")
 
-        self.chk_ai = ctk.CTkCheckBox(
-            body, text="Add Gemini commentary to the report",
-            variable=self.var_use_gemini, text_color=COL_TXT, fg_color=COL_ACC
-        )
-        self.chk_ai.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 6), sticky="w")
-
-        ctk.CTkLabel(body, text="Model", text_color=COL_MUT).grid(row=1, column=0, padx=10, pady=(0, 10), sticky="w")
-        self.ent_model = ctk.CTkEntry(body, fg_color=COL_CARD2)
-        self.ent_model.insert(0, str(self.var_model.get()))
-        self.ent_model.grid(row=1, column=1, padx=10, pady=(0, 10), sticky="ew")
-
-        key = _resolve_api_key()
-        st = "API key: OK" if key else "API key: MISSING"
-        col = COL_OK if key else COL_WARN
-        self.lbl_key = ctk.CTkLabel(body, text=st, text_color=col)
-        self.lbl_key.grid(row=2, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="w")
+    def interpret_clicked(self):
+        if self.fitted is None:
+            return
+        from scripts.common.interpret_window import show
+        rep = interpret_peak_fit(self.cfg_default.technique, self.fitted,
+                                 subject=os.path.basename(self.file_path or ""))
+        self.lbl_interp.configure(text=rep.summary(), text_color=COL_TXT)
+        show(self.winfo_toplevel(), rep)
 
     def _build_status_card(self, card):
         body = card.winfo_children()[1]
@@ -515,10 +506,6 @@ class SpectraDashboardTab(ctk.CTkFrame):
         cfg.use_noise_based_prominence = (int(self.var_use_noise_prom.get()) == 1)
         cfg.noise_k = float(self.ent_k.get())
         cfg.min_peak_separation_x = float(self.ent_sep.get())
-
-        # AI
-        cfg.use_gemini = (int(self.var_use_gemini.get()) == 1)
-        cfg.gemini_model = str(self.ent_model.get()).strip() or cfg.gemini_model
 
         if cfg.technique == "PL":
             cfg.pl_enable_aic = (int(self.var_pl_aic.get()) == 1)
@@ -658,6 +645,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
         self.btn_save.configure(state="normal" if (self.proc is not None) else "disabled")
         self.btn_excel.configure(state="normal" if (self.proc is not None) else "disabled")
         self.btn_report.configure(state="normal" if (self.fitted is not None) else "disabled")
+        self.btn_interpret.configure(state="normal" if (self.fitted is not None) else "disabled")
 
 
     # -------------------------
@@ -683,7 +671,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
 
                 # auto report
                 self._log("Generating peak report...")
-                rp = generate_ai_peak_report(
+                rp = generate_peak_report(
                     proc=proc, cand=cand, fitted=fitted, cfg=cfg,
                     outdir=outdir,
                     file_label=os.path.basename(self.file_path or ""),
@@ -785,7 +773,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
         try:
             cfg = self._cfg_from_ui()
             self._log("Generating peak report...")
-            rp = generate_ai_peak_report(
+            rp = generate_peak_report(
                 proc=self.proc, cand=self.cand, fitted=self.fitted, cfg=cfg,
                 outdir=outdir,
                 file_label=os.path.basename(self.file_path or ""),
@@ -920,7 +908,7 @@ class SpectraDashboardTab(ctk.CTkFrame):
                     else:
                         proc, cand, fitted = run_pl_pipeline(x, y, outdir, cfg, log_cb=self._log)
 
-                    generate_ai_peak_report(
+                    generate_peak_report(
                         proc=proc, cand=cand, fitted=fitted, cfg=cfg,
                         outdir=outdir,
                         file_label=fn,

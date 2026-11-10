@@ -1,7 +1,6 @@
 # Configuration
 
-All configuration files are git-ignored: they hold machine-specific paths and an
-optional API key. Copy the template and edit your local copy.
+All configuration files are git-ignored: they hold machine-specific paths. Copy the template and edit your local copy.
 
 ```bash
 cp physisfera_config.example.json physisfera_config.json
@@ -13,7 +12,6 @@ cp physisfera_config.example.json physisfera_config.json
 |---|---|---|
 | `cell_area_cm2` | Device area used to convert measured current to current density. **Set this before analysing any J–V data** — it scales Jsc and therefore PCE linearly. | `0.04` |
 | `origin_path` | Path to `Origin.exe` for optional plot export. Empty disables Origin export. | `""` |
-| `gemini_api_key` | Optional. Enables the "Interpretation" commentary panels only. | `""` |
 | `theme` | `light` or `dark` appearance of every window; applies after a restart. `PHYSISCORE_THEME` overrides it for one run. | `light` |
 | `name_presets` | Sample-name presets shared by every tool's rename menu. Written by the application. | `[]` |
 
@@ -35,17 +33,12 @@ The per-tool files (`scripts/JV/jv_config.json`, `scripts/Dark_JV/dark_jv_config
 sample-name presets — and are written by the application. They are not required to
 exist; each tool recreates its own with defaults.
 
-## The interpretation (Gemini) features are optional
+## Interpretation needs no key (3.4)
 
-With `gemini_api_key` empty, every numerical result, plot and export is byte-for-byte
-identical. Nothing in the physics path calls the model — it only produces
-natural-language commentary alongside results that were already computed. This
-separation is deliberate, so that published numbers never depend on a model version
-or a network round-trip.
-
-## Do not commit your key
-
-`physisfera_config.json` and `scripts/*/…_config.json` are listed in `.gitignore`
-because a working configuration contains a live API key in plain text. If a key is
-ever committed, rotate it — removing the file in a later commit does not remove it
-from the history.
+Up to 3.3 the interpretation panels called the Gemini API with a key stored here
+(`gemini_api_key`). 3.4 replaced them with rule-based interpretation
+(`scripts/common/interpret.py`, METHODS §16): nothing is sent anywhere and the same
+result always gives the same text. A `gemini_api_key` written by an older version is
+no longer read and is removed from the file the next time the Settings dialog saves.
+If such a key was ever committed to a repository, revoke it in Google AI Studio —
+removing the file in a later commit does not remove it from the history.

@@ -143,24 +143,15 @@ def test_update_is_visible_to_the_physics_path_immediately(config_file):
     assert jv_core.cell_area_cm2() == pytest.approx(0.16)
 
 
-def test_api_key_prefers_environment_over_config(config_file, monkeypatch):
-    config_file(gemini_api_key="from-config")
-    monkeypatch.setenv("GEMINI_API_KEY", "from-env")
-    assert app_config.api_key() == "from-env"
+def test_retired_gemini_key_is_dropped_on_update(config_file):
+    """3.4 removed the Gemini panels: a key stored by an older version must not
+    stay in the settings file once the launcher saves its settings again."""
+    config_file(gemini_api_key="old-key", origin_path="keep")
+    app_config.update({"cell_area_cm2": 0.1}, drop=app_config.RETIRED_KEYS)
+    data = app_config.load(refresh=True)
+    assert "gemini_api_key" not in data
+    assert data["origin_path"] == "keep" and data["cell_area_cm2"] == 0.1
 
 
-def test_api_key_falls_back_to_config_and_exports_it(config_file, monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    config_file(gemini_api_key="from-config")
-
-    assert app_config.api_key() == "from-config"
-    # exported so the Google SDK's own implicit lookup finds it too
-    assert os.environ["GEMINI_API_KEY"] == "from-config"
-
-
-def test_absent_key_is_none_not_an_exception(config_file, monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    config_file()
-    assert app_config.api_key() is None
+def test_no_api_key_helper_remains():
+    assert not hasattr(app_config, "api_key")
