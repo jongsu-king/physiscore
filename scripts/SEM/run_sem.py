@@ -535,6 +535,11 @@ class AnalysisWindow(ctk.CTkToplevel):
                                           filetypes=[("Images", "*.tif *.tiff *.png *.jpg *.jpeg *.bmp"), ("All files", "*.*")])
         if not path:
             return
+        self.open_path(path)
+
+    def open_path(self, path):
+        """Load one file without the dialog (launcher workspace, command line)."""
+        path = str(path)
         try:
             self.cv_bgr = read_image_bgr(path)
             self.img_path = path

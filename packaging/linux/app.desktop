@@ -6,7 +6,7 @@ Exec=@EXEC@
 Icon=@ID@
 Terminal=false
 Categories=Science;Physics;
-Keywords=solar cell;photovoltaic;J-V;EQE;XRD;XPS;Raman;FTIR;PL;
+Keywords=solar cell;photovoltaic;J-V;EQE;XRD;XPS;Raman;FTIR;PL;TRPL;impedance;SCLC;C-V;stability;
 Actions=guide;methods;
 
 [Desktop Action guide]

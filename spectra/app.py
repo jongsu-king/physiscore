@@ -48,7 +48,7 @@ def build_default_configs():
 
 
 class App(ctk.CTk):
-    def __init__(self, start_tab: str = "PL"):
+    def __init__(self, start_tab: str = "PL", data_file: str = ""):
         super().__init__()
 
         # ---- Global UI theme ----
@@ -69,13 +69,16 @@ class App(ctk.CTk):
         tabs.pack(fill="both", expand=True, padx=14, pady=14)
 
         # ---- Only create selected tab ----
+        dash = None
         if st == "XRD":
             t_xrd = tabs.add("XRD")
-            SpectraDashboardTab(t_xrd, "XRD", xrd_cfg).pack(fill="both", expand=True)
+            dash = SpectraDashboardTab(t_xrd, "XRD", xrd_cfg)
+            dash.pack(fill="both", expand=True)
             tabs.set("XRD")
         elif st == "XPS":
             t_xps = tabs.add("XPS")
-            SpectraDashboardTab(t_xps, "XPS", xps_cfg).pack(fill="both", expand=True)
+            dash = SpectraDashboardTab(t_xps, "XPS", xps_cfg)
+            dash.pack(fill="both", expand=True)
             tabs.set("XPS")
         else:  # PL
             t_pl = tabs.add("PL")
@@ -87,6 +90,10 @@ class App(ctk.CTk):
             _theme.instrumentize(self)
         except Exception:
             pass
+
+        # a file handed over by the launcher's workspace or the command line (3.5)
+        if data_file and dash is not None:
+            self.after(400, lambda: dash.open_path(data_file))
 
 
 if __name__ == "__main__":
@@ -100,6 +107,7 @@ if __name__ == "__main__":
         pass
 
     # start tab can be set via CLI arg: python -m spectra.app XRD
+    # and a data file to load at start: python -m spectra.app XPS scan.csv
     start_tab = sys.argv[1] if len(sys.argv) > 1 else "PL"
-    app = App(start_tab=start_tab)
+    app = App(start_tab=start_tab, data_file=sys.argv[2] if len(sys.argv) > 2 else "")
     app.mainloop()

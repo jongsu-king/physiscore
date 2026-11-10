@@ -192,8 +192,9 @@ def enable_drag_pan(canvas, button=1):
 def add_canvas_context_menu(owner, canvas, fig, extra_items=None,
                             on_after_change=None):
     """Right-click menu on a matplotlib canvas: Auto Range / Toggle Legend /
-    Toggle Grid / Save Figure (publication style). `extra_items` is an
-    optional list of (label, callback) appended at the top.
+    Toggle Grid, the shared graph tools (data reader, plot details, data
+    worksheet) and the two figure exports. `extra_items` is an optional list
+    of (label, callback) appended at the top.
     """
     widget = canvas.get_tk_widget()
 
@@ -248,6 +249,23 @@ def add_canvas_context_menu(owner, canvas, fig, extra_items=None,
             except Exception:
                 pass
 
+    def plot_tool(which):
+        try:
+            from scripts.common import plot_tools as _pt
+            if which == "reader":
+                _pt.toggle_reader(owner, canvas, fig)
+            elif which == "details":
+                _pt.open_plot_details(owner, fig, canvas)
+            elif which == "worksheet":
+                _pt.open_worksheet(owner, fig)
+            else:
+                _pt.open_export(owner, fig)
+        except Exception as e:
+            try:
+                messagebox.showerror("Graph", str(e))
+            except Exception:
+                pass
+
     menu = tk.Menu(widget, tearoff=0)
     if extra_items:
         for label, cb in extra_items:
@@ -260,7 +278,12 @@ def add_canvas_context_menu(owner, canvas, fig, extra_items=None,
     menu.add_command(label="Toggle Legend", command=do_toggle_legend)
     menu.add_command(label="Toggle Grid", command=do_toggle_grid)
     menu.add_separator()
+    menu.add_command(label="Data Reader (on/off)", command=lambda: plot_tool("reader"))
+    menu.add_command(label="Plot Details...", command=lambda: plot_tool("details"))
+    menu.add_command(label="Data Worksheet...", command=lambda: plot_tool("worksheet"))
+    menu.add_separator()
     menu.add_command(label="Save Figure (Publication)...", command=do_save_fig)
+    menu.add_command(label="Export Figure (Journal Preset)...", command=lambda: plot_tool("export"))
 
     def popup(ev):
         try:

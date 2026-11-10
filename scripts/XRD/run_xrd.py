@@ -337,9 +337,13 @@ class XRDAnalysisTab(ctk.CTkFrame):
         self.ai_textbox.configure(state="disabled")
 
     def load_data(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Data Files", "*.csv *.xlsx *.txt *.xls"), ("All Files", "*.*")])
+        file_path = filedialog.askopenfilename(filetypes=[("Data Files", "*.csv *.xlsx *.txt *.xls *.xy *.dat"), ("All Files", "*.*")])
         if not file_path: return
-            
+        self.open_path(file_path)
+
+    def open_path(self, file_path):
+        """Load one file without the dialog (launcher workspace, command line)."""
+        file_path = str(file_path)
         try:
             self.log(f"Loading: {os.path.basename(file_path)}")
             self.x_data, self.y_data = xrd_core.load_data(file_path)
@@ -929,6 +933,11 @@ class AnalysisWindow(ctk.CTkToplevel):
         
         self.attributes('-topmost', True)
         self.after(100, lambda: self.attributes('-topmost', False))
+
+    def open_path(self, path):
+        """Load one file without the dialog (launcher workspace, command line)."""
+        self.tab.open_path(path)
+
 
 if __name__ == "__main__":
     try:

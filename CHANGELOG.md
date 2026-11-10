@@ -3,6 +3,62 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
+## [3.5.0] - 2026-11-10
+
+### Added
+- Six analysis tools (17 in total), each with a window, a command, an Excel workbook
+  with side-car, rule-based interpretation and validation rows. All of them run on the
+  computer; none uses a network or a model service.
+  - **SCLC** (`scripts/SCLC`): ohmic, trap-filling and Child regimes from the local
+    slope, V_TFL and trap density with its resolution limit, Mott-Gurney mobility
+    (optionally Murgatroyd), conductivity and n0, sweep hysteresis.
+  - **Light intensity** (`scripts/Intensity`): ideality factor from Voc against
+    ln(irradiance) with its error, Jsc power law, Suns-Voc pseudo J-V, pseudo fill factor
+    and transport loss; reads a table or a set of J-V files with the irradiance in the name.
+  - **TRPL** (`scripts/TRPL`): one to three exponentials or a stretched exponential
+    chosen by AICc, Poisson weights for counts, mean lifetimes, differential lifetime,
+    diffusion length from an entered mobility.
+  - **Impedance** (`scripts/EIS`): complex least-squares fit of R(RC), R(RQ), R(RC)(RC),
+    R(RQ)(RQ) chosen by AICc, parameter errors, effective capacitance, linear
+    Kramers-Kronig test, automatic sign convention of Z''.
+  - **C-V (Mott-Schottky)** (`scripts/CV`): straight section of 1/C² found
+    automatically, doping density, built-in voltage, depletion width, doping profile,
+    full-depletion limit.
+  - **Stability** (`scripts/Stability`): T80 measured or extrapolated (marked), burn-in
+    model chosen by AICc, stabilised Ts80, loss rate per 1000 h, ISOS protocol on record.
+- **Open data** (Ctrl+O) recognises the measurement in a file from its name, column
+  headers and numbers and opens it in the right tool; **Workspace folder**
+  (Ctrl+Shift+O) lists a project folder that way (Workspace tab: measurement,
+  confidence, the evidence behind it, Open selected / Open with / Compare selected).
+  `scripts/common/detect.py`; launcher option `--open FILE ... | FOLDER`.
+- **Results** tab and File > *Collect results to Excel*: every export below the
+  workspace folder with its key numbers, read from the side-cars
+  (`scripts/common/results_index.py`).
+- Graph tools in every window (`scripts/common/plot_tools.py`): Data reader (Ctrl+R),
+  Plot details (Ctrl+P), Data worksheet (Ctrl+D), Export figure with journal presets of
+  85, 114, 174 and 254 mm width (Ctrl+Shift+S); also in the graph's right-click menu.
+- Help > *Methods of this tool* opens the offline methods document at the section of
+  the window in use.
+- Commands `sclc`, `intensity`, `trpl`, `eis`, `cv`, `stability`, `detect`, `collect`.
+- Interpretation rules for the six tools (`scripts/common/interpret_transport.py`,
+  METHODS §16.13-16.18); METHODS §17-§23; user guide sections 13 and 14; FILE_FORMATS
+  §9-§10; "Adding a curve tool" in ARCHITECTURE.
+- Tests: `test_transport.py` (49), `test_curve_batch.py` (39), `test_workspace.py` (39);
+  24 new rows in the validation table.
+
+### Changed
+- Main window: toolbar with Open data and Workspace folder, the Workspace and Results
+  tabs in front of Session, a new tool group *Transport and recombination*.
+- Absorbance also reads text exports (`.csv .tsv .txt .dat .asc`), not only Excel; the
+  XRD file dialog accepts `.xy` and `.dat`.
+- The Absorbance, EQE, PL, XRD, FE-SEM, Raman and FTIR windows and the auto-fit
+  workspaces accept a file handed over by the Workspace tab or the command line
+  (`python -m spectra.app XPS scan.csv`).
+- The new windows do their work on the main thread in short steps (one file per step,
+  folder scans in 0.04 s slices) instead of worker threads.
+- A side-car written for a built-in example records the example's name instead of a
+  file path.
+
 ## [3.4.0] - 2026-11-10
 
 ### Changed

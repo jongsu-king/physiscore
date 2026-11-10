@@ -425,21 +425,31 @@ class AnalysisWindow(ctk.CTkToplevel):
     # =====================
     def browse_excel(self):
         file_path = filedialog.askopenfilename(
-            title="Select UV-Vis Excel",
-            filetypes=[("Excel Files", "*.xlsx *.xls"), ("All files", "*.*")]
+            title="Select UV-Vis file",
+            filetypes=[("Excel", "*.xlsx *.xls"), ("Text", "*.csv *.tsv *.txt *.dat *.asc"), ("All files", "*.*")]
         )
         if not file_path:
             return
+        self._select_file(file_path)
 
+    def open_path(self, path):
+        """Load one file without the dialog (launcher workspace, command line)."""
+        if self._select_file(str(path)):
+            self.load_data_from_ui()
+
+    def _select_file(self, file_path) -> bool:
         self.entry_file.delete(0, "end")
         self.entry_file.insert(0, file_path)
         self.target_file = Path(file_path)
 
         try:
-            xls = pd.ExcelFile(file_path)
-            sheets = xls.sheet_names
-            if not sheets:
-                raise ValueError("No sheets found")
+            if self.target_file.suffix.lower() in (".xlsx", ".xls"):
+                xls = pd.ExcelFile(file_path)
+                sheets = xls.sheet_names
+                if not sheets:
+                    raise ValueError("No sheets found")
+            else:
+                sheets = ["-"]                    # text export: one table (3.5)
 
             self.sheet_menu.configure(values=sheets)
             self.selected_sheet.set(sheets[0])
@@ -447,21 +457,30 @@ class AnalysisWindow(ctk.CTkToplevel):
             self.btn_load.configure(state="normal")
             self.log(f"Selected file: {file_path}")
             self.set_status("File selected", 0)
+            return True
 
         except Exception as e:
-            messagebox.showerror("Error", f"Excel open error: {e}")
+            messagebox.showerror("Error", f"File open error: {e}")
             self.btn_load.configure(state="disabled")
+            return False
 
     def load_data_from_ui(self):
         if not self.target_file:
-            messagebox.showwarning("Warning", "Select an Excel file first.")
+            messagebox.showwarning("Warning", "Select a data file first.")
             return
 
         sheet = self.selected_sheet.get()
         try:
             self.set_status("Loading...", 0.1)
-            self.df = pd.read_excel(self.target_file, sheet_name=sheet)
-            self.sheet_name = sheet
+            if Path(self.target_file).suffix.lower() in (".xlsx", ".xls"):
+                self.df = pd.read_excel(self.target_file, sheet_name=sheet)
+                self.sheet_name = sheet
+            else:
+                # CSV/TXT export of the spectrometer: metadata lines, separator and
+                # decimal comma are handled by the shared text reader (3.5)
+                from scripts.common.curve_io import read_text_table
+                self.df = read_text_table(str(self.target_file))
+                self.sheet_name = Path(self.target_file).stem
 
             # col0: wavelength (nm); Y: the chosen column (default: the first numeric one after it)
             cols = [str(c) for c in self.df.columns]

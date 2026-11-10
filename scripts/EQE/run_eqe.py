@@ -485,7 +485,14 @@ class EQEWindow(ctk.CTkToplevel):
         )
         if not file_path:
             return
+        self._select_file(file_path)
 
+    def open_path(self, path):
+        """Load one file without the dialog (launcher workspace, command line)."""
+        if self._select_file(str(path)):
+            self._load_and_plot()
+
+    def _select_file(self, file_path) -> bool:
         self.entry_file.delete(0, "end")
         self.entry_file.insert(0, file_path)
         self.target_file = Path(file_path)
@@ -505,9 +512,11 @@ class EQEWindow(ctk.CTkToplevel):
 
             self.btn_load.configure(state="normal")
             self._log(f"Selected file: {file_path}")
+            return True
         except Exception as e:
             messagebox.showerror("Error", f"Open error: {e}")
             self.btn_load.configure(state="disabled")
+            return False
 
     def _browse_origin(self):
         root = tk.Tk()

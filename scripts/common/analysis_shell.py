@@ -274,6 +274,16 @@ def set_status(win, text):
 # ---------------------------------------------------------------------------
 # Chrome
 # ---------------------------------------------------------------------------
+# Section of docs/METHODS.md behind "Help > Methods of this tool".  A window may
+# also name its own in a METHOD_SECTION attribute (the curve tools do).
+_METHOD_SECTIONS = {
+    "J-V Curve Analysis": "1.", "J-V Dark Analysis": "2.", "EQE Analysis": "3.",
+    "Absorbance / Tauc Analysis": "4.", "XRD Analysis": "5.", "PL Analysis": "6.",
+    "Raman Analysis": "7.", "FTIR Analysis": "7.", "FE-SEM Analysis": "8.",
+    "Device summary": "11.",
+}
+
+
 def _make_menubar(win, tool_name, actions, hints):
     bar = tk.Menu(win, tearoff=False)
 
@@ -314,7 +324,11 @@ def _make_menubar(win, tool_name, actions, hints):
         m_ex.add_command(label="Save figure...", accelerator="Ctrl+S", command=_wrap(lambda: save_fig_png(win)))
     elif png is not None:
         add_items(m_ex, png, _DEFAULT_LABELS["png"])
+    m_ex.add_command(label="Export figure (journal preset)...", accelerator="Ctrl+Shift+S",
+                     command=_wrap(lambda: _plot_tool(win, "export")))
     m_ex.add_command(label="Copy figure to clipboard", command=_wrap(lambda: copy_figure_to_clipboard(win)))
+    m_ex.add_command(label="Data worksheet...", accelerator="Ctrl+D",
+                     command=_wrap(lambda: _plot_tool(win, "worksheet")))
     if actions.get("report") is not None:
         add_items(m_ex, actions.get("report"), _DEFAULT_LABELS["report"])
     if actions.get("origin") is not None:
@@ -356,14 +370,32 @@ def _make_menubar(win, tool_name, actions, hints):
     m_view.add_command(label="Auto range", command=lambda: _each_axes(_auto_range))
     m_view.add_command(label="Toggle legend", command=lambda: _each_axes(_toggle_legend))
     m_view.add_command(label="Toggle grid", command=lambda: _each_axes(_toggle_grid))
+    m_view.add_separator()
+    m_view.add_command(label="Data reader", accelerator="Ctrl+R", command=_wrap(lambda: _plot_tool(win, "reader")))
+    m_view.add_command(label="Plot details...", accelerator="Ctrl+P",
+                       command=_wrap(lambda: _plot_tool(win, "details")))
     bar.add_cascade(label="View", menu=m_view)
 
     m_help = tk.Menu(bar, tearoff=False)
     if hints:
         m_help.add_command(label="Mouse and keyboard...", command=lambda: messagebox.showinfo(
             f"{tool_name} - mouse and keyboard", hints.replace("  |  ", "\n")))
-    m_help.add_command(label="Methods (online)", command=lambda: __import__("webbrowser").open(
-        "https://github.com/jongsu-king/physiscore/blob/main/docs/METHODS.md"))
+    def _methods_online():
+        __import__("webbrowser").open("https://github.com/jongsu-king/physiscore/blob/main/docs/METHODS.md")
+
+    def _methods_offline():
+        # The bundled copy, at the section of this tool when the window names one.
+        try:
+            from scripts.common import docs_viewer
+            section = getattr(win, "METHOD_SECTION", "") or _METHOD_SECTIONS.get(tool_name)
+            if docs_viewer.open_doc("METHODS", section=section) is not None:
+                return
+        except Exception:
+            pass
+        _methods_online()
+
+    m_help.add_command(label="Methods of this tool", command=_methods_offline)
+    m_help.add_command(label="Methods (online)", command=_methods_online)
     m_help.add_command(label="About Physiscore", command=lambda: _about(win))
     bar.add_cascade(label="Help", menu=m_help)
 
@@ -388,7 +420,37 @@ def _make_menubar(win, tool_name, actions, hints):
     if png is not None:
         win.bind("<Control-s>", _wrap(lambda: save_fig_png(win)))
     win.bind("<Control-q>", lambda e: win.destroy())
+    for seq, which in (("<Control-r>", "reader"), ("<Control-p>", "details"), ("<Control-d>", "worksheet"),
+                       ("<Control-Shift-S>", "export")):
+        # a text field keeps its own editing keys (Ctrl+D deletes a character there)
+        win.bind(seq, _wrap(lambda w=which: None if _typing(win) else _plot_tool(win, w)))
     return bar
+
+
+def _typing(win) -> bool:
+    """True while the keyboard focus is in a text field."""
+    try:
+        w = win.focus_get()
+        return w is not None and w.winfo_class() in ("Entry", "TEntry", "Text", "Spinbox", "TSpinbox", "TCombobox")
+    except Exception:
+        return False
+
+
+def _plot_tool(win, which):
+    """Shared graph tools (scripts/common/plot_tools.py) on the window's figure."""
+    from scripts.common import plot_tools as _pt
+    fig = find_figure(win)
+    if fig is None:
+        messagebox.showinfo("Graph", "There is no graph in this window yet.", parent=win)
+        return None
+    if which == "reader":
+        on = _pt.toggle_reader(win, fig.canvas, fig)
+        return on
+    if which == "details":
+        return _pt.open_plot_details(win, fig, fig.canvas)
+    if which == "worksheet":
+        return _pt.open_worksheet(win, fig)
+    return _pt.open_export(win, fig)
 
 
 def _about(win):

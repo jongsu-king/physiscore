@@ -10,7 +10,9 @@ dialogs on the screen never end up in the picture; this needs screen-recording
 permission for the terminal. Elsewhere the window region is grabbed with Pillow.
 
 All data are synthetic (analytical models with noise) and labelled as such in the
-documentation.
+documentation. The windows read a settings file made for the run in a temporary
+folder, so neither the settings nor a folder of the person who runs the script
+ends up in a picture.
 """
 import os
 import subprocess
@@ -26,8 +28,10 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 os.environ.setdefault("PHYSISCORE_NO_UPDATE", "1")
 
-NAMES = ("launcher", "updates", "jv", "device", "dark", "eqe", "abs", "pl", "xrd", "sem",
-         "raman", "ftir", "xps", "compare", "interpretation")
+NAMES = ("launcher", "workspace", "results", "updates", "jv", "device", "dark", "eqe", "abs", "pl", "xrd", "sem",
+         "raman", "ftir", "xps", "sclc", "intensity", "trpl", "eis", "cv", "stability", "compare", "interpretation")
+LAUNCHER_VIEWS = ("launcher", "workspace", "results", "updates")
+PROJECT = "FAPbI3_batch_2026-11"      # the synthetic project folder of the main-window pictures
 HC = 1239.84198
 TOOL_SIZE = "1440x900+30+40"
 
@@ -304,18 +308,208 @@ def write_device_inputs(tmp):
     return {"jv": jv, "eqe": eqe, "abs": ab, "pl": pl}
 
 
+# --------------------------------------------------------------------------- synthetic project
+def _table(path, cols, sep=",", pre=""):
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(pre)
+        pd.DataFrame(cols).to_csv(fh, index=False, sep=sep)
+
+
+def _instrument_export(path, v, j, area=0.04, summary=True):
+    """Source-meter export: optional summary block, then Vmeas / Imeas (A, photocurrent positive)."""
+    lines = []
+    if summary:
+        lines += ["Voc V\tVoc_mA\tJsc mA/cm2\tx\ty\tz\tFill Factor\tEfficiency", "1.1\t0\t24.9\t0\t0\t0\t80.0\t22.0"]
+    lines.append("Vmeas\tImeas")
+    lines += [f"{a:.4f}\t{-b * area / 1000.0:.9e}" for a, b in zip(v, j)]
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+
+
+def write_project(folder):
+    """A sample batch as it lies on a lab computer: one sub-folder per technique,
+    files named by sample, and a few files whose names say nothing."""
+    from scipy.special import erf
+    from scripts.JV.jv_core import single_diode_current
+    from scripts.TRPL import trpl_core
+    from scripts.SCLC import sclc_core
+    from scripts.Intensity import intensity_core
+    from scripts.EIS import eis_core
+    from scripts.CV import cv_core
+    from scripts.Stability import stability_core
+    rng = np.random.default_rng(7)
+
+    def p(*parts):
+        path = os.path.join(folder, *parts)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        return path
+
+    v = np.round(np.arange(-0.2, 1.2501, 0.01), 4)
+    for grp, jph, j0, n, rs, rsh in (("Ref", 24.6, 4e-11, 1.55, 2.6, 2500.0), ("PEAI", 25.1, 6e-12, 1.38, 1.9, 6000.0)):
+        for i in range(1, 5):
+            k = 1 + 0.02 * rng.standard_normal()
+            fwd = single_diode_current(v, jph * k, j0 * 1.6, n, rs * 1.3, rsh)
+            rev = single_diode_current(v, jph * k, j0, n, rs, rsh)
+            _instrument_export(p("JV", f"{grp} {i}.txt"), np.concatenate([v, v[::-1]]), np.concatenate([fwd, rev[::-1]]))
+    vd = np.round(np.arange(-1.0, 1.3001, 0.02), 4)
+    for grp, j0, n in (("Ref", 4e-11, 1.55), ("PEAI", 6e-12, 1.38)):
+        _instrument_export(p("JV_dark", f"{grp}_dark.txt"), vd, single_diode_current(vd, 0.0, j0, n, 2.0, 5e4),
+                           summary=False)
+
+    wl = np.arange(300.0, 901.0, 5.0)
+    e = HC / wl
+    for grp, eg in (("Ref", 1.53), ("PEAI", 1.535)):
+        eqe = 88 * 0.5 * (1 + erf((e - eg) / (0.028 * np.sqrt(2)))) * (1 - 0.35 * np.exp(-(wl - 300) / 60))
+        _table(p("EQE", f"{grp}_EQE.csv"), {"Wavelength (nm)": wl, "EQE (%)": np.round(eqe, 3)})
+    wl = np.arange(400.0, 901.0, 1.0)
+    e = HC / wl
+    a = 2.8 * 0.5 * (1 + erf((e - 1.53) / 0.03)) * (0.6 + 0.4 * (e - 1.3)) + 0.05
+    pd.DataFrame({"Wavelength (nm)": wl, "Ref": a, "PEAI": a * 1.03}).to_excel(p("UV-Vis", "FAPbI3_abs.xlsx"), index=False)
+    wl = np.arange(700.0, 901.0, 0.5)
+    pl = 4200 * np.exp(-0.5 * ((wl - 805) / 17) ** 2) + 30 + 6 * rng.standard_normal(len(wl))
+    _table(p("PL", "Ref_PL.csv"), {"Wavelength (nm)": wl, "Ref": pl, "PEAI": 2.6 * pl})
+    head = "# TCSPC export\n# excitation 640 nm, 1 MHz\n"
+    t, y = trpl_core.simulate(taus=(8.0, 140.0), amps=(0.6, 0.4))
+    _table(p("PL", "Ref_TRPL.csv"), {"Time (ns)": t, "Counts": y}, pre=head)
+    t, y = trpl_core.simulate(taus=(15.0, 620.0), amps=(0.35, 0.65))
+    _table(p("PL", "PEAI_TRPL.csv"), {"Time (ns)": t, "Counts": y}, pre=head)
+
+    tt = np.arange(10.0, 50.0, 0.02)
+    xrd = 40 + 8 * rng.random(len(tt))
+    for c, h, w in ((13.95, 5200, 0.09), (19.8, 300, 0.1), (24.3, 900, 0.1), (28.1, 2600, 0.1), (31.5, 1100, 0.11),
+                    (40.2, 500, 0.12), (42.8, 420, 0.12), (12.7, 180, 0.1)):
+        xrd += h * np.exp(-0.5 * ((tt - c) / w) ** 2)
+    _table(p("XRD", "Ref_XRD.xy"), {"2theta": np.round(tt, 3), "counts": np.round(xrd, 1)}, sep="\t")
+    shift = np.arange(60.0, 1800.0, 1.0)
+    raman = 20 + sum(h * w ** 2 / ((shift - c) ** 2 + w ** 2)
+                     for c, h, w in ((110, 900, 12), (135, 500, 14), (521, 3000, 3), (1100, 140, 20)))
+    _table(p("Raman", "Ref_Raman.csv"), {"Raman shift (cm-1)": shift, "Intensity": raman})
+    wn = np.arange(4000.0, 399.0, -2.0)
+    tr = 96 - sum(h * np.exp(-0.5 * ((wn - c) / w) ** 2)
+                  for c, h, w in ((3400, 22, 60), (3270, 16, 45), (1712, 30, 12), (1610, 14, 14), (1470, 9, 12),
+                                  (1350, 7, 12)))
+    _table(p("FTIR", "Ref_FTIR.csv"), {"Wavenumber (cm-1)": wn, "Transmittance (%)": tr})
+    be = np.arange(148.0, 133.99, -0.05)
+    xps = (900 + 9000 * np.exp(-0.5 * ((be - 138.4) / 0.42) ** 2) + 6800 * np.exp(-0.5 * ((be - 143.26) / 0.42) ** 2)
+           + 30 * rng.standard_normal(len(be)))
+    _table(p("XPS", "Ref_XPS_Pb4f.csv"), {"Binding Energy (eV)": np.round(be, 2), "Counts / s": np.round(xps, 1)})
+    write_sem_image(p("SEM", "Ref_SEM_x50k.tif"))
+
+    for grp, mu, nt in (("Ref", 1.0, 5e16), ("PEAI", 1.6, 2e16)):
+        vv, jj = sclc_core.simulate(thickness_nm=500, eps_r=25, mobility_cm2_Vs=mu, n_t_cm3=nt, n0_cm3=1e13)
+        jj = jj * (1 + 0.02 * rng.standard_normal(len(jj)))          # 2 % current noise
+        _table(p("SCLC", f"EOD_{grp}_sclc.csv"), {"Voltage (V)": vv, "J (mA/cm2)": jj})
+    d = intensity_core.simulate()
+    d["voc"] = d["voc"] + 0.0015 * rng.standard_normal(len(d["voc"]))         # 1.5 mV and 1 % read-out scatter
+    d["jsc"] = d["jsc"] * (1 + 0.01 * rng.standard_normal(len(d["jsc"])))
+    _table(p("Suns-Voc", "Ref_intensity.csv"), {"Irradiance (mW/cm2)": d["intensity"], "Voc (V)": d["voc"],
+                                                "Jsc (mA/cm2)": d["jsc"], "FF (%)": d["ff"], "PCE (%)": d["pce"]})
+    f, zre, zim = eis_core.simulate()
+    _table(p("EIS", "Ref_EIS_0V_dark.csv"), {"Frequency (Hz)": f, "Z' (Ohm)": zre, "Z'' (Ohm)": zim})
+    bias, cap = cv_core.simulate(n_cm3=1e17, v_bi=0.9, eps_r=25.0, area_cm2=0.1, noise=0.004, seed=3)
+    _table(p("CV", "Ref_MottSchottky_10kHz.csv"), {"Bias (V)": bias, "Cp (F)": cap})
+    t, y = stability_core.simulate()
+    _table(p("Stability", "Ref_MPPT_ISOS-L-1.csv"), {"Time (h)": t, "PCE (%)": y})
+    t, y = stability_core.simulate(a1=0.04, tau1=25.0, rate_per_h=4e-5)
+    _table(p("Stability", "PEAI_MPPT_ISOS-L-1.csv"), {"Time (h)": t, "PCE (%)": y})
+
+    # files whose names say nothing: the measurement is judged from columns and numbers alone
+    f, zre, zim = eis_core.simulate(model="R(RQ)")
+    _table(p("unsorted", "sample_07.csv"), {"A": f, "B": zre, "C": zim})
+    t, y = trpl_core.simulate()
+    np.savetxt(p("unsorted", "run_0012.txt"), np.column_stack([t, y]), fmt="%.6g", delimiter="\t")
+    np.savetxt(p("unsorted", "device3.dat"),
+               np.column_stack([v, single_diode_current(v, 23.0, 1e-10, 1.5, 2.0, 3000.0)]), fmt="%.6g", delimiter="\t")
+    with open(p("unsorted", "notes.txt"), "w", encoding="utf-8") as fh:
+        fh.write("spin 4000 rpm 30 s\nanneal 150 C 15 min\n")
+    return folder
+
+
+# the files of the project each new tool reads, and the entries that differ from the defaults
+PROJECT_RUNS = {
+    "sclc": (("SCLC", "EOD_Ref_sclc.csv"), ("SCLC", "EOD_PEAI_sclc.csv")),
+    "intensity": (("Suns-Voc", "Ref_intensity.csv"),),
+    "trpl": (("PL", "Ref_TRPL.csv"), ("PL", "PEAI_TRPL.csv")),
+    "eis": (("EIS", "Ref_EIS_0V_dark.csv"),),
+    "cv": (("CV", "Ref_MottSchottky_10kHz.csv"),),
+    "stability": (("Stability", "Ref_MPPT_ISOS-L-1.csv"), ("Stability", "PEAI_MPPT_ISOS-L-1.csv")),
+}
+PROJECT_PARAMS = {"sclc": {"thickness_nm": 500.0, "eps_r": 25.0}, "cv": {"area_cm2": 0.1, "eps_r": 25.0, "thickness_nm": 500.0},
+                  "stability": {"protocol": "ISOS-L-1"}}
+
+
+def project_files(folder, tool):
+    return [os.path.join(folder, *parts) for parts in PROJECT_RUNS[tool]]
+
+
+def write_project_results(folder):
+    """Export the analyses of the project the way the windows do, so that the
+    Results tab of the main window has side-cars to list."""
+    from scripts.common import curve_batch
+    out = os.path.join(folder, "results")
+    os.makedirs(out, exist_ok=True)
+    for tool in PROJECT_RUNS:
+        params = curve_batch.parameters(tool, PROJECT_PARAMS.get(tool))
+        items = curve_batch.run_files(tool, project_files(folder, tool), params)
+        bad = [it["file"] for it in items if it["result"] is None]
+        if bad:
+            raise RuntimeError(f"{tool}: no result for {', '.join(bad)}")
+        curve_batch.write_excel(tool, items, os.path.join(out, f"{PROJECT.split('_')[0]}_{tool}.xlsx"), params)
+    return out
+
+
+def project(tmp):
+    """The synthetic project of this run (written once, shared by the per-window processes)."""
+    folder = os.path.join(tmp, PROJECT)
+    done = os.path.join(tmp, "project.ok")
+    if not os.path.exists(done):
+        write_project(folder)
+        write_project_results(folder)
+        open(done, "w").close()
+    return folder
+
+
 # --------------------------------------------------------------------------- windows
-def shot_launcher(outdir, tmp, tab=None):
+def shot_launcher(outdir, tmp, view="launcher"):
+    """The main window on the synthetic project: the Workspace tab as it opens
+    (launcher), the same tab with a file of unknown name selected (workspace),
+    the Results tab (results) and the Updates tab (updates)."""
     import Physiscore_Launcher as L
-    app = L.LauncherApp()
-    app.geometry("1180x900+30+40")
+    quiet_dialogs()
+    app = L.LauncherApp(workspace=project(tmp))
+    app.geometry("1280x900+30+40")
     pump(app, 20, until=lambda: all(c["status"].cget("text").startswith("Ready") for c in app.cards.values()))
-    if tab:
-        app.tabs.set(tab)
-        pump(app, 2.5)
-    ok = grab(app, os.path.join(outdir, "launcher.png" if not tab else f"{tab.lower()}.png"))
+    scanned = pump(app, 30, until=lambda: not app.ws_panel.scanning and bool(app.ws_panel.detections))
+    ok = bool(scanned)
+    if view == "workspace":
+        app.tabs.set("Workspace")
+        app.tree.selection_set(app.cards["scripts.TRPL.run_trpl"]["iid"])
+        weak = [iid for iid, d in app.ws_panel._rows.items() if os.path.basename(d.path) == "run_0012.txt"]
+        ok = ok and bool(weak)
+        if weak:
+            app.ws_panel.tree.selection_set(weak[0])
+            app.ws_panel.tree.see(weak[0])
+    elif view == "results":
+        app.tabs.set("Results")
+        ok = ok and len(app.ws_panel.entries) == len(PROJECT_RUNS)
+    elif view == "updates":
+        app.tabs.set("Updates")
+    pump(app, 2.5)
+    ok = grab(app, os.path.join(outdir, f"{view}.png")) and ok
     app.on_closing()
     return ok
+
+
+def shot_curve_tool(name, win, tmp):
+    """One of the six windows built on CurveToolWindow, with its project files analysed."""
+    for key, value in PROJECT_PARAMS.get(name, {}).items():
+        win.set_param(key, value)
+    files = project_files(project(tmp), name)
+    win.load_paths(files, run=False)
+    win.run(sync=True)
+    if win.file_tree.exists(files[0]):
+        win.file_tree.selection_set(files[0])
+    return all(win.items.get(f, {}).get("result") is not None for f in files)
 
 
 def shot_tool(name, outdir, tmp):
@@ -472,6 +666,17 @@ def shot_tool(name, outdir, tmp):
         pump(root, 2)
         ok = grab(win, out)
 
+    elif name in PROJECT_RUNS:
+        import importlib
+        folder = {"sclc": "SCLC", "intensity": "Intensity", "trpl": "TRPL", "eis": "EIS", "cv": "CV",
+                  "stability": "Stability"}[name]
+        win = importlib.import_module(f"scripts.{folder}.run_{name}").AnalysisWindow(root, "")
+        win.geometry(TOOL_SIZE)
+        pump(root, 1)
+        done = shot_curve_tool(name, win, tmp)
+        pump(root, 2)
+        ok = grab(win, out) and done
+
     elif name == "compare":
         from scripts.common.compare_window import CompareWindow
         files = [write_eqe(os.path.join(tmp, f"series_Br{int(round((eg - 1.55) * 200)):02d}_EQE.csv"), eg)
@@ -534,12 +739,8 @@ if __name__ == "__main__":
     if "--one" in sys.argv:
         i = sys.argv.index("--one")
         name, outdir, tmp = sys.argv[i + 1], sys.argv[i + 2], sys.argv[i + 3]
-        if name == "launcher":
-            ok = shot_launcher(outdir, tmp)
-        elif name == "updates":
-            ok = shot_launcher(outdir, tmp, tab="Updates")
-        else:
-            ok = shot_tool(name, outdir, tmp)
+        os.environ["PHYSISCORE_CONFIG"] = os.path.join(tmp, "settings.json")
+        ok = shot_launcher(outdir, tmp, name) if name in LAUNCHER_VIEWS else shot_tool(name, outdir, tmp)
         sys.exit(0 if ok else 1)
     args = sys.argv[1:]
     out = args[0] if args and args[0] not in NAMES else os.path.join(ROOT, "docs", "images")

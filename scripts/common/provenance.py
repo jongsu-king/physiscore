@@ -53,6 +53,15 @@ def _jsonable(obj: Any) -> Any:
     return str(obj)
 
 
+def _input_name(p: Any) -> str:
+    """Absolute path of an input file; a label that is not a file (a synthetic
+    example, a pasted table) is kept as the text it is."""
+    p = str(p)
+    if os.path.isabs(p) or os.path.exists(p):
+        return os.path.abspath(p)
+    return p
+
+
 def build_record(tool: str, inputs=None, parameters: Optional[Dict[str, Any]] = None,
                  results: Optional[Dict[str, Any]] = None, outputs=None) -> Dict[str, Any]:
     return {
@@ -61,7 +70,7 @@ def build_record(tool: str, inputs=None, parameters: Optional[Dict[str, Any]] = 
         "timestamp": _dt.datetime.now().astimezone().isoformat(timespec="seconds"),
         "python": sys.version.split()[0],
         "platform": platform.platform(),
-        "inputs": [os.path.abspath(p) for p in (inputs or []) if p],
+        "inputs": [_input_name(p) for p in (inputs or []) if p],
         "outputs": [os.path.abspath(p) for p in (outputs or []) if p],
         "parameters": _jsonable(parameters or {}),
         "results": _jsonable(results or {}),

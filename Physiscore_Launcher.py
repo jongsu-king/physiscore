@@ -1,11 +1,15 @@
 # ============================================================
 # Physiscore_Launcher.py - main window of the analysis suite
 #  - menu bar (File / Analysis / Tools / Help); tool tree and tool panel (workbench)
-#  - Settings: Origin path, API key, cell area, theme
+#  - Workspace tab: the data files of a project folder with the measurement each one
+#    holds (scripts/common/detect.py); Results tab: the analyses exported under it
+#  - Settings: Origin path, cell area, theme
 #  - status bar: cell area, Origin, version
-#  - command line: --version, --selftest [--out f], --update, --spectra TAB,
-#    --tool NAME (open one analysis window directly)
+#  - command line: --version, --selftest [--out f], --update, --spectra TAB [FILE],
+#    --tool NAME [FILE ...] (open one analysis window directly),
+#    --open FILE ... | FOLDER (detect the measurement, open the matching tool)
 # ============================================================
+import gc
 import importlib
 import json
 import os
@@ -26,14 +30,14 @@ from scripts.common import app_config  # noqa: E402
 from scripts.common import palette as _pal  # noqa: E402
 
 CONFIG_FILE = app_config.config_path()
-APP_VERSION = "3.4.0"
+APP_VERSION = "3.5.0"
 REPO_URL = "https://github.com/jongsu-king/physiscore"
 
 ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
 ctk.set_default_color_theme("blue")
 from scripts.common import theme as _theme  # noqa: E402  palette theme for customtkinter (3.2)
 
-CATEGORIES = ["All", "Device", "Optical", "Structural", "Vibrational", "Surface"]
+CATEGORIES = ["All", "Device", "Transport and recombination", "Optical", "Structural", "Vibrational", "Surface"]
 
 # (name, category, icon file, module path, auto-fit tab or None, description)
 # module path "exe:<file>" prefers an external program (Windows) and falls back
@@ -47,6 +51,18 @@ TOOLS = [
      "J-V + EQE (+ absorbance, PL) of one device: Jsc cross-check, band gap from three techniques, Voc vs Voc,rad and Voc,SQ"),
     ("EQE", "Device", "EQE.png", "scripts.EQE.run_eqe", None,
      "AM1.5G-integrated Jsc, band gap (Rau), Urbach energy, Voc,rad and voltage-loss breakdown"),
+    ("Stability", "Device", "Stability.png", "scripts.Stability.run_stability", None,
+     "T80, burn-in and stabilised Ts80, degradation rate from a power or efficiency trace; ISOS protocol on record"),
+    ("Light intensity", "Transport and recombination", "Light intensity.png", "scripts.Intensity.run_intensity", None,
+     "Ideality factor from Voc(I), Jsc power law, Suns-Voc pseudo J-V, pseudo fill factor and transport loss"),
+    ("SCLC", "Transport and recombination", "SCLC.png", "scripts.SCLC.run_sclc", None,
+     "Single-carrier J-V: ohmic, trap-filling and Child regimes, trap density, Mott-Gurney mobility, validity limits"),
+    ("Impedance", "Transport and recombination", "Impedance.png", "scripts.EIS.run_eis", None,
+     "Equivalent-circuit fit (complex least squares), circuit choice by AICc, linear Kramers-Kronig validity test"),
+    ("C-V (Mott-Schottky)", "Transport and recombination", "C-V.png", "scripts.CV.run_cv", None,
+     "1/C² against V: doping density, built-in voltage, depletion width, doping profile, full-depletion limit"),
+    ("TRPL", "Transport and recombination", "TRPL.png", "scripts.TRPL.run_trpl", None,
+     "Multi-exponential and stretched tail fits chosen by AICc, average and differential lifetimes, diffusion length"),
     ("Absorbance", "Optical", "Abs.png", "scripts.Abs.run_abs", None,
      "Tauc plot with automatic linear-region selection, Urbach tail, derivative band gap"),
     ("PL", "Optical", "PL.png", "scripts.PL.run_pl", "PL",
@@ -93,8 +109,44 @@ TOOL_DETAILS = {
         results="Jsc (AM1.5G); Eg (Rau) ± σ; inflection Eg; Urbach energy; J0,rad, Voc,rad; SQ limits; ΔV1-ΔV3",
         defaults="ASTM G173-03; Urbach window 1-30 % of max; tail extrapolated 0.6 eV; 300 K",
         refs="Rau et al. 2017; Urbach 1953; Green 1981; Rühle 2016", sections=["3."]),
+    "Stability": dict(
+        input="Time and PCE (or power, normalised efficiency), text table or Excel; several traces overlay",
+        output="Excel: Summary, Results, Checks, Parameters, Trace; side-car",
+        results="T80 (measured or extrapolated, marked), burn-in amplitude and time constant, Ts80, rate per 1000 h, final value",
+        defaults="time in h; normalised to the first point; level 0.8; model chosen by AICc; protocol not stated",
+        refs="Reese et al. 2011 (ISOS); Roesch et al. 2015; Khenkin et al. 2020", sections=["22."]),
+    "Light intensity": dict(
+        input="Irradiance with Voc (and Jsc, FF, PCE), one row per intensity; or J-V files with the intensity in the name",
+        output="Excel: Summary, Results, Checks, Parameters, Series, Pseudo J-V; side-car",
+        results="n_id ± error from Voc(ln I); α of Jsc ~ I^α; pseudo J-V, pseudo FF, transport loss; local ideality",
+        defaults="300 K; all intensities; reverse sweep when J-V files are given",
+        refs="Koster et al. 2005; Sinton & Cuevas 2000; Tress et al. 2018; Caprioglio et al. 2020", sections=["18."]),
+    "SCLC": dict(
+        input="Dark J-V of an electron-only or hole-only device (V, I or J), text table or Excel",
+        output="Excel: Summary, Results, Checks, Parameters, Curve; side-car",
+        results="Regime slopes; V_TFL (V1), V2, V_inf; trap density and its resolution limit; μ (Mott-Gurney); σ, n0; hysteresis",
+        defaults="thickness 500 nm; εr 25; 300 K; up sweep; slope window 5 points; Murgatroyd off",
+        refs="Mott & Gurney 1940; Lampert 1956; Röhr et al. 2018; Le Corre et al. 2021", sections=["17."]),
+    "Impedance": dict(
+        input="Frequency (Hz), Z' and Z'' (Ω); the sign convention of Z'' is detected",
+        output="Excel: Summary, Results, Checks, Parameters, Spectrum; side-car",
+        results="Rs, R and C (or CPE Q, α) per arc with errors, τ, f_peak, C_eff; fit rms; Kramers-Kronig residual",
+        defaults="circuit chosen by AICc among R(RC), R(RQ), R(RC)(RC), R(RQ)(RQ); modulus weighting; all frequencies",
+        refs="Boukamp 1995; Schönleber et al. 2014; Hsu & Mansfeld 2001; von Hauff & Klotz 2022", sections=["20."]),
+    "C-V (Mott-Schottky)": dict(
+        input="Voltage (V) and capacitance (F, nF, pF or per cm²), text table or Excel",
+        output="Excel: Summary, Results, Checks, Parameters, Curve; side-car",
+        results="N from the 1/C² slope, V_bi, depletion width W0, doping profile N(W), full-depletion limit N_min",
+        defaults="area from Settings; εr 25; 300 K; linear window found automatically; slope factor m = 2",
+        refs="Sze & Ng 2007; Kirchartz et al. 2012; Almora et al. 2016; Ravishankar et al. 2021, 2022", sections=["21."]),
+    "TRPL": dict(
+        input="Time and counts (TCSPC export) or normalised intensity, text table or Excel",
+        output="Excel: Summary, Results, Checks, Parameters, Decay, Fit, Differential lifetime; side-car",
+        results="τ_i and amplitudes with errors, ⟨τ⟩ amplitude- and intensity-weighted, τ_1/e, χ²_red, differential lifetime",
+        defaults="1-3 exponentials or stretched, chosen by AICc; Poisson weights for counts; tail fit from the peak; time in ns",
+        refs="Lakowicz 2006; Kirchartz et al. 2020; Krückemeier et al. 2021; Peán et al. 2020", sections=["19."]),
     "Absorbance": dict(
-        input="Wavelength (nm) and one or more absorbance columns, Excel",
+        input="Wavelength (nm) and one or more absorbance columns, Excel or text export",
         output="<file>_result.xlsx: Result, UV-Vis, Tauc_Data; side-car",
         results="Tauc Eg ± standard error, linear region, derivative Eg, Urbach energy",
         defaults="window max(7, 4 %); local R² ≥ 0.8; slope ≥ 60 % of anchor; R² ≥ 0.98; ±0.6 eV around expected Eg",
@@ -297,15 +349,18 @@ class SettingsDialog(ctk.CTkToplevel):
 # Main window
 # ------------------------------------------------------------
 class LauncherApp(ctk.CTk):
-    def __init__(self):
+    def __init__(self, workspace=None):
         super().__init__()
         self.title("Physiscore")
-        self.geometry("1180x780")
-        self.minsize(980, 640)
+        self.geometry("1280x860")
+        self.minsize(1040, 680)
         self.configure(fg_color=_pal.BG_WINDOW)
 
         self.origin_path = ""
+        self.workspace_folder = ""
         self.load_config()
+        if workspace:
+            self.workspace_folder = os.path.abspath(workspace)
 
         self.logo_dir = resource_dir("logo")
         self.modules = {}          # module_path -> module | None | "loading" | str(exe path)
@@ -328,11 +383,14 @@ class LauncherApp(ctk.CTk):
         self.after(100, self._poll_modules)
         self.after(500, self._refresh_updates)
         self.after(1500, self._maybe_whats_new)
+        if self.workspace_folder and os.path.isdir(self.workspace_folder):
+            self.after(300, lambda: self.ws_panel.set_folder(self.workspace_folder))
 
     # ---------------- config ----------------
     def load_config(self):
         data = app_config.load(refresh=True)
         self.origin_path = data.get("origin_path", "")
+        self.workspace_folder = str(data.get("workspace_folder") or "")
 
     def save_config(self, extra=None):
         values = {"origin_path": self.origin_path}
@@ -350,6 +408,11 @@ class LauncherApp(ctk.CTk):
         bar = tk.Menu(self, tearoff=False)
 
         m_file = tk.Menu(bar, tearoff=False)
+        m_file.add_command(label="Open data...", accelerator="Ctrl+O", command=self.open_data_dialog)
+        m_file.add_command(label="Open workspace folder...", accelerator="Ctrl+Shift+O",
+                           command=self.open_workspace_dialog)
+        m_file.add_command(label="Collect results to Excel...", command=self.collect_results)
+        m_file.add_separator()
         m_file.add_command(label="Settings...", accelerator="Ctrl+,", command=self.open_settings)
         m_file.add_command(label="Open settings folder", command=self._open_config_folder)
         m_file.add_separator()
@@ -357,9 +420,10 @@ class LauncherApp(ctk.CTk):
         bar.add_cascade(label="File", menu=m_file)
 
         m_an = tk.Menu(bar, tearoff=False)
-        for name, _cat, _icon, mod_path, tab, _desc in TOOLS:
-            m_an.add_command(label=name, command=lambda m=mod_path, n=name: self.open_tool(m, n))
-        m_an.add_separator()
+        for cat in CATEGORIES[1:]:
+            for name, _cat, _icon, mod_path, tab, _desc in (t for t in TOOLS if t[1] == cat):
+                m_an.add_command(label=name, command=lambda m=mod_path, n=name: self.open_tool(m, n))
+            m_an.add_separator()
         m_an.add_command(label="Auto-fit workspace: PL", command=lambda: self.open_spectra("PL"))
         m_an.add_command(label="Auto-fit workspace: XRD", command=lambda: self.open_spectra("XRD"))
         m_an.add_command(label="Auto-fit workspace: XPS", command=lambda: self.open_spectra("XPS"))
@@ -388,6 +452,8 @@ class LauncherApp(ctk.CTk):
         bar.add_cascade(label="Help", menu=m_help)
         self.configure(menu=bar)
         self.bind("<Control-q>", lambda e: self.on_closing())
+        self.bind("<Control-o>", lambda e: self.open_data_dialog())
+        self.bind("<Control-O>", lambda e: self.open_workspace_dialog())        # Ctrl+Shift+O
         self.bind("<Control-comma>", lambda e: self.open_settings())
         self.bind("<F1>", lambda e: self.open_doc("USER_GUIDE"))
 
@@ -447,7 +513,8 @@ class LauncherApp(ctk.CTk):
             "About Physiscore",
             f"Physiscore {APP_VERSION}\n"
             "Physics-constrained analysis of thin-film photovoltaic device and material measurements:\n"
-            "J-V (light and dark), EQE, absorbance, PL, XRD, SEM, Raman, FTIR, XPS.\n\n"
+            "J-V (light and dark), EQE, stability, light-intensity series, SCLC, impedance, C-V, TRPL,\n"
+            "absorbance, PL, XRD, SEM, Raman, FTIR, XPS. All analysis runs on this computer.\n\n"
             "Hybrid Materials and Optoelectronics Laboratory (H-MOL), Incheon National University.\n"
             "MIT License.  Concept DOI 10.5281/zenodo.22267588\n"
             f"{REPO_URL}")
@@ -455,8 +522,9 @@ class LauncherApp(ctk.CTk):
     def _show_cli_help(self):
         messagebox.showinfo(
             "Command line",
-            "Physiscore --tool \"J-V Curve\"      open one analysis window\n"
-            "Physiscore --spectra XRD|PL|XPS      auto-fit workspace\n"
+            "Physiscore --open FILE ... | FOLDER   detect the measurement and open its tool\n"
+            "Physiscore --tool \"TRPL\" [FILE ...]  open one analysis window\n"
+            "Physiscore --spectra XRD|PL|XPS [FILE] auto-fit workspace\n"
             "Physiscore --selftest [--out f.json] headless check\n"
             "Physiscore --update                  check for / install updates\n"
             "Physiscore --version\n\n"
@@ -502,6 +570,13 @@ class LauncherApp(ctk.CTk):
         ctk.CTkButton(bar, text="Settings", width=76, height=24, fg_color=_pal.BG_PANEL, hover_color=_pal.BG_HOVER,
                       text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI, font=_pal.font(11),
                       corner_radius=_pal.R_PILL, command=self.open_settings).pack(side="right", padx=10, pady=6)
+        ctk.CTkButton(bar, text="Open data...", width=96, height=24, fg_color=_pal.ACCENT,
+                      hover_color=_pal.ACCENT_HOV, text_color="white", font=_pal.font(11, "bold"),
+                      corner_radius=_pal.R_PILL, command=self.open_data_dialog).pack(side="left", padx=(0, 6), pady=6)
+        ctk.CTkButton(bar, text="Workspace folder...", width=130, height=24, fg_color=_pal.BG_PANEL,
+                      hover_color=_pal.BG_HOVER, text_color=_pal.TXT, border_width=1, border_color=_pal.BORDER_HI,
+                      font=_pal.font(11), corner_radius=_pal.R_PILL,
+                      command=self.open_workspace_dialog).pack(side="left", pady=6)
         self.search_var = ctk.StringVar()
         ent = ctk.CTkEntry(bar, width=190, height=24, fg_color=_pal.BG_CARD, border_color=_pal.BORDER_HI,
                            text_color=_pal.TXT, font=_pal.font(11), corner_radius=_pal.R_INPUT,
@@ -541,7 +616,7 @@ class LauncherApp(ctk.CTk):
         self._iid_tool = {}
         self._selected_tool = None
 
-        # ---- right: the selected tool on top, Session / Updates / Recent / Conventions in tabs ----
+        # ---- right: the selected tool on top; Workspace / Results / Session / ... in tabs ----
         right = ctk.CTkFrame(body, fg_color="transparent", corner_radius=0)
         right.grid(row=0, column=1, sticky="nsew")
         right.grid_columnconfigure(0, weight=1)
@@ -603,10 +678,18 @@ class LauncherApp(ctk.CTk):
                                    segmented_button_unselected_hover_color=_pal.BG_HOVER,
                                    text_color=_pal.TXT)
         self.tabs.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
-        for name in ("Session", "Updates", "Recent folders", "Conventions"):
+        for name in ("Workspace", "Results", "Session", "Updates", "Recent folders", "Conventions"):
             self.tabs.add(name)
 
-        self.session_table = _theme.kv_table(self.tabs.tab("Session"), height=7, key_width=180, value_width=530)
+        from scripts.common import workspace_panel as _wp
+        self.ws_panel = _wp.WorkspacePanel(self.tabs.tab("Workspace"), on_open=self.open_detections,
+                                           on_compare=self.open_compare, on_status=self.set_status,
+                                           on_scanned=self._on_workspace_scanned)
+        self.ws_panel.pack(fill="both", expand=True)
+        self.res_panel = _wp.ResultsPanel(self.tabs.tab("Results"), on_status=self.set_status)
+        self.res_panel.pack(fill="both", expand=True)
+
+        self.session_table = _theme.kv_table(self.tabs.tab("Session"), height=8, key_width=180, value_width=530)
         self.session_table.heading("k", text="Setting")
         self.session_table.heading("v", text="Value")
         self.session_table.column("v", anchor="w")
@@ -658,7 +741,10 @@ class LauncherApp(ctk.CTk):
                      text_color=_pal.TXT_SUB,
                      text=("Current density in mA/cm², photocurrent plotted negative; energies in eV, wavelengths in nm; "
                            "T = 298.15 K unless set. Jsc from EQE uses ASTM G173-03 AM1.5G (1000.4 W/m²).\n\n"
-                           "Every Excel export writes a .analysis.json side-car with the inputs, parameters and version.\n\n"
+                           "Every Excel export writes a .analysis.json side-car with the inputs, parameters and version; "
+                           "the Results tab lists the side-cars of the workspace folder and collects them in one workbook.\n\n"
+                           "The Workspace tab names the measurement in each file from the file name, the column names and "
+                           "the numbers, and says why. A low-confidence guess is a suggestion: it asks before opening.\n\n"
                            "Graphs follow OriginLab's look: black axis box, ticks in on all four sides, Arial, "
                            "Origin's colour order (Settings: colour-blind-safe colours instead).\n\n"
                            "Equations, defaults and references: Help → Methods and algorithms (offline copy).")
@@ -685,6 +771,7 @@ class LauncherApp(ctk.CTk):
                 ("Irradiance for PCE", "100 mW/cm² (one sun; set per analysis)"),
                 ("Temperature", "298.15 K (J-V, diode fits); 300 K (detailed balance)"),
                 ("OriginLab", self.origin_path or "not set (Origin export on Windows)"),
+                ("Workspace folder", self.workspace_folder or "not set (Workspace tab, or File → Open workspace folder)"),
                 ("Interpretation", "rule-based and offline (scripts/common/interpret.py); nothing leaves this computer"),
                 ("Settings file", str(CONFIG_FILE)),
                 ("Version", f"Physiscore {APP_VERSION}, Python {sys.version.split()[0]}"),
@@ -983,10 +1070,12 @@ class LauncherApp(ctk.CTk):
             self.open_spectra(tool[4])
 
     # ---------------- launching ----------------
-    def open_tool(self, mod_path, name, folder=None):
+    def open_tool(self, mod_path, name, folder=None, files=None):
+        """Open one analysis window. `folder` presets the folder of the J-V tools;
+        `files` are handed to the window once it is up (Workspace tab, Open data)."""
         mod = self.modules.get(mod_path)
         if mod_path.startswith("spectra:"):
-            self.open_spectra(mod_path.split(":", 1)[1])
+            self.open_spectra(mod_path.split(":", 1)[1], files[0] if files else "")
             return
         if mod_path.startswith("exe:") and not hasattr(mod, "AnalysisWindow"):
             exe = mod if isinstance(mod, str) else find_external_exe(mod_path[4:])
@@ -1016,8 +1105,13 @@ class LauncherApp(ctk.CTk):
                     win.directory_path.set(folder)
                 except Exception:
                     pass
+            if files:
+                win.after(350, lambda: hand_over(win, list(files), status=self.set_status))
             self.wait_window(win)
+            gc.collect()                # Tk fonts of the closed window: free them on this thread
             self._fill_recent()
+            if getattr(self, "ws_panel", None) is not None:
+                self.ws_panel.refresh_results()        # new exports show up in the Results tab
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open {name}:\n{e}")
         finally:
@@ -1042,17 +1136,150 @@ class LauncherApp(ctk.CTk):
         except Exception as e:
             print(f"config sync skip: {e}")
 
-    def open_spectra(self, tab):
-        """Auto-fit workspace in a separate process (its own Tk main loop)."""
+    def open_spectra(self, tab, data_file=""):
+        """Auto-fit workspace in a separate process (its own Tk main loop); `data_file`
+        is loaded in the XRD/XPS tab when given."""
         try:
             if getattr(sys, "frozen", False):
                 cmd = [sys.executable, "--spectra", tab]
             else:
                 cmd = [sys.executable, "-m", "spectra.app", tab]
+            if data_file:
+                cmd.append(os.path.abspath(data_file))
             subprocess.Popen(cmd, cwd=BASE_DIR)
-            self.set_status(f"Opened the {tab} auto-fit workspace")
+            self.set_status(f"Opened the {tab} auto-fit workspace"
+                            + (f" with {os.path.basename(data_file)}" if data_file else ""))
         except Exception as e:
             messagebox.showerror("Error", f"Could not open the workspace:\n{e}")
+
+    # ---------------- workspace, results, open data ----------------
+    def open_data_dialog(self):
+        """File → Open data: pick files, detect the measurement, open the matching tool."""
+        start = self.workspace_folder if os.path.isdir(self.workspace_folder) else None
+        paths = filedialog.askopenfilenames(
+            title="Open data", initialdir=start,
+            filetypes=[("Data files", "*.txt *.csv *.tsv *.dat *.xy *.asc *.prn *.xlsx *.xls *.tif *.tiff *.png *.jpg"),
+                       ("All files", "*.*")])
+        if paths:
+            self.open_paths(list(paths))
+
+    def open_paths(self, paths):
+        from scripts.common import detect
+        self.open_detections([detect.detect_file(p) for p in paths if os.path.isfile(p)])
+
+    def open_workspace_dialog(self):
+        self.tabs.set("Workspace")
+        self.ws_panel.choose_folder()
+
+    def set_workspace(self, folder):
+        self.tabs.set("Workspace")
+        self.ws_panel.set_folder(folder)
+
+    def collect_results(self):
+        self.tabs.set("Results")
+        if not self.res_panel.entries:
+            messagebox.showinfo("Collect results",
+                                "No exported analyses are listed.\n\nChoose a workspace folder first (Workspace tab); "
+                                "the exports found under it are collected in one workbook.", parent=self)
+            return
+        self.res_panel.collect()
+
+    def _on_workspace_scanned(self, folder, detections, entries):
+        self.res_panel.set_entries(entries, folder)
+        if folder != self.workspace_folder or app_config.get("workspace_folder") != folder:
+            self.workspace_folder = folder
+            self.save_config({"workspace_folder": folder})
+            self.refresh_statusbar()
+
+    def open_detections(self, detections, ask=False):
+        """Open detected files in their tool. Files of the first one's kind go
+        together; a missing or low-confidence detection asks for the tool first."""
+        ds = [d for d in detections if d is not None]
+        if not ds:
+            return
+        first = ds[0]
+        group = [d for d in ds if d.kind == first.kind]
+        tool = first.tool
+        if ask or first.confidence in ("none", "low"):
+            tool = self._ask_tool(first, tool, len(group))
+            if not tool:
+                return
+        self.open_tool_by_name(tool, [d.path for d in group])
+        if len(group) < len(ds):
+            self.set_status(f"Opened {len(group)} of {len(ds)} selected files in {tool}; "
+                            "the others hold a different measurement.")
+
+    def open_tool_by_name(self, name, files=None):
+        from scripts.common import detect
+        match = next((t for t in TOOLS if t[0] == name), None)
+        if match is None:
+            messagebox.showerror("Error", f"Unknown tool: {name}", parent=self)
+            return
+        mod_path = match[3]
+        if not self._tool_state(mod_path)[1]:
+            messagebox.showinfo(name, f"{name} is not ready yet ({self._tool_state(mod_path)[0]}).", parent=self)
+            return
+        files = [f for f in (files or []) if f]
+        if files and name in detect.FOLDER_TOOLS:
+            self.open_tool(mod_path, name, folder=os.path.dirname(files[0]))
+        else:
+            self.open_tool(mod_path, name, files=files or None)
+
+    def _ask_tool(self, detection, suggested, n_files=1):
+        """Modal question for a file whose measurement is uncertain; returns the tool name or ''."""
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("Open with")
+        dlg.geometry("520x260")
+        dlg.resizable(False, False)
+        dlg.configure(fg_color=_pal.BG_WINDOW)
+        dlg.transient(self)
+        more = f" (and {n_files - 1} more of the same kind)" if n_files > 1 else ""
+        ctk.CTkLabel(dlg, text=detection.name + more, font=_pal.font(13, "bold"), text_color=_pal.TXT,
+                     anchor="w").pack(fill="x", padx=16, pady=(14, 2))
+        if detection.kind:
+            why = f"Looks like {detection.label} ({detection.confidence} confidence): {detection.why()}."
+        else:
+            why = "The measurement in this file was not recognised" + (f" ({detection.error})." if detection.error else ".")
+        ctk.CTkLabel(dlg, text=why + "\n" + detection.describe(), font=_pal.font(11), text_color=_pal.TXT_SUB,
+                     anchor="w", justify="left", wraplength=480).pack(fill="x", padx=16)
+        row = ctk.CTkFrame(dlg, fg_color="transparent")
+        row.pack(fill="x", padx=16, pady=(14, 0))
+        ctk.CTkLabel(row, text="Open in", font=_pal.font(11), text_color=_pal.TXT).pack(side="left")
+        names = [t[0] for t in TOOLS if t[0] != "Device summary"]
+        var = ctk.StringVar(value=suggested if suggested in names else names[0])
+        ctk.CTkOptionMenu(row, values=names, variable=var, width=240, height=26, font=_pal.font(11)
+                          ).pack(side="left", padx=10)
+        answer = {"tool": ""}
+
+        def accept():
+            answer["tool"] = var.get()
+            dlg.destroy()
+
+        btns = ctk.CTkFrame(dlg, fg_color="transparent")
+        btns.pack(fill="x", side="bottom", padx=16, pady=14)
+        _theme.pill_button(btns, "Open", command=accept, primary=True, width=90, height=26).pack(side="right")
+        _theme.pill_button(btns, "Cancel", command=dlg.destroy, width=80, height=26).pack(side="right", padx=8)
+        dlg.bind("<Return>", lambda e: accept())
+        dlg.bind("<Escape>", lambda e: dlg.destroy())
+        dlg.after(100, lambda: (dlg.lift(), dlg.grab_set()))
+        self.wait_window(dlg)
+        return answer["tool"]
+
+    def open_compare(self, kind, paths):
+        """Overlay several files of one technique (Workspace tab → Compare selected)."""
+        try:
+            from scripts.common.compare_window import CompareWindow
+            self.iconify()
+            win = CompareWindow(self, kind, files=list(paths))
+            self.wait_window(win)
+            gc.collect()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open the comparison:\n{e}")
+        finally:
+            try:
+                self.deiconify()
+            except Exception:
+                pass
 
     def open_settings(self):
         SettingsDialog(self)
@@ -1074,6 +1301,25 @@ class LauncherApp(ctk.CTk):
         self.destroy()
 
 
+def hand_over(win, files, status=None):
+    """Give files to an analysis window that is already up: windows that take a
+    file list get all of them, single-file windows the first one."""
+    try:
+        if not win.winfo_exists():
+            return
+        if hasattr(win, "load_paths"):
+            win.load_paths(list(files))
+        elif hasattr(win, "open_path"):
+            win.open_path(files[0])
+            if len(files) > 1 and status is not None:
+                status(f"Opened {os.path.basename(files[0])}; this tool takes one file at a time "
+                       "(Compare selected overlays several).")
+        elif hasattr(win, "directory_path"):
+            win.directory_path.set(files[0] if os.path.isdir(files[0]) else os.path.dirname(files[0]))
+    except Exception as e:  # noqa: BLE001
+        messagebox.showerror("Open data", f"The file could not be loaded:\n{e}")
+
+
 def make_update_app(selfupdate):
     return selfupdate.App(repo="jongsu-king/physiscore", name="Physiscore",
                           version=APP_VERSION, env_prefix="PHYSISCORE")
@@ -1091,7 +1337,14 @@ def selftest(out=None) -> int:
                 "scripts.common.provenance", "scripts.Device.run_device", "scripts.common.compare_window",
                 "scripts.JV.run_jv", "scripts.Dark_JV.run_jv_dark", "scripts.EQE.run_eqe",
                 "scripts.SEM.run_sem", "scripts.Abs.run_abs", "scripts.Raman.run_raman",
-                "scripts.FTIR.run_ftir", "scripts.XRD.run_xrd", "scripts.PL.run_pl", "spectra.app"):
+                "scripts.FTIR.run_ftir", "scripts.XRD.run_xrd", "scripts.PL.run_pl", "spectra.app",
+                "scripts.SCLC.sclc_core", "scripts.Intensity.intensity_core", "scripts.TRPL.trpl_core",
+                "scripts.EIS.eis_core", "scripts.CV.cv_core", "scripts.Stability.stability_core",
+                "scripts.common.curve_io", "scripts.common.interpret_transport", "scripts.common.detect",
+                "scripts.common.results_index", "scripts.common.plot_tools", "scripts.common.curve_tool",
+                "scripts.common.workspace_panel", "scripts.SCLC.run_sclc", "scripts.Intensity.run_intensity",
+                "scripts.TRPL.run_trpl", "scripts.EIS.run_eis", "scripts.CV.run_cv",
+                "scripts.Stability.run_stability"):
         try:
             importlib.import_module(mod)
             result["imports"][mod] = "ok"
@@ -1119,6 +1372,42 @@ def selftest(out=None) -> int:
         checks["sq_1p34eV"] = f"failed: {e!r}"
         checks["sq_ok"] = False
     try:
+        # transport and recombination tools (3.5): each core recovers the parameters
+        # its own synthetic data were made with
+        from scripts.SCLC import sclc_core as _sc
+        from scripts.CV import cv_core as _cc
+        from scripts.EIS import eis_core as _ec
+        from scripts.TRPL import trpl_core as _tc
+        from scripts.Intensity import intensity_core as _ic
+        from scripts.Stability import stability_core as _st
+        tr = {}
+        v, j = _sc.simulate(thickness_nm=500, eps_r=25, mobility_cm2_Vs=1.0, n_t_cm3=5e16, n0_cm3=1e13)
+        r = _sc.analyse(v, j, thickness_nm=500, eps_r=25)
+        tr["sclc_n_t_cm3"] = float(r["n_t_cm3"])
+        v, c = _cc.simulate(n_cm3=1e17, v_bi=0.9, eps_r=25.0, area_cm2=0.1)
+        r = _cc.analyse(v, c, area_cm2=0.1, eps_r=25.0)
+        tr["cv_N_cm3"], tr["cv_Vbi_V"] = float(r["N_cm3"]), float(r["V_bi"])
+        f, zre, zim = _ec.simulate(model="R(RQ)")
+        r = _ec.analyse(f, zre, zim)
+        tr["eis_rms_pct"], tr["eis_model"] = float(r["rms_pct"]), str(r["model"])
+        t, y = _tc.simulate(taus=(5.0, 60.0), amps=(0.7, 0.3))
+        r = _tc.analyse(t, y)
+        tr["trpl_model"], tr["trpl_tau_int_ns"] = str(r["model"]), float(r["tau_int"])
+        d = _ic.simulate()
+        r = _ic.analyse(d["intensity"], d["voc"], jsc=d["jsc"], ff=d["ff"], pce=d["pce"])
+        tr["intensity_n_id"] = float(r["voc_fit"]["n_id"])
+        t, y = _st.simulate()
+        r = _st.analyse(t, y)
+        tr["stability_model"] = str(r["model"])
+        checks["transport"] = tr
+        checks["transport_ok"] = bool(
+            abs(tr["sclc_n_t_cm3"] / 5e16 - 1) < 0.15 and abs(tr["cv_N_cm3"] / 1e17 - 1) < 0.05
+            and abs(tr["cv_Vbi_V"] - 0.9) < 0.03 and tr["eis_rms_pct"] < 2.0
+            and tr["trpl_model"] == "exp2" and 1.0 < tr["intensity_n_id"] < 2.2)
+    except Exception as e:  # noqa: BLE001
+        checks["transport"] = f"failed: {e!r}"
+        checks["transport_ok"] = False
+    try:
         from scripts.common.vibrational import load_library
         checks["band_library_entries"] = len(load_library())
         checks["library_ok"] = checks["band_library_entries"] > 40
@@ -1137,7 +1426,8 @@ def selftest(out=None) -> int:
         checks["docs_ok"] = False
     result["checks"] = checks
     ok = (all(v == "ok" for v in result["imports"].values())
-          and checks.get("jv_ok") and checks.get("sq_ok") and checks.get("library_ok") and checks.get("docs_ok"))
+          and checks.get("jv_ok") and checks.get("sq_ok") and checks.get("library_ok") and checks.get("docs_ok")
+          and checks.get("transport_ok"))
     result["ok"] = bool(ok)
     result["executable"] = sys.executable
     result["config"] = app_config.config_path()
@@ -1153,16 +1443,17 @@ def selftest(out=None) -> int:
     return 0 if ok else 1
 
 
-def _open_single_tool(name: str) -> int:
-    """`--tool NAME`: open one analysis window without the launcher grid."""
+def _open_single_tool(name: str, files=None) -> int:
+    """`--tool NAME [FILE ...]`: open one analysis window without the main window."""
     match = next((t for t in TOOLS if t[0].lower() == name.lower()), None)
     if match is None:
         print("unknown tool; choose one of: " + ", ".join(t[0] for t in TOOLS), file=sys.stderr)
         return 2
+    files = [os.path.abspath(f) for f in (files or []) if os.path.exists(f)]
     mod_path = match[3]
     if mod_path.startswith("spectra:"):
         from spectra.app import App as SpectraApp
-        SpectraApp(start_tab=mod_path.split(":", 1)[1]).mainloop()
+        SpectraApp(start_tab=mod_path.split(":", 1)[1], data_file=files[0] if files else "").mainloop()
         return 0
     mod_path = BUILTIN_FALLBACK.get(mod_path, mod_path)
     mod = importlib.import_module(mod_path)
@@ -1170,9 +1461,45 @@ def _open_single_tool(name: str) -> int:
     root.withdraw()
     data = app_config.load(refresh=True)
     win = mod.AnalysisWindow(root, data.get("origin_path", ""))
-    win.protocol("WM_DELETE_WINDOW", lambda: (root.quit(), root.destroy()))
+
+    def close():
+        # pending timers of the window would otherwise fire on a destroyed interpreter
+        try:
+            for aid in root.tk.call("after", "info"):
+                try:
+                    root.after_cancel(aid)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        root.quit()
+        root.destroy()
+
+    win.protocol("WM_DELETE_WINDOW", close)
+    if files:
+        win.after(350, lambda: hand_over(win, files))
     root.mainloop()
     return 0
+
+
+def _open_detected(paths) -> int:
+    """`--open FILE ... | FOLDER`: a folder opens the main window with that
+    workspace; files open in the tool their measurement belongs to."""
+    from scripts.common import detect
+    paths = [os.path.abspath(p) for p in paths if os.path.exists(p)]
+    if not paths:
+        print("--open needs an existing file or folder", file=sys.stderr)
+        return 2
+    if os.path.isdir(paths[0]):
+        LauncherApp(workspace=paths[0]).mainloop()
+        return 0
+    ds = [detect.detect_file(p) for p in paths if os.path.isfile(p)]
+    first = ds[0]
+    if not first.kind:
+        print(f"{first.name}: measurement not recognised; name the tool with --tool NAME FILE", file=sys.stderr)
+        return 2
+    print(f"{first.name}: {first.label} ({first.confidence} confidence; {first.why()}) -> {first.tool}")
+    return _open_single_tool(first.tool, [d.path for d in ds if d.kind == first.kind])
 
 
 if __name__ == "__main__":
@@ -1192,15 +1519,20 @@ if __name__ == "__main__":
     if "--spectra" in sys.argv:
         _i = sys.argv.index("--spectra")
         _tab = sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "PL"
+        _file = sys.argv[_i + 2] if len(sys.argv) > _i + 2 and not sys.argv[_i + 2].startswith("--") else ""
         try:
             from spectra.app import App as SpectraApp
-            SpectraApp(start_tab=_tab).mainloop()
+            SpectraApp(start_tab=_tab, data_file=_file).mainloop()
         except Exception as e:
             print(f"spectra run failed: {e}")
         sys.exit(0)
     if "--tool" in sys.argv:
         _i = sys.argv.index("--tool")
-        sys.exit(_open_single_tool(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else ""))
+        _rest = [a for a in sys.argv[_i + 2:] if not a.startswith("--")]
+        sys.exit(_open_single_tool(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "", _rest))
+    if "--open" in sys.argv:
+        _i = sys.argv.index("--open")
+        sys.exit(_open_detected([a for a in sys.argv[_i + 1:] if not a.startswith("--")]))
     try:
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)  # type: ignore[attr-defined]

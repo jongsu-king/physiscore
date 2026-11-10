@@ -13,6 +13,14 @@ for scripted and reproducible batch processing.
     python physiscore_cli.py sq   EG_EV [--temperature 300]
     python physiscore_cli.py device --jv FILE --eqe FILE [--abs FILE] [--pl FILE] [--sweep reverse] [--out x.xlsx] [--json]
     python physiscore_cli.py batch eqe|abs|pl|xrd|raman|ftir FOLDER_OR_FILES... [--all-columns] [--out summary.xlsx] [--json]
+    python physiscore_cli.py sclc      FILE... [--thickness NM] [--eps 25] [--area CM2] [--field-dependent] [--out x.xlsx] [--interpret] [--json]
+    python physiscore_cli.py intensity FILE... | --jv-set JV_FILE... [--temperature 300] [--i-min X] [--i-max X] [--out x.xlsx] [--interpret] [--json]
+    python physiscore_cli.py trpl      FILE... [--model auto|exp1|exp2|exp3|stretched] [--background auto|none|VALUE] [--skip T] [--out x.xlsx] [--interpret] [--json]
+    python physiscore_cli.py eis       FILE... [--model auto|"R(RC)"|"R(RQ)"|...] [--f-min HZ] [--f-max HZ] [--area CM2] [--out x.xlsx] [--interpret] [--json]
+    python physiscore_cli.py cv        FILE... [--area CM2] [--eps 25] [--thickness NM] [--c-unit F|nF|...] [--out x.xlsx] [--interpret] [--json]
+    python physiscore_cli.py stability FILE... [--time-unit h] [--threshold 0.8] [--model auto] [--protocol ISOS-L-1] [--out x.xlsx] [--interpret] [--json]
+    python physiscore_cli.py detect  FILE_OR_FOLDER... [--depth 2] [--json]
+    python physiscore_cli.py collect FOLDER [--out results_index.xlsx] [--depth 4] [--json]
     python physiscore_cli.py validate [--csv]
 
 Every command prints a human-readable summary; `--json` prints the full
@@ -54,7 +62,11 @@ def _clean(obj: Any) -> Any:
         return int(obj)
     if isinstance(obj, (np.bool_,)):
         return bool(obj)
-    return obj
+    if isinstance(obj, (complex, np.complexfloating)):
+        return {"re": _clean(float(obj.real)), "im": _clean(float(obj.imag))}
+    if obj is None or isinstance(obj, (str, int, bool)):
+        return obj
+    return str(obj)                         # a model object, a path, a date: its text
 
 
 def _emit(result: Dict[str, Any], as_json: bool, summary_lines=None) -> None:
@@ -67,7 +79,7 @@ def _emit(result: Dict[str, Any], as_json: bool, summary_lines=None) -> None:
 
 def _read_xy(path: str, sheet=None, column=None):
     """First column = x, `column` (or the first numeric column after it) = y."""
-    from scripts.common.batch import read_xy, read_table
+    from scripts.common.batch import read_xy
     x, y, col = read_xy(path, sheet, column)
     return x, y, col, None
 
@@ -311,6 +323,176 @@ def cmd_batch(a):
     _emit({"rows": df}, a.json, lines)
 
 
+# (flag, parameter of scripts.common.curve_batch, type, help); a flag left out keeps the default of the tool
+CURVE_OPTIONS = {
+    "sclc": [("--thickness", "thickness_nm", float, "film thickness in nm (default 500)"),
+             ("--eps", "eps_r", float, "relative permittivity (default 25)"),
+             ("--area", "area_cm2", float, "device area in cm2 for files that store a current (default: settings)"),
+             ("--temperature", "temperature_k", float, "temperature in K (default 300)"),
+             ("--branch", "branch", str, "polarity analysed (default auto)"),
+             ("--sweep", "sweep", str, "part of a cyclic sweep (default up)"),
+             ("--vbi", "v_bi", float, "built-in voltage subtracted from V (default 0)"),
+             ("--window", "window", int, "points of the local-slope window, 3-25 (default 5)"),
+             ("--field-dependent", "field_dependent", bool, "fit the Murgatroyd law (field-dependent mobility)")],
+    "intensity": [("--temperature", "temperature_k", float, "temperature in K (default 300)"),
+                  ("--i-min", "i_min", float, "lowest irradiance used in the fits"),
+                  ("--i-max", "i_max", float, "highest irradiance used in the fits"),
+                  ("--area", "area_cm2", float, "cell area in cm2 for --jv-set (default: settings)"),
+                  ("--sweep", "sweep", str, "sweep direction taken from each J-V file of --jv-set (default reverse)")],
+    "trpl": [("--model", "model", str, "decay model (default auto: lowest AICc among the valid fits)"),
+             ("--background", "background", str, "auto, none or a number (default auto)"),
+             ("--skip", "skip", float, "time skipped after the peak (default 0)"),
+             ("--t-end", "t_end", float, "end of the fit window"),
+             ("--time-unit", "time_unit", str, "unit of the time column (default ns)"),
+             ("--irf-fwhm", "irf_fwhm", float, "FWHM of the instrument response, same unit (default 0: not stated)"),
+             ("--mobility", "mobility_cm2_Vs", float, "mobility in cm2/Vs for the diffusion length (default 0: none)"),
+             ("--temperature", "temperature_k", float, "temperature in K (default 300)")],
+    "eis": [("--model", "model", str, "equivalent circuit (default auto: lowest AICc among the valid fits)"),
+            ("--convention", "convention", str, "what the third column holds (default auto)"),
+            ("--f-min", "f_min", float, "lowest frequency fitted, Hz"),
+            ("--f-max", "f_max", float, "highest frequency fitted, Hz"),
+            ("--area", "area_cm2", float, "device area in cm2 for area-normalised values (default 0: none)"),
+            ("--thickness", "thickness_nm", float, "film thickness in nm for the geometric capacitance (default 0: none)")],
+    "cv": [("--area", "area_cm2", float, "device area in cm2 (default: settings)"),
+           ("--eps", "eps_r", float, "relative permittivity (default 25)"),
+           ("--thickness", "thickness_nm", float, "film thickness in nm for the resolution limit (default 0: none)"),
+           ("--temperature", "temperature_k", float, "temperature in K (default 300)"),
+           ("--c-unit", "c_unit", str, "unit of the capacitance column (default F)"),
+           ("--m", "m", float, "factor m of the resolution limit N_min (default 2)"),
+           ("--v-min", "v_min", float, "start of the Mott-Schottky fit, V"),
+           ("--v-max", "v_max", float, "end of the Mott-Schottky fit, V")],
+    "stability": [("--time-unit", "time_unit", str, "unit of the time column (default h)"),
+                  ("--norm", "norm", str, "normalisation (default initial)"),
+                  ("--n-initial", "n_initial", int, "initial points averaged for the normalisation (default 1)"),
+                  ("--threshold", "threshold", float, "fraction of the initial value, 0.8 for T80 (default 0.8)"),
+                  ("--model", "model", str, "degradation model (default auto)"),
+                  ("--protocol", "protocol", str, "ageing protocol recorded with the result (default: not stated)")],
+}
+CURVE_HELP = {
+    "sclc": "space-charge-limited current of a single-carrier device (trap density, mobility)",
+    "intensity": "light-intensity dependence (ideality factor, Jsc exponent, pseudo fill factor)",
+    "trpl": "time-resolved photoluminescence decay (lifetimes, differential lifetime)",
+    "eis": "impedance spectrum (Kramers-Kronig test, equivalent circuit)",
+    "cv": "capacitance-voltage (Mott-Schottky doping density, built-in voltage, resolution limit)",
+    "stability": "stability trace (T80, burn-in, Ts80, loss rate)",
+}
+
+
+def _item_lines(cb, tool, it, interpret=False):
+    """Text block of one analysed file."""
+    lines = [it["file"]]
+    if it["error"]:
+        return lines + [f"  not analysed: {it['error']}", ""]
+    data = it["data"] or {}
+    how = data.get("_how") or (", ".join(f"{k} = {v}" for k, v in data["_columns"].items())
+                               if isinstance(data.get("_columns"), dict) else "")
+    if how:
+        lines.append(f"  read as: {how}")
+    rows = cb.summary_rows(tool, it["result"])
+    width = max((len(str(q)) for q, _, _ in rows), default=0)
+    lines += [f"  {str(q):<{width}}  {cb.fmt_value(v)} {u}".rstrip() for q, v, u in rows]
+    if it["checks"]:
+        lines.append("  Checks:")
+        lines += [f"   - {c}" for c in it["checks"]]
+    if interpret:
+        lines += ["", cb.interpret(tool, it["result"], it["file"]).to_text()]
+    return lines + [""]
+
+
+def cmd_curve(a):
+    """SCLC, light intensity, TRPL, impedance, C-V and stability: the analysis
+    of the window of the same name, file by file."""
+    from scripts.common import curve_batch as cb
+    tool = a.cmd
+    try:
+        params = cb.parameters(tool, {key: getattr(a, key) for _, key, _, _ in CURVE_OPTIONS[tool]})
+    except ValueError as e:
+        raise SystemExit(str(e)) from None
+    jv_set = getattr(a, "jv_set", None) or []
+    if not a.files and not jv_set:
+        raise SystemExit("no file given")
+    items = cb.run_files(tool, a.files, params)
+    if jv_set:
+        items.append(cb.run_jv_set(jv_set, params))
+    done = [it for it in items if it["result"] is not None]
+    shown = ", ".join(f"{k} = {cb.fmt_value(v)}" for k, v in params.items() if v is not None)
+    lines = [f"{cb.tool_name(tool)}: {len(done)} of {len(items)} file{'s' if len(items) != 1 else ''} analysed",
+             f"Parameters: {shown}", ""]
+    for it in items:
+        lines += _item_lines(cb, tool, it, a.interpret)
+    if len(items) > 1:
+        table = cb.summary_frame(tool, items)
+        for col in table.columns:
+            table[col] = table[col].map(cb.fmt_value)
+        table["Error"] = table["Error"].map(lambda t: t if len(t) <= 60 else t[:57] + "...")
+        with pd.option_context("display.max_columns", 30, "display.width", 200):
+            lines += ["Summary:", table.to_string(index=False), ""]
+    if a.out:
+        cb.write_excel(tool, items, a.out, params)
+        lines.append(f"-> {a.out}")
+    result = {"tool": cb.tool_name(tool), "parameters": params, "files": [
+        {"file": it["file"], "path": it.get("path"), "inputs": it.get("inputs"), "error": it["error"],
+         "checks": it["checks"],
+         "summary": [{"quantity": q, "value": v, "unit": u} for q, v, u in cb.summary_rows(tool, it["result"])]
+         if it["result"] is not None else [],
+         "interpretation": cb.interpret(tool, it["result"], it["file"]).to_markdown()
+         if a.interpret and it["result"] is not None else None,
+         "result": it["result"]} for it in items]}
+    _emit(result, a.json, lines)
+    return 0 if done else 1
+
+
+def cmd_detect(a):
+    """Say what kind of measurement each file is, from its name, columns and numbers."""
+    from scripts.common import detect
+    found, lines = [], []
+    for path in a.paths:
+        if os.path.isdir(path):
+            ds = detect.scan_folder(path, max_depth=a.depth)
+            lines += [f"{path}: {detect.summary(ds)}"]
+        elif os.path.isfile(path):
+            ds = [detect.detect_file(path)]
+        else:
+            raise SystemExit(f"not found: {path}")
+        for d in ds:
+            name = os.path.relpath(d.path, path) if os.path.isdir(path) else d.name
+            if d.kind:
+                lines.append(f"  {name}: {d.label} ({d.confidence}) -> {d.tool}")
+            else:
+                lines.append(f"  {name}: not recognised")
+            detail = "  |  ".join(t for t in (d.describe(), d.why()) if t)
+            if detail:
+                lines.append(f"      {detail}")
+        found += ds
+    result = {"files": [{"path": d.path, "kind": d.kind, "label": d.label, "tool": d.tool, "confidence": d.confidence,
+                         "score": d.score, "evidence": d.evidence,
+                         "alternatives": [{"kind": k, "score": sc} for k, sc in d.alternatives],
+                         "columns": d.columns, "shape": list(d.shape), "error": d.error} for d in found]}
+    _emit(result, a.json, lines)
+    return 0
+
+
+def cmd_collect(a):
+    """Gather every exported analysis below a folder (the *.analysis.json records) in one table."""
+    from scripts.common import results_index
+    if not os.path.isdir(a.folder):
+        raise SystemExit(f"not a folder: {a.folder}")
+    entries = results_index.scan(a.folder, max_depth=a.depth)
+    table = results_index.index_table(entries, a.folder)
+    lines = [f"{a.folder}: {results_index.summary(entries)}"]
+    if len(table):
+        with pd.option_context("display.max_columns", 30, "display.width", 220, "display.max_colwidth", 70):
+            lines += ["", table[["Date", "Tool", "Sample", "Headline", "Export"]].to_string(index=False)]
+    if a.out:
+        if not entries:
+            raise SystemExit("nothing to collect: no *.analysis.json below this folder")
+        results_index.write_excel(entries, a.out, a.folder)
+        lines.append(f"\n-> {a.out}")
+    _emit({"folder": os.path.abspath(a.folder), "exports": table,
+           "values": results_index.long_table(entries, a.folder)}, a.json, lines)
+    return 0
+
+
 def cmd_update(a):
     """Check GitHub for a newer release; an installed copy downloads, verifies and installs it."""
     import selfupdate
@@ -400,6 +582,32 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--mode", default="direct", choices=["direct", "indirect"]); p.add_argument("--temperature", type=float, default=300.0)
     p.add_argument("--instrument-fwhm", type=float, default=0.0); p.add_argument("--k", type=float, default=0.9)
     p.add_argument("--out", help="CSV or Excel path for the table"); common(p); p.set_defaults(func=cmd_batch)
+
+    from scripts.common import curve_batch
+    for tool, options in CURVE_OPTIONS.items():
+        p = sub.add_parser(tool, help=CURVE_HELP[tool])
+        p.add_argument("files", nargs="*" if tool == "intensity" else "+", metavar="FILE")
+        allowed = curve_batch.choices(tool)
+        for flag, key, kind, text in options:
+            if kind is bool:
+                p.add_argument(flag, dest=key, action="store_true", default=None, help=text)
+            else:
+                p.add_argument(flag, dest=key, type=kind, default=None, choices=allowed.get(key), help=text)
+        if tool == "intensity":
+            p.add_argument("--jv-set", nargs="+", metavar="JV_FILE",
+                           help="J-V files of one cell at different intensities; the irradiance is read from "
+                                "each name (0.1sun, 53mW, 10pct, OD1.0)")
+        p.add_argument("--out", help="Excel workbook (the analysis record is written next to it)")
+        p.add_argument("--interpret", action="store_true", help="add the rule-based interpretation")
+        common(p); p.set_defaults(func=cmd_curve)
+
+    p = sub.add_parser("detect", help="say what kind of measurement each file (or each file of a folder) is")
+    p.add_argument("paths", nargs="+", metavar="FILE_OR_FOLDER")
+    p.add_argument("--depth", type=int, default=2, help="folder levels searched (default 2)"); common(p); p.set_defaults(func=cmd_detect)
+
+    p = sub.add_parser("collect", help="gather the exported analyses of a project folder in one table")
+    p.add_argument("folder"); p.add_argument("--out", help="Excel workbook of the collected results")
+    p.add_argument("--depth", type=int, default=4, help="folder levels searched (default 4)"); common(p); p.set_defaults(func=cmd_collect)
 
     p = sub.add_parser("validate", help="regenerate the validation table"); p.add_argument("--csv", action="store_true"); p.set_defaults(func=cmd_validate)
 

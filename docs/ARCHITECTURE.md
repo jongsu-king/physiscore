@@ -3,7 +3,7 @@
 ## Layout
 
 ```
-Physiscore_Launcher.py      main window, settings, --tool/--spectra/--selftest/--update/--version
+Physiscore_Launcher.py      main window, settings, --open/--tool/--spectra/--selftest/--update/--version/--doc
 physiscore_cli.py           command line (same cores, no GUI)
 selfupdate.py               GitHub-release updater (standard library only)
 
@@ -14,6 +14,13 @@ scripts/common/             shared, GUI-free unless noted
   device_summary.py         cross-technique checks and detailed balance of one device
   batch.py                  table readers and per-file analysers (compare windows + CLI batch)
   iv_io.py                  generic CSV/Excel I-V reader, result-file detection
+  curve_io.py               column-aware table reader of the curve tools (names first, positions second)
+  curve_batch.py            the six curve tools without a window: parameters, load, analyse, checks,
+                            interpretation, workbook (the windows and the CLI both call it)
+  detect.py                 what kind of measurement a file is (name, headers, numbers), folder scan
+  results_index.py          every .analysis.json below a folder as one table / workbook
+  interpret.py              rule-based interpretation (findings from existing results)
+  interpret_transport.py    the rules of the six curve tools
   provenance.py             .analysis.json side-cars
   report.py                 Markdown reports
   docs_viewer.py            offline documentation: Markdown -> HTML, opened in the browser at a section
@@ -23,13 +30,18 @@ scripts/common/             shared, GUI-free unless noted
   theme.py                  customtkinter theme from the palette, widget helpers, panel headers, table stripes (GUI)
   analysis_shell.py         menu bar, toolbar, status bar, figure export, thread-safe after() (GUI)
   plot_interactions.py      zoom/pan/context menus (GUI)
+  plot_tools.py             data reader, plot details, journal-preset export, data worksheet (GUI)
+  curve_tool.py             CurveToolWindow: the shared window of the six curve tools (GUI)
+  workspace_panel.py        Workspace and Results tabs of the launcher (GUI)
+  interpret_window.py       the Interpretation window (GUI)
   sample_naming.py          rename/preset menus (GUI)
   compare_window.py         multi-file comparison window (GUI)
   origin.py                 OriginPro COM connection (Windows)
 
 scripts/<Technique>/        one package per technique
   *_core.py                 physics, GUI-free (jv_core, dark_jv_core, eqe_core, abs_core, pl_core,
-                            xrd_core, raman_core, ftir_core, sem_core)
+                            xrd_core, raman_core, ftir_core, sem_core, sclc_core, intensity_core,
+                            trpl_core, eis_core, cv_core, stability_core)
   run_*.py                  the tool window (class AnalysisWindow)
 scripts/Device/run_device.py  Device summary window
 
@@ -39,7 +51,7 @@ spectra/                    auto-fit workspaces (PL, XRD, XPS)
   gui/                      dashboard tab, PL tab
 
 tests/                      pytest; closed-form synthetic data (conftest.py generators)
-tools/                      validation_report.py, gui_smoke.py, screenshots.py
+tools/                      validation_report.py, gui_smoke.py, screenshots.py, make_icons.py
 packaging/                  PyInstaller spec, Inno Setup script, DMG / deb / tar.gz builders
 docs/                       USER_GUIDE, METHODS, VALIDATION, FILE_FORMATS, CLI, INSTALL, release notes
 ```
@@ -56,9 +68,12 @@ docs/                       USER_GUIDE, METHODS, VALIDATION, FILE_FORMATS, CLI, 
    documented defaults (METHODS.md), not hidden literals.
 4. **Outputs are traceable.** Exports carry a side-car; reports list inputs, version and
    method notes.
-5. **The interpretation never touches numbers.** `scripts/common/interpret.py` reads results
-   that already exist and turns them into findings by explicit rules (threshold, formula,
-   reference). It is deterministic, offline and has its own tests (`tests/test_interpret.py`).
+5. **The interpretation never touches numbers.** `scripts/common/interpret.py` and
+   `interpret_transport.py` read results that already exist and turn them into findings by
+   explicit rules (threshold, formula, reference). They are deterministic, offline and have
+   their own tests (`tests/test_interpret.py`, `tests/test_transport.py`).
+6. **No network, no model service.** Nothing in an analysis leaves the computer; the only
+   network access of the program is the update check against the GitHub releases.
 
 ## Threading
 
@@ -69,6 +84,21 @@ threads are queued and dispatched by a main-thread poller; `attach_chrome` appli
 every tool window, and the comparison window and auto-fit tabs apply it themselves. New
 threaded GUI code must either live in such a window or call `make_thread_safe`. Never read
 Tk variables (`StringVar.get()` etc.) inside the worker; read them before starting it.
+
+The code added in 3.5 does not use worker threads at all. Python may collect the Tk
+objects of a closed window from whichever thread happens to be running, and Tcl must only
+be entered from the thread that owns it; a Tk built without thread support (Tk 9.0 on
+macOS has no `tcl_platform(threaded)`) then aborts the process. So:
+
+- the curve tools analyse **one file per `after()` step** (`CurveToolWindow.run` ->
+  `_run_step`), which keeps the window responsive and the status line counting;
+- the Workspace tab classifies files in **slices of `SCAN_SLICE_S` = 0.04 s per event-loop
+  turn** (`workspace_panel`), from the generator `detect.iter_folder`;
+- the launcher calls `gc.collect()` on the Tk thread after each tool or comparison window
+  closes, so that the fonts and images of the closed window are freed there.
+
+Prefer this pattern for new code; a single analysis of these tools takes well under a
+second.
 
 ## Look and feel
 
@@ -101,6 +131,28 @@ figure just before it is drawn - whatever a window's plotting code set. A user's
    `tools/gui_smoke.py`. PyInstaller picks it up automatically (the spec collects every
    module under `scripts/` and `spectra/`).
 5. Document it in USER_GUIDE.md and METHODS.md, add a CHANGELOG entry.
+
+## Adding a curve tool
+
+A tool that takes one table per sample and returns a list of quantities (SCLC, light
+intensity, TRPL, impedance, C-V, stability) needs far less:
+
+1. `scripts/<Tool>/<tool>_core.py` with `COLUMN_SPEC` (the quantities and their header
+   patterns), `analyse(...)`, `summary_rows(result)`, `checks(result)` and `simulate(...)`
+   for the built-in example and the tests.
+2. An entry in `curve_batch.TOOLS` (name, core, default parameters, choices, the columns of
+   the all-files table) and a branch in `curve_batch.analyse`. The CLI command and the
+   workbook follow from it (`physiscore_cli.py`: `CURVE_OPTIONS`, `CURVE_HELP`).
+3. `scripts/<Tool>/run_<tool>.py` with `class AnalysisWindow(CurveToolWindow)`: `TOOL_NAME`,
+   `SLUG`, `CORE`, `FILE_HINT`, `FIELDS` (the parameter panel), `VIEWS`, `BATCH`,
+   `METHOD_SECTION` (the METHODS section that *Help > Methods of this tool* opens), `NOTES`
+   (the methods note of the report), `demo()` and `draw(fig, data, result, view, params,
+   others)`. File list, parameter memory, run loop, tables, Excel, report, interpretation
+   and graph tools come from the base class.
+4. Rules in `interpret_transport.py`, a kind in `detect.KINDS` with its evidence rules, an
+   icon (`tools/make_icons.py` draws the six existing ones), then the registration of
+   step 4 above, tests in `tests/test_transport.py` / `test_curve_batch.py` /
+   `test_workspace.py` and rows in `tools/validation_report.py`.
 
 ## Checks before a release
 

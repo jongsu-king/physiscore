@@ -4,7 +4,7 @@ This document states, for every quantity Physiscore reports, the equation that i
 evaluated, the numerical procedure, its defaults, and the primary reference. It is
 written so that the methods section of a paper can cite it (or copy from it) and so
 that a reviewer can check a number against the code. File references are to the
-3.4.0 source tree; all functions are GUI-free and importable.
+3.5.0 source tree; all functions are GUI-free and importable.
 
 Conventions: J in mA cm⁻², V in V, R in Ω cm², E in eV, T = 298.15 K unless stated.
 Constants: q = 1.602176634×10⁻¹⁹ C, k = 1.380649×10⁻²³ J K⁻¹, hc = 1239.84198 eV nm.
@@ -261,7 +261,7 @@ curved background exactly (a few percent bias), a single-Gaussian PL fit is bias
 unresolved neighbouring band (the multi-component fit removes most of it), and the
 detailed-balance quantities inherit the uncertainty of the sub-gap tail extrapolation.
 
-## 16. Rule-based interpretation (`scripts/common/interpret.py`)
+## 16. Rule-based interpretation (`scripts/common/interpret.py`, `interpret_transport.py`)
 
 Every window's **Interpretation** action (toolbar, or *Analysis → Interpretation*) turns
 results that are already computed into findings. A finding has a level, a topic, a
@@ -403,3 +403,359 @@ Sci. 5, 9296 (2012)); EQE, Tauc and PL gaps agree within 30 meV good, > 60 meV w
 (Rau et al. 2017); Voc, Jsc and FF as fractions of the detailed-balance limit; the
 voltage loss split into radiative and non-radiative parts, non-radiative > 150 mV
 warning.
+
+### 16.13 SCLC (`scripts/common/interpret_transport.py`)
+
+The six transport and recombination tools have their rules in `interpret_transport.py`
+(`interpret_sclc`, `interpret_intensity`, `interpret_trpl`, `interpret_eis`,
+`interpret_cv`, `interpret_stability`). Each analysis also returns its own validity
+checks (sections 17-22); the interpretation repeats those it has no rule of its own for
+as warnings under the topic **Check**.
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Mott-Gurney region | no region with local slope 1.65-2.45: problem (no mobility); \|slope − 2\| ≤ 0.25 good, otherwise warning | Röhr et al., J. Phys.: Condens. Matter 30, 105901 (2018) |
+| Trap density | n_t/n_diff < 1 problem; < 3 warning; otherwise good. Without a trap-filling rise: note | Le Corre et al., ACS Energy Lett. 6, 1087 (2021) |
+| Sweep hysteresis | mean \|log₁₀(J_up/J_down)\| > 0.1 decades warning (mobile ions; pulsed SCLC advised); one sweep only: note | Duijnstee et al., ACS Energy Lett. 5, 376 (2020) |
+| Ohmic region | conductivity and n₀ = σ/(qμ) reported as a note | Röhr et al. (2018) |
+
+### 16.14 Light-intensity dependence
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Ideality factor | 0.9-1.2 note (free-carrier recombination, or a surface where one carrier is in excess); 1.2-1.8 note (trap-assisted with unequal carrier densities; in perovskite cells usually the interfaces); 1.8-2.2 warning (Shockley-Read-Hall through deep states, bulk dominated); outside 0.9-2.2 problem | Tress et al., Energy Environ. Sci. 11, 151 (2018); Caprioglio et al., Adv. Energy Mater. 10, 2000502 (2020) |
+| Ideality factor uncertainty | 95 % interval wider than ±0.15: warning | - |
+| Jsc exponent | α ≥ 0.97 good; 0.9-0.97 note; < 0.9 warning (bimolecular recombination or space-charge build-up at short circuit; 0.75 is the space-charge limit) | Koster et al., Appl. Phys. Lett. 87, 203502 (2005); Mihailetchi et al., Phys. Rev. Lett. 94, 126602 (2005) |
+| Transport loss in FF | pFF − FF ≤ 3 % (absolute) good; ≤ 6 % note; above warning | Sinton, Cuevas, Proc. 16th EU PVSEC, 1152 (2000) |
+| Pseudo fill factor | reported as a note when no measured FF is given | Sinton, Cuevas (2000) |
+
+### 16.15 TRPL
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Fit quality | counting data with 0.7 ≤ χ²_red ≤ 1.3 and Durbin-Watson ≥ 1.5: good | Lakowicz, *Principles of Fluorescence Spectroscopy*, 3rd ed. (2006), ch. 4 |
+| Decay law | mono-exponential, stretched (β and mean lifetime) or n exponentials: note. For two or three exponentials the note states that the lifetimes are a parametrisation unless a fluence series supports separate channels | Kirchartz et al., Adv. Energy Mater. 10, 1904134 (2020) |
+| Average lifetime | ⟨τ⟩_amp and ⟨τ⟩_int given together with what each one means: note | Lakowicz (2006) |
+| Differential lifetime | median of the last third > 2 × median of the first third: note (rate falls with carrier density); otherwise good (one rate over the window). Needs 9 or more points | Krückemeier et al., Adv. Energy Mater. 11, 2003489 (2021) |
+| Diffusion length | L_D from the entered mobility: note (an estimate) | Kirchartz et al. (2020) |
+
+### 16.16 Impedance
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Kramers-Kronig test | residual rms ≤ 0.5 % of \|Z\| good; 0.5-1 % note; rms > 1 % or max > 2 % problem (not a linear, stationary response; circuit parameters have no meaning) | Schönleber et al., Electrochim. Acta 131, 20 (2014) |
+| Circuit fit | rms residual ≤ 1 % of \|Z\|: good | Guerrero et al., Chem. Rev. 121, 14430 (2021) |
+| Assignment of the arcs | two arcs: high-frequency arc = geometric capacitance with recombination and transport resistance, low-frequency arc = ionic and interfacial polarisation (note) | Guerrero et al. (2021) |
+| Arc ideality | CPE exponent α ≥ 0.9: good (C_eff well defined) | Hsu, Mansfeld, Corrosion 57, 747 (2001) |
+| Permittivity | ε_r from the fastest arc when area and thickness are entered: note | von Hauff, Klotz, J. Mater. Chem. C 10, 742 (2022) |
+
+### 16.17 C-V (Mott-Schottky)
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Mott-Schottky region | no straight section of 1/C² with negative slope: problem, nothing further is reported | Almora et al., Appl. Phys. Lett. 109, 173903 (2016) |
+| Doping density against the resolution limit | N/N_min < 1 problem (geometric capacitance plus injected charge, not doping); < 3 warning; otherwise good. Needs the thickness | Ravishankar et al., Science 371, eabd8014 (2021) |
+| Built-in potential | 0.3 V ≤ V_bi ≤ 1.6 V: note, with the remark that in a fully depleted cell the intercept is not V_bi | Kirchartz et al., J. Phys. Chem. C 116, 7672 (2012) |
+| Depletion width | W in the fitted window ≤ 0.9 d: good | Kirchartz et al. (2012) |
+| Doping profile | N(W) varies by more than a factor 3 inside the window: note (U shape of a fully depleted layer) | Kirchartz et al. (2012) |
+
+### 16.18 Stability
+
+| Topic | Rule | Reference |
+|---|---|---|
+| T80 (or the chosen level) | reached within the measurement: good. Not reached: extrapolated value up to 2 × the measured time warning (an estimate), beyond that problem (a property of the model; report T > measured time). No crossing within 1000 × the measured time: note | Khenkin et al., Nat. Energy 5, 35 (2020) |
+| Burn-in | burn-in model selected: note with the loss, the stabilised point t_s and Ts80 | Roesch et al., Adv. Energy Mater. 5, 1501407 (2015) |
+| Loss rate | %/1000 h with its standard error: note | Roesch et al. (2015) |
+
+## 17. Space-charge-limited current (`scripts/SCLC/sclc_core.py`)
+
+For a single-carrier device (electron-only or hole-only) of thickness L and relative
+permittivity ε_r. `read_curve` reads the whole voltage and current block (the solar-cell
+reader of section 1 cuts at ±3 V) and divides by the device area; `split_sweeps` cuts
+the trace at the turning points of |V| so that the up sweep, the down sweep or all
+points can be analysed. The branch (positive, negative, or the one with more points)
+and an optional built-in voltage offset V − V_bi are applied before the analysis. At
+least 8 points with V > 0 and J > 0 are needed.
+
+**Regimes** — `find_regimes`: the local slope m = d log J / d log V comes from a moving
+straight-line fit over 5 points (`window`). A run of 3 or more points is ohmic for
+0.7 ≤ m ≤ 1.35, a Child (Mott-Gurney) region for 1.65 ≤ m ≤ 2.45, and a trap-filling
+rise for m ≥ max(2.6, 0.6 m_max) around the steepest point. Each regime is fitted with
+a line in log-log space.
+
+**Characteristic voltages** — V₁: crossing of the ohmic and trap-filling tangents;
+V₂: crossing of the trap-filling and Child tangents; V_inf: voltage of the steepest
+slope. V_TFL = V₂ when a Child region follows the rise, otherwise V₁ (Le Corre et al.
+(2021) show that V₂ follows the trap density more closely than V₁ in perovskites).
+
+**Trap density** — `trap_density_cm3`: n_t = 2 ε₀ ε_r V_TFL/(q L²) (Lampert 1956).
+`resolution_limit_cm3`: n_diff = 4π² kT ε₀ ε_r/(q² L²), the density below which the
+rise comes from diffusion of injected carriers and not from traps (Le Corre et al.
+2021); for 500 nm, ε_r = 25 and 300 K it is 5.6×10¹⁵ cm⁻³. Both n_t(V_TFL) and n_t(V₁)
+are reported.
+
+**Mobility** — `mott_gurney_mobility`: J = (9/8) ε₀ ε_r μ V²/L³ fitted to the Child
+region with the slope fixed at 2; the standard error follows from the scatter of
+log J − 2 log V. With `field_dependent` the Murgatroyd form
+J = (9/8) ε μ₀ exp(0.891 γ √(V/L)) V²/L³ is fitted as well (`murgatroyd`) and μ₀ and γ
+are reported.
+
+**Ohmic region** — σ = J L/V with the slope fixed at 1; n₀ = σ/(q μ) when a mobility
+exists. Without a trap-filling rise the ohmic/Child crossover voltage is given instead.
+
+**Hysteresis** — `hysteresis_decades`: mean |log₁₀(J_up/J_down)| over the common voltage
+range of the first two sweeps.
+
+**Validity checks** (`checks`): no Child region (no mobility); Child slope off 2 by more
+than 0.25; no trap-filling rise; n_t below n_diff; hysteresis above 0.1 decades; less
+than 1.5 decades of voltage; no ohmic region.
+
+References: Mott & Gurney, *Electronic Processes in Ionic Crystals* (1940); Lampert,
+Phys. Rev. 103, 1648 (1956); Murgatroyd, J. Phys. D 3, 151 (1970); Röhr et al., J.
+Phys.: Condens. Matter 30, 105901 (2018); Le Corre et al., ACS Energy Lett. 6, 1087
+(2021); Duijnstee et al., ACS Energy Lett. 5, 376 (2020).
+
+## 18. Light-intensity dependence (`scripts/Intensity/intensity_core.py`)
+
+Input is a table of intensity, Voc and optionally Jsc, FF and PCE, or a set of J-V files
+measured at different intensities (`from_jv_files`: each file is analysed with the J-V
+core of section 1; the intensity comes from the entered list or from the file name -
+`0.1sun`, `53mW`, `10pct`, `OD1.0`/`ND2` → 10^−OD suns). Three points are needed for the
+fits, four for the pseudo J-V curve. A fit window `i_min`-`i_max` restricts the fits;
+points outside it are drawn but not used.
+
+**Ideality factor** — `fit_voc`: Voc = (n_id kT/q) ln I + const, so n_id = slope/(kT/q)
+from the least-squares line of Voc against ln I. The standard error and the 95 %
+interval (Student t with N − 2 degrees of freedom) are reported together with the slope
+in mV per decade. The same factor is also obtained from Voc against ln Jsc, which does
+not depend on the intensity calibration. `local_ideality` gives n_id between
+neighbouring intensities from centred differences.
+
+**Jsc exponent** — `fit_jsc`: Jsc ∝ I^α from the line of log Jsc against log I, with the
+95 % interval of α.
+
+**Suns-Voc pseudo J-V** — `pseudo_jv`: each intensity gives one point of the curve the
+cell would have without series resistance, J(Voc,i) = Jsc(I_max) − Jsc(I_i), with the
+short-circuit point (0, Jsc(I_max)) added. The pseudo fill factor is
+pFF = max(V J)/(Jsc(I_max) Voc(I_max)) on a 400-point interpolation; `covers_mpp` is
+false when the lowest intensity lies above the pseudo maximum-power point.
+
+**Fill-factor budget** — `ff0_green`: FF₀ = (v − ln(v + 0.72))/(v + 1), v = Voc/(n_id
+kT/q) (Green 1981); transport loss = 100 pFF − FF at the highest intensity, in absolute
+per cent. FF values given as fractions are converted to per cent.
+
+**Validity checks**: fewer than 5 intensities; less than one decade of intensity; R² of
+the Voc line below 0.99; n_id < 0.9 or > 2.2; n_id from Voc(I) and from Voc(Jsc)
+differing by more than 0.1 (intensity calibration); α > 1.03; pseudo maximum-power point
+not covered.
+
+References: Koster et al., Appl. Phys. Lett. 86, 123509 (2005); Koster et al., Appl.
+Phys. Lett. 87, 203502 (2005); Mihailetchi et al., Phys. Rev. Lett. 94, 126602 (2005);
+Sinton & Cuevas, Proc. 16th EU PVSEC, 1152 (2000); Tress et al., Energy Environ. Sci.
+11, 151 (2018); Caprioglio et al., Adv. Energy Mater. 10, 2000502 (2020); Green,
+Solid-State Electron. 24, 788 (1981).
+
+## 19. Time-resolved photoluminescence (`scripts/TRPL/trpl_core.py`)
+
+A tail fit: the decay is fitted from its maximum (plus an optional `skip`) to `t_end`,
+without deconvolution of the instrument response. Lifetimes shorter than the response
+are therefore not resolved, and a check says so when the response width is entered. At
+least 12 points, 10 of them inside the window.
+
+**Background** — `prepare`: `auto` takes the median of the points before the pulse (5 or
+more points ahead of the rise), otherwise the median of a flat tail below 5 % of the
+peak; a number or `none` can be entered instead. The source is recorded in the result.
+
+**Models** — `exp1`, `exp2`, `exp3`: Σ A_i exp(−t/τ_i); `stretched`:
+A exp(−(t/τ)^β), 0.2 ≤ β ≤ 1. Parameters are fitted in log space from several starting
+points (`fit_model`). Photon-counting data (integers with a maximum of 50 or more) are
+weighted with σ = √N, which makes χ² absolute; other data use the same weight shape with
+the errors scaled by the residuals.
+
+**Model selection** — `choose_model`: the lowest AICc among the valid exponential models,
+the simpler one being kept when it is within 2 AICc units. A model is not valid when two
+lifetimes are closer than a factor 1.5, when a component carries less than 1 % of the
+amplitude, or when the relative error of a lifetime exceeds 100 %. The stretched form is
+fitted for comparison and used when requested.
+
+**Lifetimes** — ⟨τ⟩_amp = Σ A_i τ_i/Σ A_i (proportional to the time-integrated emission);
+⟨τ⟩_int = Σ A_i τ_i²/Σ A_i τ_i (mean emission time); for the stretched form
+⟨τ⟩ = (τ/β) Γ(1/β). Standard errors are propagated numerically from the covariance
+matrix. `tau_1e` is the model-free time at which the signal has fallen to 1/e of the
+peak.
+
+**Differential lifetime** — `differential_lifetime`: τ_diff(t) = −(d ln I/dt)⁻¹ from a
+Savitzky-Golay derivative of ln I; points within 3 times the noise floor are left out.
+It shows whether the rate changes during the decay without assuming a model
+(Krückemeier et al. 2021).
+
+**Diffusion length** — `diffusion_length_um`: L_D = √(D τ), D = μ kT/q, with the entered
+mobility and ⟨τ⟩_amp.
+
+**Fit diagnostics and checks**: reduced χ² (outside 0.7-1.3 flagged for counting data),
+Durbin-Watson statistic of the weighted residuals (< 1.5 flagged), shortest lifetime
+below 3 time bins or below the response FWHM, longest lifetime above half the fit
+window, dynamic range below 1.5 decades, stretched form better than exp2/exp3 by more
+than 10 AICc units, background taken from a flat tail, requested model not supported.
+
+References: Lakowicz, *Principles of Fluorescence Spectroscopy*, 3rd ed. (2006), ch. 4;
+Burnham & Anderson, *Model Selection and Multimodel Inference* (2002); Kirchartz,
+Márquez, Stolterfoht & Unold, Adv. Energy Mater. 10, 1904134 (2020); Krückemeier et
+al., Adv. Energy Mater. 11, 2003489 (2021); Peán et al., ACS Energy Lett. 5, 3244
+(2020).
+
+## 20. Impedance spectroscopy (`scripts/EIS/eis_core.py`)
+
+Capacitive Z″ is negative; a file that stores −Z″ is recognised (most values positive)
+and converted (`prepare`, `convention`). A frequency window `f_min`-`f_max` can be set.
+
+**Kramers-Kronig test** — `lin_kk`: the spectrum is fitted with a series resistance, an
+inductance and a chain of M RC elements whose time constants are fixed and equally
+spaced in log τ over the measured range. The problem is linear, so it has one solution
+and needs no starting values. Residuals are weighted with 1/|Z|. M runs from 3 up to
+max(4, min(N − 3, ⌈4 × decades of frequency⌉)); the M used is the smallest whose rms residual is
+within 10 % of the lowest one reached. Reported: rms and maximum residual in % of |Z|,
+the rms of the lowest decade, M, and Schönleber's μ = 1 − Σ|R_k<0|/Σ|R_k>0| (μ < 0.85
+marks an over-fitted chain). A spectrum that the chain cannot reproduce is not a
+linear, causal, time-invariant response (Boukamp 1995).
+
+**Equivalent circuits** — `fit_model`: R(RC), R(RQ), R(RC)(RC), R(RQ)(RQ) with
+Z_CPE = 1/(Q (jω)^α). Complex non-linear least squares on real and imaginary parts
+together, each residual divided by |Z| so that every decade counts equally; parameters
+in log₁₀ space, 0.4 ≤ α ≤ 1, several starting points, standard errors from the Jacobian
+at the optimum.
+
+**Circuit selection** — `choose_model`: AICc with 2N data, the simpler circuit kept
+within 2 units. A circuit is not valid when a resistance has more than 100 % error, the
+two time constants are closer than a factor 3, an arc carries less than 1 % of the
+total resistance, or α sits on its lower bound.
+
+**Per arc** — τ = (R Q)^(1/α), f_peak = 1/(2π τ), effective capacitance
+C_eff = Q^(1/α) R^((1−α)/α) (Hsu & Mansfeld 2001). Arcs are ordered by time constant.
+With area and thickness, ε_r = C_eff d/(ε₀ A) for the fastest arc. The capacitance
+spectrum C(f) = Im(1/Z)/ω is plotted (`capacitance_spectrum`).
+
+**Validity checks**: Kramers-Kronig residual above 2 % (maximum) or 1 % (rms); residuals
+growing towards low frequency (drift during the sweep); circuit rms above 2 %; requested
+circuit not supported; two or more inductive points at low frequency (negative
+capacitance loop, Ebadi et al. 2019) or at high frequency (leads); fewer than 3 decades
+of frequency; α < 0.7; an arc whose peak frequency lies outside the measured range.
+
+References: Boukamp, J. Electrochem. Soc. 142, 1885 (1995); Schönleber, Klotz &
+Ivers-Tiffée, Electrochim. Acta 131, 20 (2014); Hsu & Mansfeld, Corrosion 57, 747
+(2001); Guerrero, Bisquert & Garcia-Belmonte, Chem. Rev. 121, 14430 (2021); von Hauff &
+Klotz, J. Mater. Chem. C 10, 742 (2022); Ebadi et al., Nat. Commun. 10, 1574 (2019).
+
+## 21. Capacitance-voltage, Mott-Schottky (`scripts/CV/cv_core.py`)
+
+For a one-sided abrupt junction of area A: 1/C² = 2 (V_bi − V − kT/q)/(q ε₀ ε_r A² N).
+Repeated voltages are averaged, the capacitance unit is set with `c_unit`, and the
+voltage axis is reversed when 1/C² rises with V (the device was biased with the other
+polarity). At least 8 points.
+
+**Linear window** — `find_linear_window`: every window of max(5, n/8) or more consecutive
+points is fitted (cumulative sums, so all windows cost one pass). Windows with a
+negative slope that span 15 % or more of the voltage range are kept; the R² thresholds
+0.999, 0.995, 0.99, 0.98, 0.95 are tried in this order and the widest window (then the
+highest R²) that meets the first satisfiable threshold is taken. `v_min`/`v_max` set the
+window by hand.
+
+**Results** — N = 2/(q ε₀ ε_r A² |d(1/C²)/dV|) with the error of the slope;
+V_bi = intercept + kT/q; depletion width W = ε₀ ε_r A/C at 0 V and over the window;
+doping profile N(W) = −2/(q ε₀ ε_r A² d(1/C²)/dV) point by point; Debye length
+√(ε kT/(q² N)).
+
+**Resolution limit** — `resolution_limit_cm3`: with the layer thickness d,
+C_geo = ε₀ ε_r A/d and N_min = 27 m kT ε₀ ε_r/(4 q² d²) with m = 2 by default
+(Ravishankar et al. 2022, eq. 9). An apparent density near N_min is what an undoped,
+fully depleted layer shows; it is not a doping density (Ravishankar et al. 2021).
+
+**Validity checks**: no straight section; N outside 10¹⁰-10²⁰ cm⁻³ or W below 1 nm;
+N < 3 N_min; W in the window above 0.9 d (fully depleted); no thickness entered (the
+limit cannot be tested); window R² below 0.99; window narrower than 0.2 V; V_bi outside
+0.3-1.6 V; axis reversed.
+
+References: Sze & Ng, *Physics of Semiconductor Devices*, 3rd ed. (2007), ch. 2;
+Kirchartz et al., J. Phys. Chem. C 116, 7672 (2012); Almora et al., Appl. Phys. Lett.
+109, 173903 (2016); Ravishankar, Unold & Kirchartz, Science 371, eabd8014 (2021);
+Ravishankar, Bisquert & Kirchartz, Chem. Sci. 13, 4828 (2022).
+
+## 22. Operational stability (`scripts/Stability/stability_core.py`)
+
+Input is a time trace of efficiency, power or normalised output. Times are converted to
+hours (s, min, h, day) and counted from the first point. Normalisation: to the mean of
+the first `n_initial` points (default), to the maximum, or none (values in per cent are
+divided by 100). At least 6 points.
+
+**Lifetime at a level** — `crossing_time`: T80 (level 0.8 by default) is the first time
+the trace falls below the level and stays below it for the next 3 points, with linear
+interpolation between the two samples; traces of 15 or more points are smoothed with a
+5-point running median first, so a single noisy sample does not set the lifetime.
+
+**Models** — linear E = a − b t; exponential a exp(−t/τ); burn-in
+a₁ exp(−t/τ₁) + a₀ − b t; bi-exponential. Least squares from several starting points
+(`fit_model`), selection by AICc with the simpler model kept within 2 units. A model is
+not valid when the fast term is below 1 % of the output, has not finished within the
+measurement (3 τ₁ longer than the trace), a time constant is not determined (error
+larger than the value), or the two time constants are closer than a factor 3.
+
+**Extrapolation** — when the level is not reached, the fitted model is followed up to
+1000 times the measured time (`extrapolate_crossing`). The result is stored separately
+(`T_extrapolated`) and labelled as extrapolated wherever it is shown; when the level was
+reached, `T_model` is the same level read from the fitted curve for comparison.
+
+**Burn-in** — with the burn-in model: stabilised point t_s = 3 τ₁, stabilised output
+E_s = E(t_s), burn-in loss = 100 (E(0) − E_s) in absolute per cent, and Ts80 = time from
+t_s until the output falls to 0.8 E_s, measured or extrapolated (Roesch et al. 2015).
+
+**Rates and totals** — linear loss rate in %/1000 h with its standard error, over the
+stabilised part (burn-in model) or the whole trace; final output (mean of the last 5 %
+of the points); maximum and its time; mean output over the test. The ISOS protocol
+chosen in the window (ISOS-D-1/2/3, L-1/2/3, T-1, O-1, V-1, LC-1, MPP tracking, or not
+stated) is written into the report and the side-car.
+
+**Validity checks**: level never reached within 1000 times the measured time (no
+lifetime can be stated); lifetime extrapolated, with the ratio to the measured time;
+output rising more than 3 % above the first value with initial normalisation (light
+soaking - normalise to the maximum and say so); protocol not stated; fewer than 15
+points; requested model not supported; fit rmse above 2 %.
+
+References: Reese et al., Sol. Energy Mater. Sol. Cells 95, 1253 (2011); Roesch et
+al., Adv. Energy Mater. 5, 1501407 (2015); Khenkin et al., Nat. Energy 5, 35 (2020);
+Burnham & Anderson (2002).
+
+## 23. Measurement detection and the results index
+
+**Detection** (`scripts/common/detect.py`) decides which tool a data file belongs to. It
+is a list of scored rules; nothing is learned from the files and nothing leaves the
+computer. Three kinds of evidence add up to one score per measurement kind:
+
+| Evidence | Weight | Example |
+|---|---|---|
+| File name (`name_scores`) | 2.5-4.5 | `trpl`, `tcspc`, `eqe`, `ipce`, `uv-vis`, `xrd`, `raman`, `ftir`, `xps`, `sclc`, `electron-only`, `eis`, `nyquist`, `mott`, `c-v`, `mppt`, `isos`, `suns-voc`, `dark`, `jv`, `sem` |
+| Column names (`column_scores`) | 2.5-4.5 | frequency with Z′/Z″; voltage with capacitance; time with counts; time with PCE; intensity with Voc; wavelength with EQE; a 2θ column; a binding-energy column |
+| Numbers (`numeric_scores`) | 0.8-2.5 | log-spaced first column over three decades with three columns (impedance); voltage axis and a current that changes sign (illuminated J-V); current over decades without photocurrent (dark J-V or SCLC); angle axis with fine steps (XRD); wavelength, wavenumber or time axis with the matching shape |
+
+A score of 5 or more is **high** confidence, 3 or more **medium**, anything lower
+**low**; a kind that scores below 0.8 is dropped, and a file with no kind left is listed
+as not recognised. Numbers alone never exceed 2.5, so a file without a telling name or
+header is at most a suggestion, and the launcher asks before opening a low-confidence
+file. The sentence behind every score is kept (`Detection.evidence`) and shown in the
+Workspace list, together with the alternative kinds that score 1.5 or more. Three rules settle the cases that the scores leave open: `dark` in
+the name moves a current-voltage score to the dark J-V tool, `sclc` (or
+`electron-only`, `hole-only`) in the name takes half of the J-V scores, and a decay
+trace with `PL` in its name counts as TRPL when the time-axis score is at least as
+large. Images are offered to the FE-SEM tool only when they are TIFF files or carry
+`sem` or a magnification in the name. Files above 30 MB are classified by name only.
+
+`scan_folder` walks a folder two levels deep (2000 files at most), skips hidden files,
+office lock files and every table that has a side-car next to it (section 14), and
+reports progress so that the window can show it and cancel.
+
+**Results index** (`scripts/common/results_index.py`) reads the side-cars below a folder
+(four levels, 5000 at most) and lists what was exported: date, tool, sample, a headline
+value per tool, the export file, the inputs and the program version. `write_excel`
+writes the index, one sheet per tool with one row per export and one column per
+result, and an `All values` sheet in long form (one row per value) for pivoting. A
+side-car that cannot be read is listed with its error instead of stopping the scan,
+and the index workbook is not indexed itself.

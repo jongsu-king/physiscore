@@ -434,6 +434,11 @@ class PLAnalysisWindow(ctk.CTkToplevel):
         if file_path:
             self.file_path_var.set(file_path)
 
+    def open_path(self, path):
+        """Load one file without the dialog (launcher workspace, command line)."""
+        self.file_path_var.set(str(path))
+        self.load_data()
+
     def load_data(self):
         file_path = self.file_path_var.get().strip()
         if not file_path:

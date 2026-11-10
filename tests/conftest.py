@@ -145,3 +145,86 @@ def rawdata_dir(project_root):
     if not os.path.isdir(path):
         pytest.skip("rawdata/ not present")
     return path
+
+
+# ----------------------------------------------------------------------------
+# Measurement files as an instrument would export them (3.5.0: detector, shared
+# curve runner, command line). The numbers come from the forward model of each
+# analysis, so a file written here has a known answer.
+# ----------------------------------------------------------------------------
+MEASUREMENT_NAMES = {
+    "sclc": "EOD_Ref_sclc.csv", "intensity": "Ref_intensity.csv", "trpl": "Ref_TRPL.csv",
+    "eis": "Ref_EIS_0V_dark.csv", "cv": "Ref_MottSchottky_10kHz.csv", "stability": "Ref_MPPT_ISOS-L-1.csv",
+    "eqe": "Ref_EQE.csv", "xrd": "Ref_XRD.xy", "raman": "Ref_Raman.csv", "ftir": "Ref_FTIR.csv",
+    "xps": "Ref_XPS_Pb4f.csv", "pl": "Ref_PL.csv",
+}
+
+
+def measurement_columns(kind):
+    """(columns, comment preamble, separator) of one synthetic measurement."""
+    pre, sep = "", ","
+    if kind == "sclc":
+        from scripts.SCLC import sclc_core
+        v, j = sclc_core.simulate(thickness_nm=500, eps_r=25, mobility_cm2_Vs=1.0, n_t_cm3=5e16, n0_cm3=1e13)
+        cols = {"Voltage (V)": v, "J (mA/cm2)": j}
+    elif kind == "intensity":
+        from scripts.Intensity import intensity_core
+        d = intensity_core.simulate()
+        cols = {"Irradiance (mW/cm2)": d["intensity"], "Voc (V)": d["voc"], "Jsc (mA/cm2)": d["jsc"],
+                "FF (%)": d["ff"], "PCE (%)": d["pce"]}
+    elif kind == "trpl":
+        from scripts.TRPL import trpl_core
+        t, y = trpl_core.simulate()
+        cols, pre = {"Time (ns)": t, "Counts": y}, "# TCSPC export\n# excitation 640 nm, 1 MHz\n"
+    elif kind == "eis":
+        from scripts.EIS import eis_core
+        f, zre, zim = eis_core.simulate()
+        cols = {"Frequency (Hz)": f, "Z' (Ohm)": zre, "Z'' (Ohm)": zim}
+    elif kind == "cv":
+        from scripts.CV import cv_core
+        v, c = cv_core.simulate(n_cm3=1e17, v_bi=0.9, eps_r=25.0, area_cm2=0.1)
+        cols = {"Bias (V)": v, "Cp (F)": c}
+    elif kind == "stability":
+        from scripts.Stability import stability_core
+        t, y = stability_core.simulate()
+        cols = {"Time (h)": t, "PCE (%)": y}
+    elif kind == "eqe":
+        from scipy.special import erf
+        wl = np.arange(300.0, 901.0, 5.0)
+        e = 1239.842 / wl
+        eqe = 88 * 0.5 * (1 + erf((e - 1.53) / (0.028 * np.sqrt(2)))) * (1 - 0.35 * np.exp(-(wl - 300) / 60))
+        cols = {"Wavelength (nm)": wl, "EQE (%)": np.round(eqe, 3)}
+    elif kind == "xrd":
+        tt = np.arange(10.0, 50.0, 0.02)
+        y = 40.0 + gaussian(tt, 5200.0, 13.95, 0.21) + gaussian(tt, 2600.0, 28.1, 0.24)
+        cols, sep = {"2theta": np.round(tt, 3), "counts": np.round(y, 1)}, "\t"
+    elif kind == "raman":
+        rs = np.arange(60.0, 1800.0, 1.0)
+        y = 20 + sum(h * w ** 2 / ((rs - c) ** 2 + w ** 2) for c, h, w in ((110, 900, 12), (521, 3000, 3)))
+        cols = {"Raman shift (cm-1)": rs, "Intensity": y}
+    elif kind == "ftir":
+        wn = np.arange(4000.0, 399.0, -2.0)
+        y = 96 - sum(h * np.exp(-0.5 * ((wn - c) / w) ** 2) for c, h, w in ((3400, 22, 60), (1712, 30, 12)))
+        cols = {"Wavenumber (cm-1)": wn, "Transmittance (%)": y}
+    elif kind == "xps":
+        be = np.arange(148.0, 133.99, -0.05)
+        y = 900 + 9000 * np.exp(-0.5 * ((be - 138.4) / 0.42) ** 2) + 6800 * np.exp(-0.5 * ((be - 143.26) / 0.42) ** 2)
+        cols = {"Binding Energy (eV)": np.round(be, 2), "Counts / s": np.round(y, 1)}
+    elif kind == "pl":
+        wl = np.arange(700.0, 901.0, 0.5)
+        cols = {"Wavelength (nm)": wl, "PL intensity (a.u.)": 4200 * np.exp(-0.5 * ((wl - 805) / 17) ** 2) + 30}
+    else:
+        raise KeyError(kind)
+    return cols, pre, sep
+
+
+def write_measurement(folder, kind, name=None):
+    """Write one synthetic measurement of `kind` into `folder`; returns its path."""
+    import pandas as pd
+    cols, pre, sep = measurement_columns(kind)
+    path = os.path.join(str(folder), name or MEASUREMENT_NAMES[kind])
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(pre)
+        pd.DataFrame(cols).to_csv(f, index=False, sep=sep)
+    return path

@@ -560,7 +560,10 @@ class SpectraDashboardTab(ctk.CTkFrame):
 
         if not path:
             return
+        self.open_path(path)
 
+    def open_path(self, path: str):
+        """Load one data file (the file dialog, the launcher's workspace and the command line end here)."""
         try:
             self.file_path = path
             self.ent_path.delete(0, "end")

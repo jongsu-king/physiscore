@@ -361,8 +361,13 @@ class AnalysisWindow(ctk.CTkToplevel):
     # Logic: Data Load
     # ==========================================
     def load_data(self):
-        path = filedialog.askopenfilename(filetypes=[("Data", "*.csv *.xlsx *.txt")])
+        path = filedialog.askopenfilename(filetypes=[("Data", "*.csv *.xlsx *.txt"), ("All files", "*.*")])
         if not path: return
+        self.open_path(path)
+
+    def open_path(self, path):
+        """Load one file without the dialog (launcher workspace, command line)."""
+        path = str(path)
         try:
             raw_data = raman_core.load_data(path)
             self.layers = []

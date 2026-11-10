@@ -1,6 +1,6 @@
 # Physiscore user guide
 
-This guide walks through every window of Physiscore 3.4: what to load, what each
+This guide walks through every window of Physiscore 3.5: what to load, what each
 control does, what is computed and where the results go. The equations behind the
 numbers are in [METHODS.md](METHODS.md); the accepted file layouts in
 [FILE_FORMATS.md](FILE_FORMATS.md); the command line in [CLI.md](CLI.md).
@@ -19,11 +19,14 @@ Contents
 10. [FE-SEM](#10-fe-sem)
 11. [Raman and FTIR](#11-raman-and-ftir)
 12. [XPS and the auto-fit workspaces](#12-xps-and-the-auto-fit-workspaces)
-13. [Comparing many files](#13-comparing-many-files)
-14. [Outputs, reports and side-car files](#14-outputs-reports-and-side-car-files)
-15. [Settings](#15-settings)
-16. [Interpretation](#16-interpretation)
-17. [Troubleshooting](#17-troubleshooting)
+13. [Transport and recombination tools](#13-transport-and-recombination-tools): SCLC,
+    light intensity, TRPL, impedance, C-V, stability
+14. [Workspace folder and results index](#14-workspace-folder-and-results-index)
+15. [Comparing many files](#15-comparing-many-files)
+16. [Outputs, reports and side-car files](#16-outputs-reports-and-side-car-files)
+17. [Settings](#17-settings)
+18. [Interpretation](#18-interpretation)
+19. [Troubleshooting](#19-troubleshooting)
 
 ---
 
@@ -31,7 +34,7 @@ Contents
 
 ![launcher](images/launcher.png)
 
-*The main window: tool tree on the left; the selected tool with its input, output and method notes, the session settings, recent folders and the conventions on the right.*
+*The main window: tool tree on the left; on the right the selected tool with its input, output and method notes, and below it the tabs - here the Workspace tab with the measurements of a project folder. Synthetic example data.*
 
 | How | Command |
 |---|---|
@@ -39,11 +42,16 @@ Contents
 | From source | `python Physiscore_Launcher.py` |
 | One tool directly | `Physiscore --tool "J-V Curve"` (or `python Physiscore_Launcher.py --tool "XRD"`) |
 | An auto-fit workspace | `Physiscore --spectra XRD` / `PL` / `XPS` |
+| Data files | `Physiscore --open FILE ...` - the measurement is recognised and its tool opens (section 14.2) |
+| A project folder | `Physiscore --open FOLDER` - the main window with that folder as the workspace |
 
-The main window is a workbench (3.2):
+The main window is a workbench:
 
-- **Analysis tools** (left): the eleven tools grouped by category (Device, Optical,
-  Structural, Vibrational, Surface) with their status - *Ready* once the tool's code has
+- **Toolbar**: **Open data...** (Ctrl+O) picks one or more data files and opens them in
+  the tool their content points to; **Workspace folder...** (Ctrl+Shift+O) lists every
+  measurement of a folder in the Workspace tab (section 14).
+- **Analysis tools** (left): the seventeen tools grouped by category (Device, Transport
+  and recombination, Optical, Structural, Vibrational, Surface) with their status - *Ready* once the tool's code has
   loaded in the background, *External program* for an external J-V executable on
   Windows, *Unavailable* if a module failed to import. The filter field in the toolbar
   narrows the list. Double-click a tool or press Enter to open it.
@@ -53,9 +61,13 @@ The main window is a workbench (3.2):
   notes that documents it; buttons *Open*, *Auto-fit workspace* (PL, XRD), *User guide*
   and *Method notes* (opens the offline methods document at that section).
 - Tabs below the tool panel:
-  - **Session**: the device area used for current densities, the irradiance and
-    temperature defaults, the Origin path, how interpretation works (rule-based, offline),
-    the settings file and the version.
+  - **Workspace**: the data files of the workspace folder, each with the measurement it
+    holds, the confidence of that reading and the tool that opens it (section 14.1).
+  - **Results**: every analysis exported below the workspace folder with its key numbers;
+    *Collect to Excel* gathers them in one workbook (section 14.3).
+  - **Session**: the workspace folder, the device area used for current densities, the
+    irradiance and temperature defaults, the Origin path, how interpretation works
+    (rule-based, offline), the settings file and the version.
   - **Updates**: the installed version, how this copy was installed and whether it can
     update itself, the automatic-update setting, the last check, the latest release seen
     and the state, with *Check now*, *Install now and restart*, *What's new* and *Release
@@ -73,7 +85,8 @@ The status bar repeats the device area, the Origin state and the version.
 
 Menus of the main window:
 
-- **File** - Settings (Ctrl+,), open the settings folder, Quit (Ctrl+Q).
+- **File** - Open data (Ctrl+O), Open workspace folder (Ctrl+Shift+O), Collect results to
+  Excel, Settings (Ctrl+,), open the settings folder, Quit (Ctrl+Q).
 - **Analysis** - every tool and the three auto-fit workspaces.
 - **Tools** - Updates (check now; download and install / only notify / off), Run
   self-test (imports every module and checks reference physics), command-line help.
@@ -84,9 +97,11 @@ Menus of the main window:
 ## 2. Things every window shares
 
 **Menu bar.** *File* (open actions, Close window Ctrl+Q), *Analysis* (run, fit and
-extra actions), *Export* (Excel, Save figure Ctrl+S, Copy figure to clipboard, Report,
-Origin), *View* (Auto range, Toggle legend, Toggle grid), *Help* (mouse and keyboard,
-methods, About).
+extra actions), *Export* (Excel, Save figure Ctrl+S, Export figure with a journal preset
+Ctrl+Shift+S, Copy figure to clipboard, Data worksheet Ctrl+D, Report, Origin), *View*
+(Auto range, Toggle legend, Toggle grid, Data reader Ctrl+R, Plot details Ctrl+P), *Help*
+(Mouse and keyboard, **Methods of this tool** - the offline method notes at the section
+of the tool - Methods online, About).
 
 **Toolbar.** Open actions on the left, then the run action (the only solid blue button,
 also F5), then fit and extra actions, in groups separated by thin rules. Exports on the
@@ -105,15 +120,29 @@ Arial, square black-framed legend, series colours in Origin's order (black, red,
 magenta, olive, navy ...; *Settings → Plot colours → Colour-blind safe* for Okabe-Ito
 colours). Mouse wheel zooms around the pointer (Ctrl = x only, Shift = y only); left
 drag pans where dragging is not used for range selection; double-click restores the full
-range; right-click opens Auto range / Toggle legend / Toggle grid / Save figure.
+range; right-click opens Auto range / Toggle legend / Toggle grid, the graph tools below
+and the two figure exports.
+
+**Graph tools** (3.5; *View* and *Export* menus, or right-click on the graph). They act
+on the graph on screen and never change a result:
+
+| Tool | Shortcut | What it does |
+|---|---|---|
+| Data reader | Ctrl+R | click a curve to read the nearest measured point (not an interpolated one); a second click gives Δx, Δy and the slope between the two points. Ctrl+R again switches it off |
+| Plot details | Ctrl+P | axis titles, limits (an empty field = automatic) and linear/log scales; per curve the name, line width, line style, marker, colour and whether it is shown. *Apply* redraws; a new run of the analysis restores the standard style |
+| Export figure (journal preset) | Ctrl+Shift+S | saves the figure at a stated physical size: single column 85 mm (8 pt), 1.5 column 114 mm (8 pt), double column 174 mm (9 pt), slide 16:9 254 mm (14 pt) or as displayed; width, height, font size and dpi can be edited; PNG, TIFF, PDF, SVG or EPS; optional transparent background |
+| Data worksheet | Ctrl+D | the numbers behind every curve of the figure as a table: copy it into Origin or Excel, or save it as CSV |
+
+The shortcuts do not fire while the cursor is in a text field.
 
 **Tables.** Right-click copies selected rows or the whole table (tab-separated, pastes
 into Excel/Origin); Ctrl+C copies the selection. In J-V and dark J-V, F2 renames a
 sample or condition (see 3.4).
 
-**Figure export.** *Figure* saves a publication-style copy of the current plot: white
-background, black axes and text, inward ticks on all four sides, no grid; PNG or TIFF at
-600 dpi, or SVG/PDF vector. The on-screen figure is not changed.
+**Figure export.** *Figure* (Ctrl+S) saves a publication-style copy of the current plot:
+white background, black axes and text, inward ticks on all four sides, no grid; PNG or
+TIFF at 600 dpi, or SVG/PDF vector. The on-screen figure is not changed. For a figure of
+a given column width and font size use *Export figure (journal preset)* above.
 
 **Report.** A Markdown file with every result table of the tool, a 300 dpi figure next
 to it, the input paths, the program version and date, and a methods note. Open it in any
@@ -392,7 +421,7 @@ log-normal fit.
    with a confidence and the other candidates; **Compare** reads the shift and width change
    of two selected bands (or of the two whole band lists, FTIR). **Interpretation** in the
    toolbar collects bands, assignments and shifts against the reference into rule-based
-   findings (section 16).
+   findings (section 18).
 
 Outputs: Excel, Report (band tables, library suggestions, shift table), Origin, Compare files.
 
@@ -408,7 +437,7 @@ shows the processing steps; *Batch Folder* runs the same parameters over every f
 folder and writes `summary.xlsx`; *Peak report* writes a Markdown report with the
 rule-based findings; **Interpret fit** shows them in a window (detection and
 quantification limits, unresolved neighbours, residual against noise, then the XRD, PL or
-XPS rules - section 16).
+XPS rules - section 18).
 
 XPS block: **Background** (Shirley by default, or AsLS), **Charge shift** (eV added to
 every binding energy, e.g. 284.8 minus the measured C 1s), **Doublet split** and **area
@@ -416,7 +445,353 @@ ratio** (0 for s levels; typical values are listed in the panel), **Region of in
 **Quantify (atomic %)** assigns each fitted peak to a core level and computes atomic
 concentrations with Scofield factors (or the factors of your instrument).
 
-## 13. Comparing many files
+## 13. Transport and recombination tools
+
+Six tools (new in 3.5) cover the measurements that explain why a device performs as it
+does: space-charge-limited current, light-intensity dependence, time-resolved PL,
+impedance, capacitance-voltage and stability traces. They share one window layout and
+behave the same way; only the parameters, the views and the numbers differ. Everything
+is computed on this computer from the equations of METHODS §17-§22.
+
+### 13.1 What the six windows share
+
+![trpl](images/trpl.png)
+
+*The TRPL window with the built-in example. Left: files and parameters. Centre: the view
+selector, the graph and the table of all files. Right: every result of the selected file
+and the validity checks. Synthetic example data.*
+
+- **Data files** (left, top): *Add...* (Ctrl+O, several files at once), *Remove*, *Clear*
+  and *Example*. Each file is one row with its state: *not run*, *ok*, *n checks*
+  (analysed, with that many validity remarks) or *error* (the reason is shown on the
+  right). *Example* loads a curve produced by the tool's own model with known
+  parameters; it is labelled "Synthetic example" wherever it appears, including the
+  exports, so it cannot be mistaken for a measurement.
+- **Parameters** (left, below): grouped as in the tables of the following sections. An
+  empty field means *automatic* (or *from Settings* for the device area). The values are
+  remembered per tool.
+- **Run** (F5) analyses every file of the list with the same parameters, one file after
+  the other; the status bar shows the progress. A file that cannot be analysed is marked
+  with the reason and the run continues with the next one.
+- **Graph** (centre): the selector above the graph switches between the views of the
+  tool. **Overlay all files** draws the other files of the list behind the selected one.
+  The graph tools of section 2 (data reader, plot details, journal-size export, data
+  worksheet) work in every view.
+- **All files** (centre, bottom): one row per file with the key numbers and the checks;
+  selecting a row shows that file. Right-click copies the table.
+- **Results** (right): every quantity of the selected file with its unit and, where the
+  fit gives one, its standard error. **Checks** (right, bottom): the validity remarks of
+  the method in plain sentences - what limits the number and what to measure instead.
+- **Exports**: *Excel* (Ctrl+E) writes the sheets `Summary` (one row per file),
+  `Results` (every quantity of every file), `Checks` and `Parameters`, plus the curves
+  and fits of up to 20 files on their own sheets, with a side-car (section 16).
+  *Figure*, *Report* and *Interpretation* work as in every window (sections 2 and 18).
+- A file that reads, with high confidence, as another kind of measurement (an impedance
+  spectrum given to TRPL) is still analysed, and the check list says what it looks like.
+- *Help → Methods of this tool* opens the offline method notes at the section of the tool.
+
+The same analyses run without the window: `physiscore_cli.py sclc | intensity | trpl |
+eis | cv | stability` (CLI.md).
+
+### 13.2 SCLC
+
+![sclc](images/sclc.png)
+
+*log J - log V of a single-carrier device with the ohmic, trap-filling and Child regions
+and their tangents. Synthetic example data.*
+
+Dark current-voltage curve of an **electron-only or hole-only** device. Input: a
+source-meter export (the whole `Vmeas / Imeas` block is read, not only −3…3 V) or any
+table with voltage and current (or current density) columns.
+
+| Group | Parameter | Meaning |
+|---|---|---|
+| Device | Thickness (nm) | thickness L of the layer between the contacts; enters n_t as 1/L² and μ as L³ |
+| Device | Relative permittivity | ε_r of the layer (25 by default) |
+| Device | Area (cm²) | converts a current to a current density; empty = the device area of Settings |
+| Device | Temperature (K) | used for the resolution limit n_diff |
+| Analysis | Polarity | *auto* (the branch with more points), *positive* or *negative* |
+| Analysis | Sweep | *up*, *down* or *all* points of a forward-and-back sweep |
+| Analysis | Built-in voltage (V) | V − V_bi is analysed when the contacts are asymmetric |
+| Analysis | Slope window (points) | points of the moving fit that gives the local slope (5) |
+| Analysis | Field-dependent mobility (Murgatroyd) | also fits μ₀ and γ of the Poole-Frenkel form |
+
+Views: **log J - log V** (data, the three fitted regions and V₁, V₂, V_inf), **Local
+slope** (d log J / d log V with the bands 1 = ohmic and 2 = Child), **Mott-Gurney**
+(J against V², a straight line in the Child region).
+
+Results: the voltage range and slope of the ohmic, trap-filling and Child regions; V₁,
+V₂, V_inf and the V_TFL used; trap density n_t (and n_t from V₁); the resolution limit
+n_diff; the Mott-Gurney mobility with its standard error; the ohmic conductivity and the
+carrier density n₀; the sweep hysteresis in decades.
+
+Checks to take seriously: *no Child region* (no mobility can be given), *n_t below
+n_diff* (the rise comes from diffusion of injected carriers, not from traps), *hysteresis
+above 0.1 decades* (mobile ions; pulsed or fast sweeps are needed). In mixed
+ionic-electronic conductors both n_t and μ are estimates, and the report says so.
+
+### 13.3 Light intensity
+
+![intensity](images/intensity.png)
+
+*Voc against irradiance with the fitted ideality factor. Synthetic example data.*
+
+Voc, Jsc and FF against irradiance. Two kinds of input:
+
+- **Add files**: a table with irradiance and Voc columns; Jsc, FF and PCE are optional
+  (without Jsc only the ideality factor from Voc is given).
+- **J-V set**: several illuminated J-V files measured at different intensities. Each is
+  analysed with the J-V routine of section 3, and the irradiance is read from the file
+  name: `cell_0.1sun.txt`, `cell_0p5suns.txt`, `cell_53mW.txt`, `cell_10pct.txt`,
+  `cell_OD1.0.txt` (a filter of optical density 1). At least three files must carry one.
+
+| Group | Parameter | Meaning |
+|---|---|---|
+| Fit | Temperature (K) | kT/q of the ideality factor |
+| Fit | Lowest / Highest irradiance | fit window; points outside are drawn but not fitted |
+| J-V sets | Area (cm²) | area of the J-V files; empty = Settings |
+| J-V sets | Sweep | *reverse*, *forward* or *combined* scan of each J-V file |
+
+Views: **Voc** (against ln I with the fitted line), **Jsc** (log-log, exponent α), **FF
+and PCE**, **Pseudo J-V** (the Suns-Voc curve without series resistance next to the
+values at the highest intensity), **Local ideality** (n_id between neighbouring
+intensities).
+
+Results: n_id with its 95 % interval, the Voc slope in mV per decade and R²; n_id from
+Voc against ln Jsc (independent of the intensity calibration); α with its interval; the
+pseudo fill factor, the FF at the highest intensity, the transport loss pFF − FF and
+Green's ideal-diode FF₀.
+
+Reading the numbers (the interpretation applies the same ranges, section 18): n_id of
+0.9-1.2 means free-carrier recombination, or a surface where one carrier is in excess;
+1.2-1.8 trap-assisted recombination with unequal carrier densities, in perovskite cells
+usually at the interfaces; 1.8-2.2 Shockley-Read-Hall recombination through deep states
+in the bulk. Values outside 0.9-2.2 mean that the points are not on one line (shunt at
+low light, series resistance or heating at high light) - restrict the fit window. α of
+0.97 or more is a current that follows the light; below 0.9 a loss grows with intensity
+(bimolecular recombination or space charge at short circuit).
+
+### 13.4 TRPL
+
+Decay trace from time-correlated single-photon counting or a streak camera: a time
+column and a counts (or intensity) column. The fit starts at the maximum of the decay
+(tail fit, no deconvolution of the instrument response).
+
+| Group | Parameter | Meaning |
+|---|---|---|
+| Fit | Model | *auto* (1, 2 or 3 exponentials chosen by AICc), *exp1*, *exp2*, *exp3*, *stretched* |
+| Fit | Background | *auto* (points before the pulse, otherwise a flat tail), *none* or a number of counts |
+| Fit | Skip after peak | time left out after the maximum (in the time unit), e.g. the response width |
+| Fit | Fit until | end of the fit window; empty = the whole trace |
+| Fit | Time unit | unit of the time column: ps, ns, us, ms, s |
+| Fit | IRF FWHM | width of the instrument response; lifetimes below it are flagged |
+| Diffusion length | Mobility (cm²/Vs) | with a value, L_D = √(μ kT/q · ⟨τ⟩) is reported |
+| Diffusion length | Temperature (K) | kT/q of the diffusion coefficient |
+
+Views: **Decay (log)** and **Decay (linear)** with the fit and the weighted residuals,
+**Differential lifetime** (τ_diff(t) = −(d ln I/dt)⁻¹, model-free), **Components** (the
+individual exponentials).
+
+Results: the model used, every lifetime with its standard error, amplitude fraction and
+intensity fraction; ⟨τ⟩ amplitude-weighted and intensity-weighted; the model-free 1/e
+time; the late differential lifetime; reduced χ², R², the Durbin-Watson statistic; the
+background and the dynamic range; the diffusion length when a mobility is entered.
+
+Which lifetime to quote: the amplitude-weighted ⟨τ⟩ is proportional to the
+time-integrated emission and is the one to compare between samples; the
+intensity-weighted ⟨τ⟩ is the mean emission time and is always longer. State which one a
+number is. A lifetime longer than half the fit window, or a dynamic range below 1.5
+decades, is flagged because the fit cannot determine it.
+
+### 13.5 Impedance
+
+![eis](images/eis.png)
+
+*Nyquist plot with the fitted R(RQ)(RQ) circuit; the Kramers-Kronig residuals are in the
+view "Residuals". Synthetic example data.*
+
+Impedance spectrum with three columns: frequency (Hz), Z′ and Z″ (Ohm). Files that store
+−Z″ are recognised.
+
+| Group | Parameter | Meaning |
+|---|---|---|
+| Fit | Circuit | *auto* (chosen by AICc) or R(RC), R(RQ), R(RC)(RC), R(RQ)(RQ); Q is a constant-phase element |
+| Fit | Imaginary column | *auto*, `Z''` or `-Z''` |
+| Fit | Lowest / Highest frequency (Hz) | fit window |
+| Device (optional) | Area (cm²) | gives R × area and C / area |
+| Device (optional) | Thickness (nm) | with the area, ε_r from the capacitance of the fastest arc |
+
+Views: **Nyquist** (−Z″ against Z′ with equal axes), **Bode** (|Z| and phase),
+**Residuals** (circuit and Kramers-Kronig residuals in % of |Z|), **Capacitance**
+(C(f) = Im(1/Z)/ω).
+
+Results: the circuit; Rs; for each arc R, Q, α, the effective capacitance, the time
+constant and the peak frequency, with standard errors; the total arc resistance; the rms
+residual of the circuit; the rms and maximum residual of the Kramers-Kronig test and the
+number of RC elements it used.
+
+The **Kramers-Kronig test** comes first: a spectrum that fails it (maximum residual
+above 2 %) was not stationary during the sweep - usually drift at low frequency - and no
+circuit fitted to it means anything. Measure faster, start at high frequency, or let the
+device settle. In perovskite cells the low-frequency arc is ionic and must not be read
+as a recombination resistance.
+
+### 13.6 C-V (Mott-Schottky)
+
+![cv](images/cv.png)
+
+*1/C² against voltage with the automatically chosen straight section. Synthetic example
+data.*
+
+Capacitance against DC bias, measured in the dark at one frequency: a voltage column and
+a capacitance column.
+
+| Group | Parameter | Meaning |
+|---|---|---|
+| Device | Area (cm²) | enters N as 1/A²; empty = Settings |
+| Device | Relative permittivity | ε_r (25 by default) |
+| Device | Thickness (nm) | layer thickness; needed for the geometric capacitance and the resolution limit N_min |
+| Device | Temperature (K) | kT/q in V_bi and N_min |
+| Analysis | Capacitance unit | unit of the capacitance column: F, mF, uF, nF, pF |
+| Analysis | Resolution factor m | m of N_min = 27 m kT ε/(4 q² d²) (2 by default) |
+| Analysis | Fit from / Fit to (V) | straight section by hand; empty = the widest straight section is found automatically |
+
+Views: **Mott-Schottky** (1/C² against V with the fitted line and its intercept),
+**C-V**, **Doping profile** (N against depletion width).
+
+Results: the apparent doping density N with its standard error, V_bi, the fit window
+and its R², the depletion width at 0 V and over the window, the Debye length, the
+geometric capacitance, N_min and the ratio N / N_min.
+
+**Enter the thickness.** Without it the resolution limit cannot be tested, and a thin,
+undoped, fully depleted layer gives a straight Mott-Schottky line whose "doping density"
+is only the geometric capacitance in disguise. When N is below 3 N_min the check list
+says that the line is not evidence of doping.
+
+### 13.7 Stability
+
+![stability](images/stability.png)
+
+*A trace with burn-in: the fitted burn-in model, the 80 % level and the T80 crossing.
+Synthetic example data.*
+
+Efficiency, power or normalised output against time (maximum-power-point tracking or
+repeated J-V scans): a time column and a value column.
+
+| Group | Parameter | Meaning |
+|---|---|---|
+| Trace | Time unit | unit of the time column: s, min, h, day |
+| Trace | Normalise to | *initial* (mean of the first points), *maximum* or *none* |
+| Trace | Initial points averaged | number of points that define the initial value |
+| Trace | Threshold (fraction) | 0.8 for T80, 0.9 for T90 ... |
+| Model | Model | *auto* (AICc) or linear, exponential, burn-in, bi-exponential |
+| Model | Protocol | the ISOS protocol of the test (ISOS-D-1/2/3, ISOS-L-1/2/3, ISOS-T-1, ISOS-O-1, ISOS-V-1, ISOS-LC-1, MPP tracking) or *not stated*; written into the report and the side-car |
+
+Views: **Normalised** (trace, fitted model, threshold and crossing), **Raw**,
+**Residuals**.
+
+Results: duration and number of points; the reference value and what it was normalised
+to; the model; T80 **measured** (the trace crossed the level), T80 on the fitted curve,
+or T80 **extrapolated** (the level was not reached; the model is followed beyond the
+measurement); final, maximum and mean output; the linear loss rate in %/1000 h with its
+standard error; with the burn-in model the burn-in time constant, the stabilised point
+t_s and output E_s, the burn-in loss and Ts80 (the lifetime counted from t_s).
+
+An extrapolated lifetime is always labelled as extrapolated - in the window, the Excel
+file, the report and the interpretation - together with the ratio to the measured time.
+Report it as an estimate, and name the protocol: a T80 without conditions cannot be
+compared with another laboratory's.
+
+## 14. Workspace folder and results index
+
+The two tabs **Workspace** and **Results** of the main window (new in 3.5) turn a
+measurement folder into a project: what was measured, and what has been analysed so far.
+
+### 14.1 Workspace
+
+![workspace](images/workspace.png)
+
+*The Workspace tab with a project folder: each data file with the measurement it holds,
+the confidence of that reading and the tool that opens it. Synthetic example data.*
+
+Choose the folder with **Workspace folder...** in the toolbar (Ctrl+Shift+O), with
+*Choose...* in the tab, or type the path into *Folder* and press Enter. The folder is
+remembered between sessions and shown in the Session tab. **Rescan** reads it again.
+
+Every data file up to two folder levels down is listed (text tables, Excel workbooks and
+SEM images; hidden files, lock files and workbooks that Physiscore exported are left
+out):
+
+| Column | Content |
+|---|---|
+| File | name, relative to the workspace folder |
+| Measurement | what the file holds: J-V, dark J-V, SCLC, EQE, absorbance, PL, TRPL, XRD, Raman, FTIR, XPS, impedance, C-V, light-intensity series, stability trace, SEM image - or *Not recognised* |
+| Confidence | *high*, *medium* or *low* (low-confidence rows are greyed) |
+| Rows x cols | size of the numeric table |
+| Columns | the column names found in the file |
+| Opens in | the tool that analyses it |
+
+Click a heading to sort; the menu at the top right filters by measurement. The line
+under the table gives the **evidence** for the selected file - which word of the name,
+which column names and which properties of the numbers led to the reading - and the
+other measurements the file could be.
+
+- **Open selected** (double-click or Enter): opens the file in its tool. Several
+  selected files of the same kind open together in one window, as a batch.
+- **Open with...**: choose the tool yourself, for a file that was not recognised or was
+  read wrongly.
+- **Compare selected**: EQE, absorbance, PL, XRD, Raman or FTIR spectra go to the
+  Compare window (section 15).
+- **Show in folder**; the right-click menu also has *Copy path*. Ctrl+A selects all.
+
+How a file is recognised: the detector adds up evidence from the file name, the column
+names and the numbers themselves (METHODS §23). It is a fixed list of scored rules - no
+model is trained, nothing is sent anywhere - and it only ever suggests a tool: the
+analysis is the same whichever way the file was opened.
+
+### 14.2 Open data
+
+**Open data...** (toolbar, *File* menu, Ctrl+O) is the same recognition for files picked
+in a dialog, and `Physiscore --open FILE ...` for files given on the command line. The
+files of the first file's kind open together in its tool. When the reading is missing or of low confidence, the **Open with** dialog shows
+what the file looks like and why, and asks for the tool. If only part of a mixed
+selection was opened, the status bar says how many files went to the tool. J-V Curve and
+J-V Dark work on folders, so they open with the folder of the file.
+
+### 14.3 Results
+
+![results](images/results.png)
+
+*The Results tab: every export below the workspace folder with its key numbers.
+Synthetic example data.*
+
+The Results tab lists every analysis exported below the workspace folder (up to four
+levels down). It reads the side-car files (section 16) that accompany each Excel export;
+nothing is analysed again.
+
+| Column | Content |
+|---|---|
+| Date | date and time of the export |
+| Tool | the analysis tool |
+| Sample | the input file (for several inputs their common name and the number of files) |
+| Key results | the first numbers of the export - of its first sample when it holds several, with the number of further samples |
+| Export | the workbook that was written |
+
+*Filter by sample* and the tool menu narrow the list; a click on a heading sorts it.
+
+- **Show record** (double-click or Enter): everything the side-car records - inputs,
+  every parameter and every number, the program version and date.
+- **Open export** opens the workbook, **Show in folder** its folder.
+- **Collect to Excel...** (also *File → Collect results to Excel...*) writes one workbook
+  with the sheet `Index` (the list above), one sheet per tool with a row per export and a
+  column per result, and `All values` in long form (table, row, quantity, value) for
+  pivot tables. It is the table a group meeting or a supplementary file needs: every
+  sample of a batch with its J-V, EQE, TRPL and stability numbers side by side.
+
+The command line does the same: `physiscore_cli.py detect FOLDER` and
+`physiscore_cli.py collect FOLDER --out results.xlsx` (CLI.md).
+
+## 15. Comparing many files
 
 ![compare](images/compare.png)
 
@@ -431,7 +806,7 @@ every spectrum (one sheet each) with a side-car.
 
 The command `physiscore_cli.py batch` does the same without the GUI (see CLI.md).
 
-## 14. Outputs, reports and side-car files
+## 16. Outputs, reports and side-car files
 
 Every Excel export is accompanied by `<name>.analysis.json`, a side-car that records the
 program version, date and time, Python and platform, the input files, every analysis
@@ -440,7 +815,11 @@ a number in a manuscript be traced to the exact analysis and lets scripts re-run
 compare analyses. Files with a side-car are recognised as outputs and are never read back
 as inputs.
 
-## 15. Settings
+The side-cars are also what the **Results** tab and *Collect results to Excel* read
+(section 14.3): keep them next to the workbooks, and a whole project can be tabulated at
+any later time without opening a single analysis again.
+
+## 17. Settings
 
 **File → Settings** in the main window:
 
@@ -451,12 +830,15 @@ as inputs.
 | Appearance | Light (default) or Dark; applies after a restart (graphs stay white, as in Origin) |
 | Plot colours | Origin (default: black, red, blue, magenta, olive, navy ...) or Colour-blind safe (Okabe-Ito); applies after a restart |
 
+The workspace folder (section 14) and the parameters of the transport tools (section 13)
+are remembered in the same file without a dialog.
+
 Settings live in `physisfera_config.json` (installed copies: the per-user folder,
 **File → Open settings folder**). `PHYSISCORE_CONFIG` points to another file;
 `PHYSISCORE_THEME=dark` overrides the appearance for one run; `PHYSISCORE_NO_UPDATE=1`
 disables the update check.
 
-## 16. Interpretation
+## 18. Interpretation
 
 ![interpretation](images/interpretation.png)
 
@@ -492,13 +874,19 @@ the supplementary information.
 | Raman / FTIR | band list, library assignments, functional groups, shifts and width changes against the reference |
 | XPS (auto-fit) | metallic Pb, Pb 4f doublet ratio and split, broad components, C 1s charge reference, O 1s caution, detection limits |
 | Device summary | Jsc cross-check, band-gap agreement, fractions of the detailed-balance limit, voltage-loss split |
+| SCLC | whether a Mott-Gurney region exists and has slope 2, trap density against the resolution limit n_diff, sweep hysteresis (mobile ions), ohmic conductivity |
+| Light intensity | ideality factor and its uncertainty, Jsc exponent α, transport loss in the fill factor (pFF − FF), pseudo fill factor |
+| TRPL | fit quality (reduced χ², Durbin-Watson), the decay law and what its lifetimes mean, the two average lifetimes, the differential lifetime, diffusion length |
+| Impedance | Kramers-Kronig test, circuit residual, assignment of the arcs, CPE exponent, permittivity |
+| C-V | whether a Mott-Schottky region exists, doping density against the resolution limit N_min, built-in potential, depletion width against the thickness, doping profile |
+| Stability | T80 reached or extrapolated (and how far), burn-in loss and Ts80, loss rate |
 
 The rules, thresholds and references are listed in
-[METHODS §16](METHODS.md#16-rule-based-interpretation-scriptscommoninterpretpy). They are
+[METHODS §16](METHODS.md#16-rule-based-interpretation-scriptscommoninterpretpy-interpret_transportpy). They are
 screening values from the literature, not pass/fail criteria for every material; the
 interpretation never changes a number and needs no account or network.
 
-## 17. Troubleshooting
+## 19. Troubleshooting
 
 | Symptom | What to check |
 |---|---|
@@ -511,6 +899,16 @@ interpretation never changes a number and needs no account or network.
 | The Origin buttons do nothing | Windows only; set the Origin path in Settings; Origin must be installed with its automation server |
 | macOS refuses to open the app | System Settings → Privacy & Security → Open Anyway (INSTALL.md) |
 | Results differ from an older version | check the side-car of both exports: the parameters (area, windows, models) are listed there |
+| A file is listed as *Not recognised*, or opens in the wrong tool | use *Open with...* and choose the tool; a telling word in the file name (`trpl`, `eis`, `sclc`, `mott`, `mppt`, `dark` ...) or column headings make the reading certain (section 14.1) |
+| The Workspace tab is empty | the folder holds no text tables, workbooks or SEM images within two levels, or only workbooks that Physiscore exported (those are under Results) |
+| The Results tab is empty | nothing has been exported below the workspace folder yet, or the `.analysis.json` side-cars were removed |
+| SCLC gives no mobility | there is no region with slope 2: measure to higher voltage; if the slope never settles at 2 the device is not single-carrier or its contacts limit the current (section 13.2) |
+| The trap density is flagged as below n_diff | the rise is diffusion of injected carriers, not trap filling; the number is not a trap density (a thicker layer lowers the limit as 1/L²) |
+| A J-V set is refused: fewer than three files carry an irradiance | name the files with the intensity (`cell_0.1sun.txt`, `cell_53mW.txt`, `cell_OD1.0.txt`) or make a table with irradiance and Voc columns (section 13.3) |
+| TRPL: reduced χ² far above 1.3 | the model has too few terms, or the first points after the peak still contain the instrument response: try the next model, or set *Skip after peak* |
+| Impedance: the Kramers-Kronig test fails | the device changed during the sweep; the circuit values are not meaningful (section 13.5) |
+| C-V: N is below or near N_min | the layer is fully depleted; the straight line is the geometric capacitance, not doping. Check the thickness, unit and area (section 13.6) |
+| T80 is "extrapolated" | the trace did not reach the level; the value comes from the fitted model and is an estimate (section 13.7) |
 
 Bugs and requests: <https://github.com/jongsu-king/physiscore/issues> (please attach
 the side-car and, if you can, a data file).

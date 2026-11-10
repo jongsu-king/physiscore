@@ -287,6 +287,76 @@ def cross_technique():
     record("XRD", "reference coverage", 1.0, m["coverage"], "-", "")
 
 
+def transport():
+    """The six curve tools of 3.5, each against the model its own `simulate` draws."""
+    import math
+    from scripts.CV import cv_core
+    from scripts.EIS import eis_core
+    from scripts.Intensity import intensity_core
+    from scripts.SCLC import sclc_core
+    from scripts.Stability import stability_core
+    from scripts.TRPL import trpl_core
+
+    # SCLC: ohmic, trap-filling and Child regimes of a 500 nm single-carrier device
+    truth = dict(thickness_nm=500.0, eps_r=25.0, mobility_cm2_Vs=1.0, n_t_cm3=5e16, n0_cm3=1e13)
+    v, j = sclc_core.simulate(**truth)
+    r = sclc_core.analyse(v, j, truth["thickness_nm"], truth["eps_r"])
+    v_tfl = sclc_core.Q * truth["n_t_cm3"] * 1e6 * (truth["thickness_nm"] * 1e-9) ** 2 / (2 * sclc_core.EPS0 * truth["eps_r"])
+    note = "piecewise ohmic / trap-filling / Child curve, 500 nm, eps_r 25"
+    record("SCLC", "V_TFL", v_tfl, r["V_TFL"], "V", note)
+    record("SCLC", "trap density", truth["n_t_cm3"], r["n_t_cm3"], "cm-3", "n_t = 2 eps V_TFL / (q L^2)")
+    record("SCLC", "mobility (Mott-Gurney)", truth["mobility_cm2_Vs"], r["mobility_cm2_Vs"], "cm2/Vs", "fit of J = 9/8 eps mu V^2 / L^3")
+    record("SCLC", "background carrier density", truth["n0_cm3"], r["n0_cm3"], "cm-3", "ohmic region with the fitted mobility")
+
+    # light intensity: one-diode cell over two decades
+    d = intensity_core.simulate(n_id=1.5, alpha=0.97, rs_ohm_cm2=3.0)
+    r = intensity_core.analyse(**d)
+    note = "one-diode cell, 1-100 mW/cm2, Rs 3 Ohm cm2"
+    record("Light intensity", "ideality factor from Jsc-Voc", 1.5, r["jscvoc_fit"]["n_id"], "-", note)
+    record("Light intensity", "Jsc exponent alpha", 0.97, r["jsc_fit"]["alpha"], "-", note)
+    record("Light intensity", "Voc slope", 1.5 * 0.97 * intensity_core.KB_EV * 300.0 * math.log(10) * 1e3,
+           r["voc_fit"]["slope_mV_per_decade"], "mV/decade", "n_id alpha kT/q ln 10")
+
+    # TRPL: Poisson counting trace, two exponentials on a background
+    t, y = trpl_core.simulate(taus=(5.0, 80.0), amps=(0.7, 0.3), peak_counts=10000.0, background=5.0, seed=0)
+    r = trpl_core.analyse(t, y)
+    note = "bi-exponential, 10^4 peak counts, Poisson noise, background 5"
+    record("TRPL", "tau 1", 5.0, r["taus"][0], "ns", note)
+    record("TRPL", "tau 2", 80.0, r["taus"][1], "ns", note)
+    record("TRPL", "amplitude-weighted lifetime", 0.7 * 5.0 + 0.3 * 80.0, r["tau_amp"], "ns", "sum A_i tau_i / sum A_i")
+    record("TRPL", "intensity-weighted lifetime", (0.7 * 25.0 + 0.3 * 6400.0) / 27.5, r["tau_int"], "ns", "sum A_i tau_i^2 / sum A_i tau_i")
+    record("TRPL", "decay terms chosen by AICc", 2, len(r["taus"]), "-", "model = auto")
+    t, y = trpl_core.simulate(taus=(40.0,), amps=(1.0,), beta=0.6, seed=0)
+    r = trpl_core.analyse(t, y, model="stretched")
+    record("TRPL", "stretching exponent beta", 0.6, r["beta"], "-", "stretched exponential, tau 40 ns")
+
+    # impedance: Rs + two R-CPE arcs, 0.3 % noise
+    f, zre, zim = eis_core.simulate()
+    r = eis_core.analyse(f, zre, zim)
+    note = "R(RQ)(RQ), 1 MHz - 0.1 Hz, 0.3 % noise"
+    record("Impedance", "Rs", 10.0, r["Rs"], "Ohm", note)
+    record("Impedance", "R of the high-frequency arc", 200.0, r["arcs"][0]["R"], "Ohm", note)
+    record("Impedance", "R of the low-frequency arc", 1500.0, r["arcs"][1]["R"], "Ohm", note)
+    record("Impedance", "CPE exponent, high-frequency arc", 0.95, r["arcs"][0]["alpha"], "-", note)
+    record("Impedance", "CPE exponent, low-frequency arc", 0.85, r["arcs"][1]["alpha"], "-", note)
+
+    # C-V: one-sided abrupt junction
+    v, c = cv_core.simulate(n_cm3=1e17, v_bi=0.9, eps_r=25.0, area_cm2=0.1)
+    r = cv_core.analyse(v, c, 0.1, 25.0)
+    note = "one-sided junction, 0.1 cm2, eps_r 25"
+    record("C-V", "doping density (Mott-Schottky)", 1e17, r["N_cm3"], "cm-3", note)
+    record("C-V", "built-in potential", 0.9, r["V_bi"], "V", "intercept + kT/q")
+
+    # stability: burn-in plus linear loss, 0.4 % noise
+    t, y = stability_core.simulate(a1=0.12, tau1=40.0, rate_per_h=1e-4, t_end=1000.0, seed=0)
+    r = stability_core.analyse(t, y)
+    note = "12 % burn-in (tau 40 h) + 10 %/1000 h, 0.4 % noise"
+    record("Stability", "T80 (measured crossing)", 800.0, r["T_measured"], "h", note)
+    record("Stability", "T80 (fitted model)", 800.0, r["T_model"], "h", note)
+    record("Stability", "burn-in loss", 12.0, r["burn_in_loss_pct"], "% of initial", "back-extrapolated linear part")
+    record("Stability", "loss rate after burn-in", 10.0, r["rate_pct_per_1000h"], "%/1000 h", note)
+
+
 def as_markdown():
     head = ("| Technique | Quantity | Reference | Recovered | Unit | Dev. (%) | Conditions |\n"
             "|---|---|---:|---:|---|---:|---|\n")
@@ -322,6 +392,7 @@ def main():
     photoluminescence()
     spectroscopy()
     cross_technique()
+    transport()
 
     sys.stdout.write(as_csv() if args.csv else as_markdown())
 

@@ -14,6 +14,8 @@ cp physisfera_config.example.json physisfera_config.json
 | `origin_path` | Path to `Origin.exe` for optional plot export. Empty disables Origin export. | `""` |
 | `theme` | `light` or `dark` appearance of every window; applies after a restart. `PHYSISCORE_THEME` overrides it for one run. | `light` |
 | `name_presets` | Sample-name presets shared by every tool's rename menu. Written by the application. | `[]` |
+| `workspace_folder` | The project folder listed in the Workspace and Results tabs. Written when a folder is chosen. | `""` |
+| `tool_params` | The parameters last used in the SCLC, light-intensity, TRPL, impedance, C-V and stability windows (thickness, permittivity, model, ...), one entry per tool. Written when an analysis runs. | `{}` |
 
 The file is read when an analysis runs, not when the application starts, so a
 corrected `cell_area_cm2` applies to the next folder you process — no restart.

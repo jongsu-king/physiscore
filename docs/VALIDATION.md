@@ -1,9 +1,12 @@
 # Validation against closed-form synthetic data
 
-Every row compares a quantity recovered by Physiscore 3.4.0 with the value that was
+Every row compares a quantity recovered by Physiscore 3.5.0 with the value that was
 put into an analytical model (single-diode J-V curves, error-function EQE edges,
 Tauc edges with Urbach tails, pseudo-Voigt reflections, Gaussian/Lorentzian bands,
-Shirley-type XPS backgrounds, log-normal grain sizes, strained cubic lattices). The
+Shirley-type XPS backgrounds, log-normal grain sizes, strained cubic lattices,
+piecewise space-charge-limited curves, one-diode intensity series, multi-exponential
+decays with counting noise, equivalent-circuit impedance spectra, one-sided-junction
+capacitance, burn-in plus linear degradation traces). The
 deviation column is therefore the extraction error alone; for the cross-technique rows
 the "reference" is the independent calculation the summary must reproduce. The table is
 regenerated with
@@ -12,7 +15,7 @@ regenerated with
 python tools/validation_report.py          # or: python physiscore_cli.py validate
 ```
 
-and the same cases are enforced as unit tests in `tests/` (`pytest`, 272 tests).
+and the same cases are enforced as unit tests in `tests/` (`pytest`, 428 tests).
 Measured-data checks (a perovskite XRD pattern, XPS region scans) run when a local
 `rawdata/` folder is present and are skipped otherwise, because those measurements
 are unpublished.
@@ -21,7 +24,11 @@ Known, documented limitations visible in the table: a single Gaussian fitted to 
 with an unresolved neighbour is biased (+7 % FWHM; the multi-component fit removes most of
 it), the plain mean of a lattice parameter keeps a specimen-displacement error that the
 Nelson-Riley extrapolation removes, and the Rau band gap of an error-function edge sits
-within 1 meV of its centre.
+within 1 meV of its centre. The transport rows with noise show what the noise allows, not
+a bias of the method: TRPL lifetimes within about 1 % at 10^4 peak counts, impedance
+parameters within 0.1 % at 0.3 % noise, and the burn-in loss and the loss rate of a
+stability trace within 4 % at 0.4 % noise (the two trade against each other in the fit,
+while T80 itself stays within 1 %).
 
 | Technique | Quantity | Reference | Recovered | Unit | Dev. (%) | Conditions |
 |---|---|---:|---:|---|---:|---|
@@ -90,5 +97,29 @@ within 1 meV of its centre.
 | Device | band-gap spread | 30 | 30 | meV | +0.000 | EQE 1.60, Tauc 1.61, PL 1.58 eV |
 | XRD | lattice strain from reference match | 0.003 | 0.00299999 | - | -0.000 | 7 reflections, a = 1.003 a0 |
 | XRD | reference coverage | 1 | 1 | - | +0.000 |  |
+| SCLC | V_TFL | 4.52378 | 4.52378 | V | +0.000 | piecewise ohmic / trap-filling / Child curve, 500 nm, eps_r 25 |
+| SCLC | trap density | 5e+16 | 5e+16 | cm-3 | +0.000 | n_t = 2 eps V_TFL / (q L^2) |
+| SCLC | mobility (Mott-Gurney) | 1 | 1 | cm2/Vs | +0.000 | fit of J = 9/8 eps mu V^2 / L^3 |
+| SCLC | background carrier density | 1e+13 | 1e+13 | cm-3 | -0.000 | ohmic region with the fitted mobility |
+| Light intensity | ideality factor from Jsc-Voc | 1.5 | 1.5 | - | -0.000 | one-diode cell, 1-100 mW/cm2, Rs 3 Ohm cm2 |
+| Light intensity | Jsc exponent alpha | 0.97 | 0.97 | - | -0.000 | one-diode cell, 1-100 mW/cm2, Rs 3 Ohm cm2 |
+| Light intensity | Voc slope | 86.611 | 86.611 | mV/decade | -0.000 | n_id alpha kT/q ln 10 |
+| TRPL | tau 1 | 5 | 4.94316 | ns | -1.137 | bi-exponential, 10^4 peak counts, Poisson noise, background 5 |
+| TRPL | tau 2 | 80 | 79.4221 | ns | -0.722 | bi-exponential, 10^4 peak counts, Poisson noise, background 5 |
+| TRPL | amplitude-weighted lifetime | 27.5 | 27.365 | ns | -0.491 | sum A_i tau_i / sum A_i |
+| TRPL | intensity-weighted lifetime | 70.4545 | 70.0185 | ns | -0.619 | sum A_i tau_i^2 / sum A_i tau_i |
+| TRPL | decay terms chosen by AICc | 2 | 2 | - | +0.000 | model = auto |
+| TRPL | stretching exponent beta | 0.6 | 0.60287 | - | +0.478 | stretched exponential, tau 40 ns |
+| Impedance | Rs | 10 | 10.0082 | Ohm | +0.082 | R(RQ)(RQ), 1 MHz - 0.1 Hz, 0.3 % noise |
+| Impedance | R of the high-frequency arc | 200 | 200.025 | Ohm | +0.012 | R(RQ)(RQ), 1 MHz - 0.1 Hz, 0.3 % noise |
+| Impedance | R of the low-frequency arc | 1500 | 1499.52 | Ohm | -0.032 | R(RQ)(RQ), 1 MHz - 0.1 Hz, 0.3 % noise |
+| Impedance | CPE exponent, high-frequency arc | 0.95 | 0.949539 | - | -0.049 | R(RQ)(RQ), 1 MHz - 0.1 Hz, 0.3 % noise |
+| Impedance | CPE exponent, low-frequency arc | 0.85 | 0.850861 | - | +0.101 | R(RQ)(RQ), 1 MHz - 0.1 Hz, 0.3 % noise |
+| C-V | doping density (Mott-Schottky) | 1e+17 | 1e+17 | cm-3 | +0.000 | one-sided junction, 0.1 cm2, eps_r 25 |
+| C-V | built-in potential | 0.9 | 0.9 | V | +0.000 | intercept + kT/q |
+| Stability | T80 (measured crossing) | 800 | 794.475 | h | -0.691 | 12 % burn-in (tau 40 h) + 10 %/1000 h, 0.4 % noise |
+| Stability | T80 (fitted model) | 800 | 793.031 | h | -0.871 | 12 % burn-in (tau 40 h) + 10 %/1000 h, 0.4 % noise |
+| Stability | burn-in loss | 12 | 12.4455 | % of initial | +3.712 | back-extrapolated linear part |
+| Stability | loss rate after burn-in | 10 | 10.3627 | %/1000 h | +3.627 | 12 % burn-in (tau 40 h) + 10 %/1000 h, 0.4 % noise |
 
-_Generated 2026-11-10 with Physiscore 3.4.0, numpy 2.4.6, scipy 1.17.1._
+_Generated 2026-11-10 with Physiscore 3.5.0, numpy 2.4.6, scipy 1.17.1._
