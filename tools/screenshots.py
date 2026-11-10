@@ -11,8 +11,9 @@ permission for the terminal. Elsewhere the window region is grabbed with Pillow.
 
 All data are synthetic (analytical models with noise) and labelled as such in the
 documentation. The windows read a settings file made for the run in a temporary
-folder, so neither the settings nor a folder of the person who runs the script
-ends up in a picture.
+folder, and the main window keeps its update state in the same temporary folder,
+so neither the settings, a folder nor the update history of the person who runs
+the script ends up in a picture.
 """
 import os
 import subprocess
@@ -470,12 +471,28 @@ def project(tmp):
 
 
 # --------------------------------------------------------------------------- windows
+def isolate_update_state(L, tmp):
+    """Keep the updater's settings (last check, latest release seen) in the run's
+    temporary folder. Without this the Updates tab shows whatever the copy of
+    Physiscore on this machine last saw, which is not reproducible."""
+    folder = os.path.join(tmp, "update-state")
+    os.makedirs(folder, exist_ok=True)
+    make = L.make_update_app
+
+    def isolated(selfupdate):
+        import dataclasses
+        return dataclasses.replace(make(selfupdate), settings_dir=folder)
+
+    L.make_update_app = isolated
+
+
 def shot_launcher(outdir, tmp, view="launcher"):
     """The main window on the synthetic project: the Workspace tab as it opens
     (launcher), the same tab with a file of unknown name selected (workspace),
     the Results tab (results) and the Updates tab (updates)."""
     import Physiscore_Launcher as L
     quiet_dialogs()
+    isolate_update_state(L, tmp)
     app = L.LauncherApp(workspace=project(tmp))
     app.geometry("1280x900+30+40")
     pump(app, 20, until=lambda: all(c["status"].cget("text").startswith("Ready") for c in app.cards.values()))

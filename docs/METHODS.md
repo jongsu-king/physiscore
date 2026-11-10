@@ -167,7 +167,7 @@ Baselines: arPLS (Baek, Park, Ahn & Choo, Analyst 140, 250 (2015); no asymmetry
 parameter), ALS, end-point line, or minimum. Transmittance → absorbance A = −log₁₀ T.
 Bands by prominence with a MAD-based noise floor; Lorentzian (Raman) or Gaussian (FTIR)
 fits, overlapping bands together; peak-shift tables pair bands one-to-one within a
-tolerance (8 cm⁻¹ default). The band library (`scripts/common/band_library.json`, 70
+tolerance (8 cm⁻¹ default). The band library (`scripts/common/band_library.json`, 74
 entries) lists typical literature positions with tolerances; its suggestions are
 indicative and carry the distance to the library value.
 
