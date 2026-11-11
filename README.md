@@ -218,7 +218,7 @@ absent.
 A software paper is in preparation; please cite the archived release in the meantime:
 
 > Kim, K., Shin, J., Lim, J., Ji, H., Lee, S.-E., & Lee, J. (2026). *Physiscore*
-> (Version 3.5.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
+> (Version 3.5.1) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
 
 The concept DOI always resolves to the latest archived release. Full metadata is in
 `CITATION.cff`; the methods and their references are in [docs/METHODS.md](docs/METHODS.md).

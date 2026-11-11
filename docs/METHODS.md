@@ -4,7 +4,7 @@ This document states, for every quantity Physiscore reports, the equation that i
 evaluated, the numerical procedure, its defaults, and the primary reference. It is
 written so that the methods section of a paper can cite it (or copy from it) and so
 that a reviewer can check a number against the code. File references are to the
-3.5.0 source tree; all functions are GUI-free and importable.
+3.5.1 source tree; all functions are GUI-free and importable.
 
 Conventions: J in mA cm⁻², V in V, R in Ω cm², E in eV, T = 298.15 K unless stated.
 Constants: q = 1.602176634×10⁻¹⁹ C, k = 1.380649×10⁻²³ J K⁻¹, hc = 1239.84198 eV nm.

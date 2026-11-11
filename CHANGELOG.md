@@ -3,6 +3,23 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
+## [3.5.1] - 2026-11-11
+
+Documentation release; the program and the numbers it computes are the same as in 3.5.0.
+
+### Fixed
+- The picture of the Updates tab in the user guide (`docs/images/updates.png`) showed a
+  state that never existed: "Latest release seen 9.9.9" and "9.9.9 is available". It had
+  been left on the machine that took the pictures by a local test of the updater, and the
+  installers of 3.3.1, 3.4.0 and 3.5.0 carry it in their offline documentation. The
+  picture is retaken from a clean state. No such release exists and the program itself
+  never showed it.
+- `docs/METHODS.md`, section 6: the band library holds 74 entries, not 70.
+
+### Changed
+- `tools/screenshots.py` keeps the updater's settings in the temporary folder of the run,
+  so the documentation pictures no longer depend on the machine that takes them.
+
 ## [3.5.0] - 2026-11-10
 
 ### Added

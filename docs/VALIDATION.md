@@ -1,6 +1,6 @@
 # Validation against closed-form synthetic data
 
-Every row compares a quantity recovered by Physiscore 3.5.0 with the value that was
+Every row compares a quantity recovered by Physiscore 3.5.1 with the value that was
 put into an analytical model (single-diode J-V curves, error-function EQE edges,
 Tauc edges with Urbach tails, pseudo-Voigt reflections, Gaussian/Lorentzian bands,
 Shirley-type XPS backgrounds, log-normal grain sizes, strained cubic lattices,
@@ -122,4 +122,4 @@ while T80 itself stays within 1 %).
 | Stability | burn-in loss | 12 | 12.4455 | % of initial | +3.712 | back-extrapolated linear part |
 | Stability | loss rate after burn-in | 10 | 10.3627 | %/1000 h | +3.627 | 12 % burn-in (tau 40 h) + 10 %/1000 h, 0.4 % noise |
 
-_Generated 2026-11-10 with Physiscore 3.5.0, numpy 2.4.6, scipy 1.17.1._
+_Generated 2026-11-11 with Physiscore 3.5.1, numpy 2.4.6, scipy 1.17.1._
