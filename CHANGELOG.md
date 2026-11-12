@@ -3,6 +3,59 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
+## [3.5.3] - 2026-11-12
+
+Second correction of the auto-fit workspace (`spectra/`: the XPS tool and the XRD
+auto-fit). XRD and XPS auto-fit tables made with 3.5.2 or earlier should be fitted again
+for widths and S/N, and XPS tables made in doublet mode in any version. No other tool
+changes.
+
+### Fixed
+- **Lines were fitted to the smoothed curve.** The Savitzky-Golay output found the peak
+  candidates and was also the data the Voigt lines were fitted to. The XRD default (31
+  points, 0.62 deg on a 0.02 deg grid) widened lines by +2 to +29 % on a synthetic
+  pattern of five Voigt lines on a broad hump with Poisson noise, and a 0.11 deg line by
+  +174 %; on a 0.2 eV XPS scan the 7-point filter widened Pb 4f7/2 by 7.5 % and lowered
+  its area by 5 %. The lines are now fitted to the unsmoothed counts minus the
+  background (smoothing still finds the candidates and the background); the same widths
+  come out within 3 %. `processed.csv` gains a `y_fit` column with those data, and the
+  Corrected + Fit view draws them in grey under the smoothed curve.
+- **S/N was overstated.** The noise in the S/N column and in the Interpret-fit limits
+  (Currie detection and quantification limits, residual check) came from the first
+  differences of the smoothed curve: 0.93 counts on the synthetic XRD pattern, where the
+  counting noise is 15. S/N was 18 times too high, and noise candidates passed as
+  quantifiable lines. The noise is now that of the fitted (unsmoothed) data; on the same
+  pattern the five lines have S/N 35 to 80 and every other row is below 10. The smoothed
+  curve's noise still sets the detection threshold, so the candidate list is unchanged.
+- **XPS doublet mode fitted every candidate as a doublet.** Each candidate got its own
+  doublet in its own window, including the partner lines: the Pb 4f example with a
+  metallic shoulder came back as four doublets, two of them starting on the 4f5/2 lines
+  with an empty partner 4.87 eV beyond. A candidate one split above a kept candidate (and
+  no taller than twice the height the area ratio predicts) is now taken as its partner,
+  and overlapping doublets are fitted together (`fit_xps_doublet_cluster`). The table
+  gains a `doublet_id` column. Median of 40 noise realisations: 4f7/2 area -1.2 %, Pb0/Pb2+
+  0.100 for 0.095.
+- **XRD rows repeated.** Weak candidates on the flank of a strong line (seed FWHM of
+  several degrees from the smoothed curve) had their component move onto the strong line,
+  so its row appeared up to three times. A component that ends nearer another candidate
+  than its own seed is now dropped.
+- **Width floor.** Fitted to unsmoothed data, a noise candidate's component could shrink
+  onto one high point (FWHM 0.007 deg, height 20 times the noise). The Gaussian FWHM of
+  every auto-fit Voigt is now at least min(2 grid steps, half the seed FWHM).
+
+### Added
+- Six validation rows (104 in total): XRD pipeline FWHM of the 0.11 deg line and of a
+  Lorentzian-dominated line, XRD pipeline area (the baseline limit below), XPS FWHM on a
+  0.2 eV scan, and the doublet-mode 4f7/2 area and Pb0/Pb2+ ratio.
+- `tests/test_autofit_raw.py` (8 tests, 455 in all); every new test fails on 3.5.2.
+
+### Known limitations
+- XRD auto-fit areas are 5 to 10 % low on the synthetic pattern: the AsLS baseline follows
+  part of the Lorentzian tails (with the true background the areas are within 1 %). A
+  stiffer baseline helps lines on a flat background but raises the area of a line on an
+  amorphous hump by up to 13 %, so the default stays; compare areas between patterns
+  processed with the same settings.
+
 ## [3.5.2] - 2026-11-12
 
 Correction of the auto-fit workspace (`spectra/`: the XPS tool and the XRD auto-fit).

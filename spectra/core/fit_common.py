@@ -38,6 +38,14 @@ def voigt_seed(fwhm: float) -> Tuple[float, float]:
     return max(f / 2.3548, 1e-6), max(f / 2.0, 1e-6)
 
 
+def sigma_floor(fwhm: float, step: float) -> float:
+    """Lower bound of a Voigt's sigma: its Gaussian FWHM is at least
+    min(2 grid steps, half the seed FWHM).  A line sampled by fewer points is
+    not resolved; without the floor a component fitted to unsmoothed data can
+    collapse onto a single noisy point."""
+    return max(1e-6, min(2.0 * float(step), 0.5 * float(fwhm)) / 2.3548)
+
+
 def build_composite(n: int):
     model = ConstantModel(prefix="b_")
     params = model.make_params(c_c=0.0)
@@ -85,7 +93,11 @@ def fit_voigts(
         # with a metallic shoulder: two components on 4f5/2, none on the shoulder).
         reach = max(fwhm, 3.0 * step)
         params[f"p{i}_center"].set(value=float(c), min=max(x0, float(c) - reach), max=min(x1, float(c) + reach))
-        params[f"p{i}_sigma"].set(value=float(sigma), min=1e-6, max=min(span, 3.0 * fwhm) / 2.3548)
+        # Gaussian FWHM at least min(2 grid steps, half the seed FWHM) (3.5.3):
+        # fitted to unsmoothed data, a noise candidate's component otherwise
+        # shrinks onto one high point (FWHM 0.007 deg, height 20x the noise)
+        params[f"p{i}_sigma"].set(value=max(float(sigma), sigma_floor(fwhm, step)), min=sigma_floor(fwhm, step),
+                                  max=min(span, 3.0 * fwhm) / 2.3548)
         # lmfit's VoigtModel ties gamma to sigma (expr, vary=False); set(value=...)
         # clears the expr but leaves vary=False, so gamma must be freed explicitly.
         # Up to 3.5.1 it was not: gamma stayed at FWHM/2, sigma went to ~0 and the
@@ -165,8 +177,18 @@ def fit_windows_to_midpoints(
             else:
                 hi = min(hi, max(mid, xs[i] + 3.0 * ws[i]))
         res = fit_voigts(x, y_corr, (float(lo), float(hi)), [(float(xs[i]), float(hs[i]), float(ws[i]))])
-        if res is not None and res[0] is not None and not res[0].empty:
-            tables.append(res[0])
+        if res is None or res[0] is None or res[0].empty:
+            continue
+        # A component that ends nearer another candidate than its own seed has
+        # moved onto that candidate's line, which has its own fit (3.5.3).  Weak
+        # candidates on the flank of a strong line (seed FWHM of several degrees
+        # from the smoothed curve) otherwise repeated the strong line's row.
+        c_fit = float(res[0]["center"].iloc[0])
+        d = np.abs(xs - c_fit)
+        d[i] = np.inf
+        if d.min() < abs(c_fit - xs[i]):
+            continue
+        tables.append(res[0])
     return tables
 
 

@@ -309,6 +309,53 @@ def autofit():
         r = f.iloc[(f["center"] - c).abs().argmin()]
         record("XRD auto-fit", f"Voigt area, line at {c} deg", a, float(r["area_amplitude"]), "counts deg",
                "neighbour 3.5 deg away, window to the midpoint, no smoothing")
+    # 3.5.3: whole pipeline (31-point smoothing and AsLS for detection and baseline,
+    # lines fitted to the unsmoothed counts minus the baseline)
+    from spectra.pipelines.run_xrd import run_xrd_pipeline
+    lines5 = lines + [(50.5, 0.03, 0.03, 120.0)]
+    bg = 200.0 + 150.0 * np.exp(-((tt - 25.0) / 8.0) ** 2)
+    xcfg, _, _ = build_default_configs()
+    runs = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for seed in range(4):
+            yy = np.random.default_rng(seed).poisson(sum(a * voigt_profile(tt - c, s, g) for c, s, g, a in lines5) + bg)
+            runs.append(run_xrd_pipeline(tt, yy.astype(float), os.path.join(tmp, str(seed)), xcfg)[2])
+
+    def med(c, col):
+        return float(np.median([r.iloc[(r["center"] - c).abs().argmin()][col] for r in runs]))
+    cond = "pipeline, 5 Voigt lines on a broad hump, Poisson, median of 4"
+    for c, s, g, a in (lines5[4], lines5[2]):
+        record("XRD auto-fit", f"Voigt FWHM, line at {c} deg", voigt_fwhm(s, g), med(c, "fwhm"), "deg", cond)
+    record("XRD auto-fit", "Voigt area, line at 14.1 deg", 800.0, med(14.1, "area_amplitude"), "counts deg",
+           cond + "; AsLS baseline takes part of the tails")
+    # XPS: coarse scan, and the doublet mode
+    w = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for seed in range(8):
+            bx2 = np.arange(132.0, 150.0, 0.2)
+            pk2 = sum(ar * ((1 - 0.3) * np.exp(-((bx2 - c) ** 2) / (2 * (fw / 2.355) ** 2)) / ((fw / 2.355) * np.sqrt(2 * np.pi))
+                            + 0.3 * (fw / 2) / np.pi / ((bx2 - c) ** 2 + (fw / 2) ** 2))
+                      for c, fw, ar in ((138.60, 0.95, 4000), (143.47, 0.95, 3000), (136.85, 0.8, 380), (141.72, 0.8, 285)))
+            yy = np.random.default_rng(seed).poisson(np.clip(pk2 + 900 + 0.12 * np.cumsum(pk2[::-1])[::-1] * 0.2, 1, None))
+            f2 = run_xps_pipeline(bx2, yy.astype(float), os.path.join(tmp, str(seed)), cfg, log_cb=lambda m: None)[2]
+            w.append(float(f2.iloc[(f2["center"] - 138.6).abs().argmin()]["fwhm"]))
+    record("XPS auto-fit", "Pb 4f7/2 FWHM, 0.2 eV steps", 0.95, float(np.median(w)), "eV",
+           "pipeline, GL(30) lines + Shirley step, Poisson, median of 8")
+    import copy
+    dcfg = copy.deepcopy(cfg)
+    dcfg.xps_split_ev, dcfg.xps_area_ratio = 4.87, 0.75
+    main, metal = [], []
+    with tempfile.TemporaryDirectory() as tmp:
+        for seed in range(40):
+            pk = gl(138.60, 0.95, 4000) + gl(143.47, 0.95, 3000) + gl(136.85, 0.8, 380) + gl(141.72, 0.8, 285)
+            yy = np.random.default_rng(seed).poisson(np.clip(pk + 900 + 0.12 * np.cumsum(pk[::-1])[::-1] * 0.05, 1, None)).astype(float)
+            f = run_xps_pipeline(bx, yy, os.path.join(tmp, str(seed)), dcfg, log_cb=lambda m: None)[2]
+            f = f[f["xps_index"] == 0]
+            main.append(float(f.iloc[(f["center"] - 138.60).abs().argmin()]["area_amplitude"]))
+            metal.append(float(f.iloc[(f["center"] - 136.85).abs().argmin()]["area_amplitude"]) / main[-1])
+    cond = "doublet mode (4.87 eV, 3:4), GL(30) lines + Shirley step, Poisson, median of 40"
+    record("XPS auto-fit", "Pb 4f7/2 area, doublet mode", 4000.0, float(np.median(main)), "counts eV", cond)
+    record("XPS auto-fit", "Pb0 / Pb2+ area ratio, doublet mode", 0.095, float(np.median(metal)), "-", cond)
 
 
 def cross_technique():

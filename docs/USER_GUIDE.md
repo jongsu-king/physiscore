@@ -441,14 +441,23 @@ XPS rules - section 18).
 
 Each Voigt component has both its Gaussian and its Lorentzian width fitted. Up to 3.5.1
 the Lorentzian width was held at its starting value, which made XPS and XRD auto-fit areas
-3 to 36 % too high: fit such tables again with 3.5.2 (METHODS section 9). In the XRD
-workspace each reflection's window stops halfway to a neighbouring reflection. The
-default smoothing window there (31 points) widens narrow reflections; lower it before
-taking Scherrer sizes from the auto-fit table (METHODS section 5).
+3 to 36 % too high: fit such tables again with 3.5.2 or later (METHODS section 9). The
+smoothing finds the peaks; since 3.5.3 the lines are fitted to the unsmoothed data minus
+the background, drawn in grey ("raw - baseline") under the smoothed curve in the *Corrected + Fit* view (up
+to 3.5.2 the fit used the smoothed curve, and the XRD default of 31 points widened narrow
+reflections by up to 174 %: take Scherrer sizes from a 3.5.3 table). The S/N column and
+the **Interpret fit** limits use the noise of those unsmoothed data; before 3.5.3 they
+used the much smaller noise of the smoothed curve, so S/N was overstated. In the XRD
+workspace each reflection's window stops halfway to a neighbouring reflection. XRD areas
+come out 5 to 10 % low because the baseline follows part of the line tails; compare areas
+between patterns processed with the same settings (METHODS section 5).
 
 XPS block: **Background** (Shirley by default, or AsLS), **Charge shift** (eV added to
 every binding energy, e.g. 284.8 minus the measured C 1s), **Doublet split** and **area
 ratio** (0 for s levels; typical values are listed in the panel), **Region of interest**.
+With a doublet split, a peak one split above a stronger peak is taken as its partner line,
+and overlapping doublets are fitted together; the table gives each doublet a
+`doublet_id` (3.5.3; before, every peak was fitted as the first line of its own doublet).
 **Quantify (atomic %)** assigns each fitted peak to a core level and computes atomic
 concentrations with Scofield factors (or the factors of your instrument).
 

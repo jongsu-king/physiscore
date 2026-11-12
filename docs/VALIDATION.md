@@ -1,6 +1,6 @@
 # Validation against closed-form synthetic data
 
-Every row compares a quantity recovered by Physiscore 3.5.2 with the value that was
+Every row compares a quantity recovered by Physiscore 3.5.3 with the value that was
 put into an analytical model (single-diode J-V curves, error-function EQE edges,
 Tauc edges with Urbach tails, pseudo-Voigt reflections, Gaussian/Lorentzian bands,
 Voigt spin-orbit doublets,
@@ -16,7 +16,7 @@ regenerated with
 python tools/validation_report.py          # or: python physiscore_cli.py validate
 ```
 
-and the same cases are enforced as unit tests in `tests/` (`pytest`, 447 tests).
+and the same cases are enforced as unit tests in `tests/` (`pytest`, 455 tests).
 Measured-data checks (a perovskite XRD pattern, XPS region scans) run when a local
 `rawdata/` folder is present and are skipped otherwise, because those measurements
 are unpublished.
@@ -35,7 +35,13 @@ realisations; a single spectrum scatters more (Pb0/Pb2+ from 0.074 to 0.144 for 
 10th to 90th percentile of 40 realisations, true 0.095). Up to 3.5.1 the auto-fit never
 fitted the Lorentzian width; the same rows then gave +35.5, +20.6 and +3.1 % for the
 three doublet areas, gamma 0.486 eV for 0.300, and +40 % (4f7/2 area) and -33 %
-(Pb0/Pb2+) for the shoulder case.
+(Pb0/Pb2+) for the shoulder case. The XRD auto-fit pipeline rows (smoothing, AsLS
+baseline, lines fitted to the unsmoothed counts minus the baseline) keep one limitation:
+the areas come out 5 to 10 % low because the baseline follows part of the Lorentzian
+tails (the row for the line at 14.1 deg; with the true background the areas are within
+1 %). Up to 3.5.2 the auto-fit fitted the smoothed curve: FWHM +2 to +29 % on the same
+pattern and +174 % for the 0.11 deg line at 50.5 deg, and on a 0.2 eV XPS scan +7.5 %;
+the doublet mode then returned four doublets for the two of the Pb 4f example.
 
 | Technique | Quantity | Reference | Recovered | Unit | Dev. (%) | Conditions |
 |---|---|---:|---:|---|---:|---|
@@ -99,15 +105,21 @@ three doublet areas, gamma 0.486 eV for 0.300, and +40 % (4f7/2 area) and -33 %
 | XPS | atomic % O for equal C and O | 50 | 50 | at.% | +0.000 | Scofield factors |
 | SEM | log-normal sigma | 0.35 | 0.348423 | - | -0.451 | 5000 grains, sample s.d. of ln d |
 | SEM | geometric mean | 300 | 299.524 | nm | -0.159 |  |
-| XPS auto-fit | Pb 4f7/2 area, Gaussian-dominated | 1000 | 999.463 | counts eV | -0.054 | Voigt doublet, sigma 0.36 / gamma 0.22 eV, split and 3:4 ratio fixed |
+| XPS auto-fit | Pb 4f7/2 area, Gaussian-dominated | 1000 | 999.462 | counts eV | -0.054 | Voigt doublet, sigma 0.36 / gamma 0.22 eV, split and 3:4 ratio fixed |
 | XPS auto-fit | Pb 4f7/2 area, mixed | 1000 | 999.44 | counts eV | -0.056 | Voigt doublet, sigma 0.25 / gamma 0.3 eV, split and 3:4 ratio fixed |
 | XPS auto-fit | Lorentzian half-width gamma | 0.3 | 0.299936 | eV | -0.021 | Voigt doublet, sigma 0.25 / gamma 0.3 eV, split and 3:4 ratio fixed |
 | XPS auto-fit | Voigt FWHM | 0.97233 | 0.97228 | eV | -0.005 | Voigt doublet, sigma 0.25 / gamma 0.3 eV, split and 3:4 ratio fixed |
 | XPS auto-fit | Pb 4f7/2 area, Lorentzian-dominated | 1000 | 999.653 | counts eV | -0.035 | Voigt doublet, sigma 0.1 / gamma 0.45 eV, split and 3:4 ratio fixed |
-| XPS auto-fit | Pb 4f7/2 area with metallic shoulder | 4000 | 3937.24 | counts eV | -1.569 | pipeline, GL(30) lines + Shirley step, Poisson, median of 12 |
-| XPS auto-fit | Pb0 / Pb2+ area ratio | 0.095 | 0.0917103 | - | -3.463 | pipeline, GL(30) lines + Shirley step, Poisson, median of 12 |
+| XPS auto-fit | Pb 4f7/2 area with metallic shoulder | 4000 | 3939.7 | counts eV | -1.507 | pipeline, GL(30) lines + Shirley step, Poisson, median of 12 |
+| XPS auto-fit | Pb0 / Pb2+ area ratio | 0.095 | 0.0915749 | - | -3.605 | pipeline, GL(30) lines + Shirley step, Poisson, median of 12 |
 | XRD auto-fit | Voigt area, line at 28.4 deg | 500 | 500.697 | counts deg | +0.139 | neighbour 3.5 deg away, window to the midpoint, no smoothing |
 | XRD auto-fit | Voigt area, line at 31.9 deg | 300 | 300.629 | counts deg | +0.210 | neighbour 3.5 deg away, window to the midpoint, no smoothing |
+| XRD auto-fit | Voigt FWHM, line at 50.5 deg | 0.108039 | 0.106875 | deg | -1.077 | pipeline, 5 Voigt lines on a broad hump, Poisson, median of 4 |
+| XRD auto-fit | Voigt FWHM, line at 31.9 deg | 0.325313 | 0.333512 | deg | +2.520 | pipeline, 5 Voigt lines on a broad hump, Poisson, median of 4 |
+| XRD auto-fit | Voigt area, line at 14.1 deg | 800 | 720.032 | counts deg | -9.996 | pipeline, 5 Voigt lines on a broad hump, Poisson, median of 4; AsLS baseline takes part of the tails |
+| XPS auto-fit | Pb 4f7/2 FWHM, 0.2 eV steps | 0.95 | 0.947342 | eV | -0.280 | pipeline, GL(30) lines + Shirley step, Poisson, median of 8 |
+| XPS auto-fit | Pb 4f7/2 area, doublet mode | 4000 | 3950.38 | counts eV | -1.241 | doublet mode (4.87 eV, 3:4), GL(30) lines + Shirley step, Poisson, median of 40 |
+| XPS auto-fit | Pb0 / Pb2+ area ratio, doublet mode | 0.095 | 0.100279 | - | +5.557 | doublet mode (4.87 eV, 3:4), GL(30) lines + Shirley step, Poisson, median of 40 |
 | Device | Jsc mismatch | 1.21803 | 1.21803 | % | +0.000 | single-diode J-V vs error-function EQE |
 | Device | dV1 + dV2 + dV3 | 0.682769 | 0.682769 | V | +0.000 | loss terms close the Voc deficit |
 | Device | band-gap spread | 30 | 30 | meV | +0.000 | EQE 1.60, Tauc 1.61, PL 1.58 eV |
@@ -138,4 +150,4 @@ three doublet areas, gamma 0.486 eV for 0.300, and +40 % (4f7/2 area) and -33 %
 | Stability | burn-in loss | 12 | 12.4455 | % of initial | +3.712 | back-extrapolated linear part |
 | Stability | loss rate after burn-in | 10 | 10.3627 | %/1000 h | +3.627 | 12 % burn-in (tau 40 h) + 10 %/1000 h, 0.4 % noise |
 
-_Generated 2026-11-12 with Physiscore 3.5.2, numpy 2.4.6, scipy 1.17.1._
+_Generated 2026-11-12 with Physiscore 3.5.3, numpy 2.4.6, scipy 1.17.1._

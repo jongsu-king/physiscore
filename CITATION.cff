@@ -8,7 +8,7 @@ abstract: >-
   spectroscopy, capacitance-voltage (Mott-Schottky), time-resolved
   photoluminescence, operational stability, absorbance, photoluminescence,
   Raman, FTIR, XRD, SEM and XPS.
-version: "3.5.2"
+version: "3.5.3"
 date-released: "2026-11-12"
 # Concept DOI: always resolves to the latest archived release on Zenodo.
 doi: 10.5281/zenodo.22267588

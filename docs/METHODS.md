@@ -4,7 +4,7 @@ This document states, for every quantity Physiscore reports, the equation that i
 evaluated, the numerical procedure, its defaults, and the primary reference. It is
 written so that the methods section of a paper can cite it (or copy from it) and so
 that a reviewer can check a number against the code. File references are to the
-3.5.2 source tree; all functions are GUI-free and importable.
+3.5.3 source tree; all functions are GUI-free and importable.
 
 Conventions: J in mA cm⁻², V in V, R in Ω cm², E in eV, T = 298.15 K unless stated.
 Constants: q = 1.602176634×10⁻¹⁹ C, k = 1.380649×10⁻²³ J K⁻¹, hc = 1239.84198 eV nm.
@@ -140,16 +140,23 @@ std and the Nelson–Riley extrapolation of a against ½(cos²θ/sin θ + cos²�
 (Nelson & Riley, Proc. Phys. Soc. 57, 160 (1945)). `texture_coefficient`: Harris TC(hkl).
 
 **Auto-fit workspace** (`spectra/pipelines/run_xrd.py`): Savitzky–Golay smoothing
-(31 points, cubic), AsLS baseline (λ = 10⁶, p = 0.01), then one Voigt per candidate with
-both widths free and the seed and bounds of §9, in a window of ±3.5° that stops at the
-midpoint to any neighbouring candidate of at least 10 % of its height (never closer than
-3 seed FWHM; 3.5.2 — with the full window a neighbouring line had no component and lowered
-the areas, −18 and −35 % for two lines 3.5° apart on noise-free data). The fit itself
-returns areas and widths to 0.2 % (VALIDATION); the default smoothing and baseline do not:
-on a synthetic pattern with 0.02° steps the FWHM comes out +3 to +28 % (most for narrow,
-Lorentzian-like lines, the smoothing window being 0.62°) and the areas −4 to −12 %. Lower
-the smoothing window for narrow reflections before taking Scherrer sizes from the
-auto-fit table.
+(31 points, cubic) and an AsLS baseline (λ = 10⁶, p = 0.01) on the smoothed curve; peak
+candidates are found on the smoothed curve minus the baseline, and each line is fitted to
+the unsmoothed counts minus the baseline (3.5.3). One Voigt per candidate with both widths
+free and the seed and bounds of §9, in a window of ±3.5° that stops at the midpoint to any
+neighbouring candidate of at least 10 % of its height (never closer than 3 seed FWHM;
+3.5.2 — with the full window a neighbouring line had no component and lowered the areas,
+−18 and −35 % for two lines 3.5° apart on noise-free data). A component that ends nearer
+another candidate than its own seed has moved onto that candidate's line and is dropped
+(weak candidates on the flank of a strong line otherwise repeat its row). Up to 3.5.2 the
+lines were fitted to the smoothed curve, and the 31-point filter (0.62° on a 0.02° grid)
+widened them: on a synthetic pattern of five Voigt lines on a broad hump with Poisson
+noise, FWHM +2 to +29 %, and +174 % for a 0.11° line. Fitted to the unsmoothed data the
+same lines come out within 3 % (VALIDATION, rows "XRD auto-fit"). The areas stay 5 to
+10 % low: the AsLS baseline follows part of the Lorentzian tails (with the true
+background subtracted the areas are within 1 %, and a stiffer baseline, λ = 10⁸–10⁹, helps
+lines on a flat background but raises the area of a line on an amorphous hump by up to
+13 %). Compare areas only between patterns processed with the same baseline settings.
 
 ## 6. Photoluminescence (`scripts/PL/pl_core.py`, `scripts/common/spectral.py`)
 
@@ -200,13 +207,25 @@ Shirley background (iterative, Shirley, Phys. Rev. B 5, 4709 (1972); Proctor &
 Sherwood 1982) or AsLS; charge referencing by shifting C 1s to 284.8 eV (a convention,
 see Greczynski & Hultman, Prog. Mater. Sci. 107, 100591 (2020)); singlet Voigt fits for
 s levels and constrained spin–orbit doublets (fixed split, area ratio 1:2, 2:3, 3:4;
-widths shared) for p, d, f levels (lmfit). In the auto-fit workspace, singlet candidates
-closer than twice the fit window are fitted together as one cluster (3.1.2), and every
+widths shared) for p, d, f levels (lmfit). In the auto-fit workspace the lines are fitted
+to the unsmoothed counts minus the background; the smoothed curve (7 points) only finds
+the candidates (3.5.3; up to 3.5.2 the fit used the smoothed curve, which on a 0.2 eV scan
+widened Pb 4f7/2 by 7.5 % and lowered its area by 5 %). Singlet candidates
+closer than twice the fit window are fitted together as one cluster (3.1.2). In doublet
+mode a candidate that lies one split above a kept candidate (within half its FWHM, at least
+3 grid steps) and is no taller than twice the height the area ratio predicts (never less
+than the first line's height) is that line's partner and is dropped, and doublets whose
+windows (first line − fit window to partner + fit window) overlap are fitted together
+(3.5.3; up to 3.5.2 every candidate was fitted as the first line of its own doublet, so a
+Pb 4f spectrum with a metallic shoulder came back as four doublets). Every
 component's centre is bounded to its seed ± max(FWHM, 3 grid steps) and its Gaussian and
 Lorentzian FWHM each to three times the seed FWHM, so that a small peak beside a large one
 keeps its own component. Every auto-fit Voigt (singlet, doublet, XRD) has both widths free,
 σ and γ (3.5.2), and starts with equal Gaussian and Lorentzian FWHM, f_G = f_L =
-FWHM_seed/1.6376, so that its Olivero–Longbothum FWHM equals the seed FWHM. Up to 3.5.1 γ
+FWHM_seed/1.6376, so that its Olivero–Longbothum FWHM equals the seed FWHM; its Gaussian
+FWHM is at least min(2 grid steps, FWHM_seed/2), because a line sampled by fewer points is
+not resolved and, fitted to unsmoothed data, a noise candidate's component otherwise
+collapses onto one point (3.5.3). Up to 3.5.1 γ
 was never fitted (lmfit's `Parameter.set(value=…)` removes the default constraint γ = σ
 but leaves γ fixed), so every line was a Lorentzian of the seed width and the areas were
 high by 3 % (Lorentzian-dominated lines) to 36 % (Gaussian-dominated lines); see
@@ -405,7 +424,11 @@ matched, new and missing bands within an 8 cm⁻¹ tolerance.
 
 ### 16.11 Auto-fit peak tables (XRD, PL, XPS workspaces)
 
-`interpret_peak_fit` reads the fitted table of `spectra/pipelines`:
+`interpret_peak_fit` reads the fitted table of `spectra/pipelines`. σ_noise is the
+noise of the data the lines were fitted to (unsmoothed minus background), estimated as
+1.4826 MAD of the first differences divided by √2 (3.5.3; up to 3.5.2 it was taken from
+the smoothed curve, 18 times below the counting noise on a synthetic XRD pattern, so S/N
+was overstated and noise candidates passed the limits below):
 
 | Topic | Rule | Reference |
 |---|---|---|

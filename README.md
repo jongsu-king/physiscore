@@ -204,7 +204,7 @@ page, which can be switched off. See [CONFIG.md](CONFIG.md).
 
 ```bash
 pip install pytest
-pytest -q                          # 447 tests on closed-form synthetic data
+pytest -q                          # 455 tests on closed-form synthetic data
 python tools/validation_report.py  # the table in docs/VALIDATION.md
 python tools/gui_smoke.py          # every window, the launcher and a session (needs a display)
 ```
@@ -218,7 +218,7 @@ absent.
 A software paper is in preparation; please cite the archived release in the meantime:
 
 > Kim, K., Shin, J., Lim, J., Ji, H., Lee, S.-E., & Lee, J. (2026). *Physiscore*
-> (Version 3.5.2) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
+> (Version 3.5.3) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
 
 The concept DOI always resolves to the latest archived release. Full metadata is in
 `CITATION.cff`; the methods and their references are in [docs/METHODS.md](docs/METHODS.md).

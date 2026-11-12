@@ -1002,6 +1002,8 @@ class SpectraDashboardTab(ctk.CTkFrame):
         y_s   = self.proc["y_smooth"].to_numpy()
         bl    = self.proc["baseline"].to_numpy()
         y_c   = self.proc["y_corr"].to_numpy()
+        # the data the lines are fitted to: unsmoothed minus baseline (3.5.3)
+        y_f   = self.proc["y_fit"].to_numpy() if "y_fit" in self.proc.columns else None
 
         self.fig.clf()
         self.fig.patch.set_facecolor(COL_CARD2)
@@ -1018,7 +1020,9 @@ class SpectraDashboardTab(ctk.CTkFrame):
             self._label_axes(ax1, x=False)
             ax1.legend(framealpha=0.85)
 
-            ax2.plot(x, y_c, linewidth=1.05, label="corrected")
+            if y_f is not None:
+                ax2.plot(x, y_f, linewidth=0.6, color=COL_MUT, alpha=0.8, zorder=1, label="raw - baseline")
+            ax2.plot(x, y_c, linewidth=1.05, label="smoothed")
             if (not show_only) and self.cand is not None and not self.cand.empty:
                 ax2.scatter(self.cand["x"], self.cand["height"], s=18, label="candidates")
             if self.fitted is not None and not self.fitted.empty:
@@ -1043,7 +1047,9 @@ class SpectraDashboardTab(ctk.CTkFrame):
                 ax.plot(x, bl, linewidth=1.1, label="baseline")
                 ax.set_title(f"{self.name} - Baseline", color=COL_TXT)
             else:
-                ax.plot(x, y_c, linewidth=1.1, label="corrected")
+                if y_f is not None:
+                    ax.plot(x, y_f, linewidth=0.6, color=COL_MUT, alpha=0.8, zorder=1, label="raw - baseline")
+                ax.plot(x, y_c, linewidth=1.1, label="smoothed")
                 if (not show_only) and self.cand is not None and not self.cand.empty:
                     ax.scatter(self.cand["x"], self.cand["height"], s=18, label="candidates")
                 if self.fitted is not None and not self.fitted.empty:
