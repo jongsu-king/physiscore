@@ -172,10 +172,15 @@ def fit_windows_to_midpoints(
             if j == i or hs[j] < neighbour_frac * hs[i]:
                 continue
             mid = 0.5 * (xs[i] + xs[j])
+            # never closer than 3 seed FWHM to the centre -- except towards a taller
+            # neighbour (3.5.3): a weak candidate's seed FWHM from the smoothed curve
+            # can be degrees wide, and its window then held the taller line with no
+            # component for it (residual up to 190x the noise)
+            keep = 0.0 if hs[j] > hs[i] else 3.0 * ws[i]
             if xs[j] < xs[i]:
-                lo = max(lo, min(mid, xs[i] - 3.0 * ws[i]))
+                lo = max(lo, min(mid, xs[i] - keep))
             else:
-                hi = min(hi, max(mid, xs[i] + 3.0 * ws[i]))
+                hi = min(hi, max(mid, xs[i] + keep))
         res = fit_voigts(x, y_corr, (float(lo), float(hi)), [(float(xs[i]), float(hs[i]), float(ws[i]))])
         if res is None or res[0] is None or res[0].empty:
             continue

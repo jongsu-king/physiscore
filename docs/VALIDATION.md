@@ -16,7 +16,7 @@ regenerated with
 python tools/validation_report.py          # or: python physiscore_cli.py validate
 ```
 
-and the same cases are enforced as unit tests in `tests/` (`pytest`, 460 tests).
+and the same cases are enforced as unit tests in `tests/` (`pytest`, 461 tests).
 Measured-data checks (a perovskite XRD pattern, XPS region scans) run when a local
 `rawdata/` folder is present and are skipped otherwise, because those measurements
 are unpublished.

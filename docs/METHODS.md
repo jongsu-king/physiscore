@@ -156,8 +156,10 @@ std and the Nelson–Riley extrapolation of a against ½(cos²θ/sin θ + cos²�
 candidates are found on the smoothed curve minus the baseline, and each line is fitted to
 the unsmoothed counts minus the baseline (3.5.3). One Voigt per candidate with both widths
 free and the seed and bounds of §9, in a window of ±3.5° that stops at the midpoint to any
-neighbouring candidate of at least 10 % of its height (never closer than 3 seed FWHM;
-3.5.2 — with the full window a neighbouring line had no component and lowered the areas,
+neighbouring candidate of at least 10 % of its height (never closer than 3 seed FWHM,
+except towards a taller neighbour, 3.5.3 — a weak candidate's seed FWHM from the smoothed
+curve can be degrees wide, and its window then held the taller line with no component for
+it; 3.5.2 — with the full window a neighbouring line had no component and lowered the areas,
 −18 and −35 % for two lines 3.5° apart on noise-free data). A component that ends nearer
 another candidate than its own seed has moved onto that candidate's line and is dropped
 (weak candidates on the flank of a strong line otherwise repeat its row). Up to 3.5.2 the

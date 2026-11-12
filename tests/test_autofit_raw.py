@@ -151,3 +151,16 @@ def test_doublet_partner_taller_than_its_first_line_is_still_a_partner():
     # a strong line 4.87 eV above a weak noise candidate is not its partner
     noise = pd.concat([cand, pd.DataFrame({"x": [133.75], "height": [67.7], "fwhm_x": [0.21]})], ignore_index=True)
     assert list(doublet_mains(noise, 4.87, 0.05, 0.75)["x"]) == [133.75, 136.70, 138.60]
+
+
+def test_xrd_interpretation_flags_no_residual_and_only_the_lines_as_signal(xrd_runs):
+    """3.5.2 flagged 32-37 fit regions with a residual above twice the noise
+    and passed 13-16 rows (most of them noise) as S/N >= 10.  Fitted to the
+    unsmoothed data with the counting noise, and with windows that stop at a
+    taller neighbour, no region is flagged and only the five lines pass."""
+    from scripts.common.interpret import interpret_peak_fit
+    for _, f in xrd_runs:
+        rep = interpret_peak_fit("XRD", f)
+        topics = {x.topic: x for x in rep.findings}
+        assert "Fit residual" not in topics
+        assert topics["Signal"].text.startswith("5 of ")
