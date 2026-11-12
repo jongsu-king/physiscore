@@ -8,7 +8,8 @@ release dates. Detailed release notes are in `docs/release-notes/`.
 Second correction of the auto-fit workspace (`spectra/`: the XPS tool and the XRD
 auto-fit). XRD and XPS auto-fit tables made with 3.5.2 or earlier should be fitted again
 for widths and S/N, and XPS tables made in doublet mode in any version. No other tool
-computes different numbers; one absorbance interpretation rule changed (below).
+computes different numbers except the PL single-band fit (a constant term, below); one
+absorbance interpretation rule changed.
 
 ### Fixed
 - **Lines were fitted to the smoothed curve.** The Savitzky-Golay output found the peak
@@ -44,11 +45,17 @@ computes different numbers; one absorbance interpretation rule changed (below).
   every auto-fit Voigt is now at least min(2 grid steps, half the seed FWHM).
 
 ### Added
-- Six validation rows (104 in total): XRD pipeline FWHM of the 0.11 deg line and of a
+- Seven validation rows (105 in total): PL FWHM with an offset under Raw processing, XRD pipeline FWHM of the 0.11 deg line and of a
   Lorentzian-dominated line, XRD pipeline area (the baseline limit below), XPS FWHM on a
   0.2 eV scan, and the doublet-mode 4f7/2 area and Pb0/Pb2+ ratio.
-- `tests/test_autofit_raw.py` (8 tests) and a Tauc rule test (456 in all); every new
-  test fails on 3.5.2.
+- `tests/test_autofit_raw.py` (8 tests), a Tauc rule test and a PL offset test (457 in
+  all); every new test fails on 3.5.2.
+
+- **PL single-band width with an offset.** The single Gaussian had no constant term, and
+  the PL window's default processing (Raw) subtracts no baseline: a dark-count offset of
+  2, 5 and 10 % of the peak widened a 40 nm band by 2.9, 7.6 and 17 %. The band is now a
+  Gaussian plus a constant (`fit_peak_gaussian` also returns `offset`); the same cases
+  give 40.0 nm, and the overlapping-band validation row goes from +7.1 to +6.3 %.
 
 ### Changed
 - **Absorbance interpretation, Tauc versus derivative.** A Tauc gap more than 40 meV

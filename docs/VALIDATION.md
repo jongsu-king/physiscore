@@ -16,13 +16,13 @@ regenerated with
 python tools/validation_report.py          # or: python physiscore_cli.py validate
 ```
 
-and the same cases are enforced as unit tests in `tests/` (`pytest`, 456 tests).
+and the same cases are enforced as unit tests in `tests/` (`pytest`, 457 tests).
 Measured-data checks (a perovskite XRD pattern, XPS region scans) run when a local
 `rawdata/` folder is present and are skipped otherwise, because those measurements
 are unpublished.
 
 Known, documented limitations visible in the table: a single Gaussian fitted to a PL band
-with an unresolved neighbour is biased (+7 % FWHM; the multi-component fit removes most of
+with an unresolved neighbour is biased (+6 % FWHM; the multi-component fit removes most of
 it), the plain mean of a lattice parameter keeps a specimen-displacement error that the
 Nelson-Riley extrapolation removes, and the Rau band gap of an error-function edge sits
 within 1 meV of its centre. The transport rows with noise show what the noise allows, not
@@ -91,9 +91,10 @@ the doublet mode then returned four doublets for the two of the Pb 4f example.
 | XRD | cubic a, plain mean (same data) | 6.28 | 6.26073 | A | -0.307 | for comparison |
 | XRD | Kalpha2 residual after stripping | 0 | 5.32375 | % of satellite | +nan | Rachinger |
 | PL | peak centre | 750 | 750 | nm | +0.000 | ALS baseline (lam = 1e8) + sloping background |
-| PL | FWHM | 40 | 39.5422 | nm | -1.144 | isolated peak |
-| PL | peak centre, overlapping band | 750 | 751.07 | nm | +0.143 | defect band at 830 nm; valley-bounded window |
-| PL | FWHM, overlapping band | 40 | 42.8401 | nm | +7.100 | residual bias: single-Gaussian model |
+| PL | FWHM | 40 | 39.7187 | nm | -0.703 | isolated peak |
+| PL | peak centre, overlapping band | 750 | 751.066 | nm | +0.142 | defect band at 830 nm; valley-bounded window |
+| PL | FWHM, overlapping band | 40 | 42.5096 | nm | +6.274 | residual bias: single-Gaussian model |
+| PL | FWHM, Raw processing with offset | 40 | 39.9997 | nm | -0.001 | constant offset 5 % of the peak, no baseline subtracted |
 | Spectral | overlapping Gaussian centre 1 | 48 | 48 | x | +0.000 | two components fitted together |
 | Spectral | overlapping Gaussian FWHM 2 | 5 | 5 | x | +0.000 |  |
 | Spectral | components chosen by AICc | 2 | 2 | - | +0.000 | noisy doublet |

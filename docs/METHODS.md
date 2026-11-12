@@ -181,7 +181,9 @@ band; a valley counts only if it is deeper than 2 % of the peak height and than 
 standard deviations, the noise being the median-absolute-deviation spread of the signal
 around a copy smoothed over half the band width, taken where the signal exceeds 10 % of the
 maximum (3.1.2; before, noise dips beside a weak band were taken as valleys and the FWHM came
-out too small). `fit_multi_peak`: bounded least-squares sums of Gaussian,
+out too small). The band is a Gaussian plus a constant (3.5.3): without the constant, an
+offset left by the default "Raw" processing widened the band, by 7.6 % for an offset of 5 %
+of the peak. `fit_multi_peak`: bounded least-squares sums of Gaussian,
 Lorentzian, pseudo-Voigt or Voigt components, the number of components chosen by the
 corrected Akaike criterion AICc = n ln(RSS/n) + 2k + 2k(k+1)/(n−k−1) (Akaike 1974;
 Burnham & Anderson 2002). Voigt FWHM from the Olivero–Longbothum approximation.

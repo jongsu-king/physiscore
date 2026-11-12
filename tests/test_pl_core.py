@@ -100,6 +100,17 @@ def test_single_peak_center_and_width(spectrum):
     assert fit["fwhm"] == pytest.approx(FWHM, rel=0.02)
 
 
+def test_single_peak_width_with_an_offset():
+    """The PL window's default processing is Raw (no baseline).  3.5.2 fitted a
+    Gaussian without a constant: FWHM +7.6 % for an offset of 5 % of the peak."""
+    x = np.round(np.arange(600.0, 900.0 + 1e-9, 0.5), 4)
+    y = 1000.0 * np.exp(-4 * np.log(2) * ((x - 750.0) / 40.0) ** 2) + 50.0
+    fit = fit_peak_gaussian(x, y)
+    assert fit["fwhm"] == pytest.approx(40.0, rel=0.002)
+    assert fit["offset"] == pytest.approx(50.0, rel=0.01)
+    assert fit["amp"] == pytest.approx(1000.0, rel=0.002)
+
+
 def naive_full_range_fit(x, y):
     """What fitting the whole spectrum, unwindowed, would give."""
     from scipy.optimize import curve_fit

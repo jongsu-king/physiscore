@@ -301,16 +301,21 @@ def fit_peak_gaussian(x, y):
         if int(np.sum(m)) < 5:
             m = np.ones_like(x, dtype=bool)
 
-        popt, _ = curve_fit(gaussian, x[m], y[m],
-                            p0=[amp_guess, cen_guess, sigma_guess], maxfev=5000)
-        amp, cen, sigma = popt
+        # Gaussian plus a constant (3.5.3).  Without the constant, a dark-count or
+        # background offset (the window's default "Raw" processing subtracts
+        # none) widened the fitted Gaussian: FWHM +2.9, +7.6 and +17 % for an
+        # offset of 2, 5 and 10 % of the peak (synthetic 40 nm band).
+        c0 = float(np.min(y[m]))
+        popt, _ = curve_fit(lambda xx, a, c, s, k: gaussian(xx, a, c, s) + k, x[m], y[m],
+                            p0=[amp_guess - c0, cen_guess, sigma_guess, c0], maxfev=5000)
+        amp, cen, sigma, offset = popt
 
         fwhm = 2.3548 * abs(sigma)  # Gaussian FWHM
-        y_fit = gaussian(x, *popt)  # fitted curve over full range
+        y_fit = gaussian(x, amp, cen, sigma) + offset  # fitted curve over full range
 
-        return {"amp": amp, "center": cen, "fwhm": fwhm, "y_fit": y_fit, "success": True}
+        return {"amp": amp, "center": cen, "fwhm": fwhm, "offset": float(offset), "y_fit": y_fit, "success": True}
     except Exception:
-        return {"amp": 0, "center": 0, "fwhm": 0, "y_fit": np.zeros_like(y), "success": False}
+        return {"amp": 0, "center": 0, "fwhm": 0, "offset": 0.0, "y_fit": np.zeros_like(y), "success": False}
 
 def calculate_quenching_efficiency(y_sample, y_ref):
     """Peak-based PL quenching efficiency: eta = 1 - I_sample_max / I_ref_max."""

@@ -116,6 +116,10 @@ def photoluminescence():
            "defect band at 830 nm; valley-bounded window")
     record("PL", "FWHM, overlapping band", 40.0, fit2["fwhm"], "nm",
            "residual bias: single-Gaussian model")
+    # 3.5.3: Gaussian + constant; "Raw" processing (no baseline) with a dark offset
+    fit3 = fit_peak_gaussian(x, gaussian(x, 1000.0, 750.0, 40.0) + 50.0)
+    record("PL", "FWHM, Raw processing with offset", 40.0, fit3["fwhm"], "nm",
+           "constant offset 5 % of the peak, no baseline subtracted")
 
 
 def diode_fit():
