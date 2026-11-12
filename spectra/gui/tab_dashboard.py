@@ -749,11 +749,11 @@ class SpectraDashboardTab(ctk.CTkFrame):
 
         try:
             with pd.ExcelWriter(path) as w:
-                self.proc.to_excel(w, "processed", index=False)
+                self.proc.to_excel(w, sheet_name="processed", index=False)
                 if self.cand is not None:
-                    self.cand.to_excel(w, "candidates", index=False)
+                    self.cand.to_excel(w, sheet_name="candidates", index=False)
                 if self.fitted is not None:
-                    self.fitted.to_excel(w, "fitted", index=False)
+                    self.fitted.to_excel(w, sheet_name="fitted", index=False)
             self._log(f"Excel saved: {path}")
         except Exception as e:
             self._log(f"[ERR] Export Excel: {e}")
@@ -927,9 +927,9 @@ class SpectraDashboardTab(ctk.CTkFrame):
                 summary_path = os.path.join(out_root, "summary.xlsx")
                 with pd.ExcelWriter(summary_path) as w:
                     if summary_rows:
-                        pd.concat(summary_rows, ignore_index=True).to_excel(w, "top_peaks", index=False)
+                        pd.concat(summary_rows, ignore_index=True).to_excel(w, sheet_name="top_peaks", index=False)
                     else:
-                        pd.DataFrame().to_excel(w, "top_peaks", index=False)
+                        pd.DataFrame().to_excel(w, sheet_name="top_peaks", index=False)
                 self._log(f"Summary written: {summary_path}")
                 self._log("Batch finished.")
             except Exception as e:

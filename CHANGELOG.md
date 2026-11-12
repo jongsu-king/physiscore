@@ -36,6 +36,11 @@ absorbance interpretation rule changed.
   and overlapping doublets are fitted together (`fit_xps_doublet_cluster`). The table
   gains a `doublet_id` column. Median of 40 noise realisations: 4f7/2 area -1.2 %, Pb0/Pb2+
   0.100 for 0.095.
+- **Auto-fit Export Excel and Batch Folder failed with pandas 3.** The sheet names were
+  passed positionally to `DataFrame.to_excel`, which pandas 3 makes keyword-only. The
+  published 3.5.2 installers bundle pandas 3.1.1: Export Excel left an unreadable .xlsx
+  and logged an error, and Batch Folder stopped before `summary.xlsx`. A static test now
+  rejects positional `to_excel` arguments anywhere in the code.
 - **XRD windows of weak candidates.** The window stops at the midpoint to a neighbour but
   never closer than 3 seed FWHM; a weak candidate's seed FWHM from the smoothed curve can
   be degrees wide, so its window held a taller line with no component for it and the
@@ -56,8 +61,9 @@ absorbance interpretation rule changed.
   gap with and without the offset, PL FWHM with an offset under Raw processing, XRD pipeline FWHM of the 0.11 deg line and of a
   Lorentzian-dominated line, XRD pipeline area (the baseline limit below), XPS FWHM on a
   0.2 eV scan, and the doublet-mode 4f7/2 area and Pb0/Pb2+ ratio.
-- `tests/test_autofit_raw.py` (9 tests), a Tauc rule test, a PL offset test and three
-  sub-gap offset tests (461 in all); every new test fails on 3.5.2.
+- `tests/test_autofit_raw.py` (9 tests), a Tauc rule test, a PL offset test, three
+  sub-gap offset tests and a static `to_excel` test (462 in all); every new test fails on
+  3.5.2.
 
 - **PL single-band width with an offset.** The single Gaussian had no constant term, and
   the PL window's default processing (Raw) subtracts no baseline: a dark-count offset of

@@ -43,3 +43,19 @@ def test_no_undefined_names():
     for f in files:
         api.checkPath(str(f), rep)
     assert rep.found == []
+
+
+def test_to_excel_sheet_names_are_keywords():
+    """pandas 3 makes every to_excel argument after the writer keyword-only.  The
+    auto-fit workspace passed the sheet name positionally, so Export Excel and the
+    Batch Folder summary raised TypeError in the published 3.5.2 installers, which
+    bundle pandas 3.1.1."""
+    import ast
+    bad = []
+    for path in list(ROOT.glob("scripts/**/*.py")) + list(ROOT.glob("spectra/**/*.py")) + [ROOT / "physiscore_cli.py"]:
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "to_excel" and len(node.args) > 1):
+                bad.append(f"{path.relative_to(ROOT)}:{node.lineno}")
+    assert not bad, bad
+
