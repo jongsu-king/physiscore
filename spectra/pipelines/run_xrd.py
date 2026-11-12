@@ -3,7 +3,7 @@ import pandas as pd
 from spectra.core.config import PipelineConfig
 from spectra.core.baseline import smooth_signal, baseline_asls
 from spectra.core.peak_detect import find_candidates
-from spectra.core.fit_common import fit_voigts, add_qc_columns
+from spectra.core.fit_common import fit_windows_to_midpoints, add_qc_columns
 
 def run_xrd_pipeline(x, y, outdir, cfg: PipelineConfig, log_cb=None):
     os.makedirs(outdir, exist_ok=True)
@@ -27,14 +27,8 @@ def run_xrd_pipeline(x, y, outdir, cfg: PipelineConfig, log_cb=None):
     cand, noise_sigma, prom_abs, dist_used = find_candidates(x, y_corr, cfg)
     cand.to_csv(os.path.join(outdir, "peaks_candidates.csv"), index=False)
 
-    fitted_tables = []
-    for _, r in cand.iterrows():
-        cx = float(r["x"])
-        region = (cx - cfg.fit_pad, cx + cfg.fit_pad)
-        res = fit_voigts(x, y_corr, region, [(cx, float(r["height"]), float(max(r["fwhm_x"], 1e-6)))])
-        ft = res[0] if res is not None else None
-        if ft is not None and not ft.empty:
-            fitted_tables.append(ft)
+    # one Voigt per line; windows stop at the midpoint to a neighbouring line (3.5.2)
+    fitted_tables = fit_windows_to_midpoints(x, y_corr, cand, cfg.fit_pad)
 
     fitted = pd.concat(fitted_tables, ignore_index=True) if fitted_tables else pd.DataFrame()
     fitted = add_qc_columns(fitted, noise_sigma)

@@ -23,6 +23,21 @@ def voigt_fwhm(sigma: float, gamma: float) -> float:
     return 0.5346 * (2 * gamma) + math.sqrt(0.2166 * (2 * gamma) ** 2 + (2.3548 * sigma) ** 2)
 
 
+# Olivero-Longbothum with f_G = f_L = f: f_V = (0.5346 + sqrt(0.2166 + 1)) f
+_EQUAL_SPLIT = 0.5346 + math.sqrt(1.2166)
+
+
+def voigt_seed(fwhm: float) -> Tuple[float, float]:
+    """Starting sigma and gamma for a Voigt whose FWHM equals ``fwhm``, with
+    equal Gaussian and Lorentzian widths.  Seeding sigma = fwhm/2.3548 and
+    gamma = fwhm/2 together (as up to 3.5.1) starts the profile 1.64x too wide;
+    once gamma is free that start can end in a local minimum with sigma at its
+    lower bound (pure Lorentzian, area +28 % on a synthetic Pb 4f cluster, chi2
+    8.6x the minimum reached from any other start)."""
+    f = max(float(fwhm), 1e-6) / _EQUAL_SPLIT
+    return max(f / 2.3548, 1e-6), max(f / 2.0, 1e-6)
+
+
 def build_composite(n: int):
     model = ConstantModel(prefix="b_")
     params = model.make_params(c_c=0.0)
@@ -57,19 +72,25 @@ def fit_voigts(
     step = float(np.median(np.abs(np.diff(xr)))) if len(xr) > 1 else 0.0
     for i, (c, h, fwhm) in enumerate(init_peaks):
         fwhm = max(float(fwhm), 1e-6)
-        sigma = max(fwhm / 2.3548, 1e-6)
-        gamma = max(fwhm / 2.0, 1e-6)
+        sigma, gamma = voigt_seed(fwhm)
         amp = float(max(h, 1e-6) * fwhm)
 
         # Each component stays near the peak it was seeded from (+-1 FWHM, at
-        # least 3 grid steps) and cannot grow wider than 3x its initial FWHM.
+        # least 3 grid steps), and its Gaussian and Lorentzian FWHM each stay
+        # below 3x the seed FWHM.  (Up to 3.5.1 the bound was sigma, gamma <
+        # 3 FWHM, i.e. a Gaussian FWHM up to 7x; with gamma free, a noise
+        # candidate then grew into a 4 eV wide component under the main line.)
         # With the centre free over the whole window, the component of a small
         # peak next to a large one migrated onto the large peak (seen on Pb 4f
         # with a metallic shoulder: two components on 4f5/2, none on the shoulder).
         reach = max(fwhm, 3.0 * step)
         params[f"p{i}_center"].set(value=float(c), min=max(x0, float(c) - reach), max=min(x1, float(c) + reach))
-        params[f"p{i}_sigma"].set(value=float(sigma), min=1e-6, max=min(span, 3.0 * fwhm))
-        params[f"p{i}_gamma"].set(value=float(gamma), min=1e-6, max=min(span, 3.0 * fwhm))
+        params[f"p{i}_sigma"].set(value=float(sigma), min=1e-6, max=min(span, 3.0 * fwhm) / 2.3548)
+        # lmfit's VoigtModel ties gamma to sigma (expr, vary=False); set(value=...)
+        # clears the expr but leaves vary=False, so gamma must be freed explicitly.
+        # Up to 3.5.1 it was not: gamma stayed at FWHM/2, sigma went to ~0 and the
+        # Lorentzian tails inflated the areas (+3 to +36 % on synthetic Pb 4f).
+        params[f"p{i}_gamma"].set(value=float(gamma), min=1e-6, max=min(span, 3.0 * fwhm) / 2.0, vary=True)
         params[f"p{i}_amplitude"].set(value=float(amp), min=0.0)
 
     try:
@@ -105,6 +126,48 @@ def fit_voigts(
         })
 
     return pd.DataFrame(rows), float(res.aic), float(res.bic)
+
+
+def fit_windows_to_midpoints(
+    x: np.ndarray,
+    y_corr: np.ndarray,
+    cand: pd.DataFrame,
+    fit_pad: float,
+    neighbour_frac: float = 0.1,
+) -> List[pd.DataFrame]:
+    """One Voigt per candidate, in a window of centre +- fit_pad that stops at
+    the midpoint to any neighbouring candidate at least ``neighbour_frac`` of
+    this candidate's height (but never closer than 3 seed FWHM to the centre).
+
+    Up to 3.5.1 the XRD auto-fit used the full +- fit_pad window (3.5 deg).  A
+    neighbouring line inside it had no component and lifted the constant
+    term: on a synthetic pattern with lines 3.5 deg apart, the areas of the
+    two lines came out 18 and 35 % low on noise-free data once gamma was free
+    (3.5.2); with midpoint windows the fit returns them to 0.2 %.  Giving the
+    neighbours their own components instead was ten times slower (noise
+    candidates are often most of a diffractogram's candidate list) and still
+    missed a neighbour just outside the window."""
+    tables: List[pd.DataFrame] = []
+    if cand is None or cand.empty:
+        return tables
+    sel = cand.sort_values("x").reset_index(drop=True)
+    xs = sel["x"].to_numpy(float)
+    hs = sel["height"].to_numpy(float)
+    ws = np.maximum(sel["fwhm_x"].to_numpy(float), 1e-6)
+    for i in range(len(sel)):
+        lo, hi = xs[i] - fit_pad, xs[i] + fit_pad
+        for j in range(len(sel)):
+            if j == i or hs[j] < neighbour_frac * hs[i]:
+                continue
+            mid = 0.5 * (xs[i] + xs[j])
+            if xs[j] < xs[i]:
+                lo = max(lo, min(mid, xs[i] - 3.0 * ws[i]))
+            else:
+                hi = min(hi, max(mid, xs[i] + 3.0 * ws[i]))
+        res = fit_voigts(x, y_corr, (float(lo), float(hi)), [(float(xs[i]), float(hs[i]), float(ws[i]))])
+        if res is not None and res[0] is not None and not res[0].empty:
+            tables.append(res[0])
+    return tables
 
 
 def fit_pl_aic_select(

@@ -4,7 +4,7 @@ This document states, for every quantity Physiscore reports, the equation that i
 evaluated, the numerical procedure, its defaults, and the primary reference. It is
 written so that the methods section of a paper can cite it (or copy from it) and so
 that a reviewer can check a number against the code. File references are to the
-3.5.1 source tree; all functions are GUI-free and importable.
+3.5.2 source tree; all functions are GUI-free and importable.
 
 Conventions: J in mA cm⁻², V in V, R in Ω cm², E in eV, T = 298.15 K unless stated.
 Constants: q = 1.602176634×10⁻¹⁹ C, k = 1.380649×10⁻²³ J K⁻¹, hc = 1239.84198 eV nm.
@@ -139,6 +139,18 @@ contribution taken as the ALS background (area method, after Segal et al. 1959).
 std and the Nelson–Riley extrapolation of a against ½(cos²θ/sin θ + cos²θ/θ) to θ = 90°
 (Nelson & Riley, Proc. Phys. Soc. 57, 160 (1945)). `texture_coefficient`: Harris TC(hkl).
 
+**Auto-fit workspace** (`spectra/pipelines/run_xrd.py`): Savitzky–Golay smoothing
+(31 points, cubic), AsLS baseline (λ = 10⁶, p = 0.01), then one Voigt per candidate with
+both widths free and the seed and bounds of §9, in a window of ±3.5° that stops at the
+midpoint to any neighbouring candidate of at least 10 % of its height (never closer than
+3 seed FWHM; 3.5.2 — with the full window a neighbouring line had no component and lowered
+the areas, −18 and −35 % for two lines 3.5° apart on noise-free data). The fit itself
+returns areas and widths to 0.2 % (VALIDATION); the default smoothing and baseline do not:
+on a synthetic pattern with 0.02° steps the FWHM comes out +3 to +28 % (most for narrow,
+Lorentzian-like lines, the smoothing window being 0.62°) and the areas −4 to −12 %. Lower
+the smoothing window for narrow reflections before taking Scherrer sizes from the
+auto-fit table.
+
 ## 6. Photoluminescence (`scripts/PL/pl_core.py`, `scripts/common/spectral.py`)
 
 **Processing** — Savitzky–Golay smoothing; ALS baseline with the asymmetry clamped to
@@ -176,9 +188,11 @@ indicative and carry the distance to the library value.
 Grains are segmented by Otsu threshold → distance transform → marker watershed (seeded
 automatically from an edge map or by a click); the equivalent circular diameter is
 d = 2(A/π)^{1/2} after a two-point or scale-bar calibration. Statistics: mean, sample
-standard deviation, median, D10/D50/D90, coefficient of variation, and the maximum-
-likelihood log-normal parameters (μ, σ of ln d; geometric mean e^μ, geometric standard
-deviation e^σ, mode e^{μ−σ²}); histogram bins by Freedman–Diaconis.
+standard deviation, median, D10/D50/D90, coefficient of variation, and the log-normal
+parameters μ = mean of ln d (the maximum-likelihood value) and σ = sample standard
+deviation of ln d (divisor N − 1, i.e. the maximum-likelihood σ times (N/(N−1))^{1/2};
+0.1 % larger at N = 400); geometric mean e^μ, geometric standard deviation e^σ, mode
+e^{μ−σ²}; histogram bins by Freedman–Diaconis.
 
 ## 9. XPS (`spectra/core/xps.py`, `spectra/pipelines/run_xps.py`)
 
@@ -188,8 +202,17 @@ see Greczynski & Hultman, Prog. Mater. Sci. 107, 100591 (2020)); singlet Voigt f
 s levels and constrained spin–orbit doublets (fixed split, area ratio 1:2, 2:3, 3:4;
 widths shared) for p, d, f levels (lmfit). In the auto-fit workspace, singlet candidates
 closer than twice the fit window are fitted together as one cluster (3.1.2), and every
-component's centre is bounded to its seed ± max(FWHM, 3 grid steps) and its width to three
-times the seed FWHM, so that a small peak beside a large one keeps its own component;
+component's centre is bounded to its seed ± max(FWHM, 3 grid steps) and its Gaussian and
+Lorentzian FWHM each to three times the seed FWHM, so that a small peak beside a large one
+keeps its own component. Every auto-fit Voigt (singlet, doublet, XRD) has both widths free,
+σ and γ (3.5.2), and starts with equal Gaussian and Lorentzian FWHM, f_G = f_L =
+FWHM_seed/1.6376, so that its Olivero–Longbothum FWHM equals the seed FWHM. Up to 3.5.1 γ
+was never fitted (lmfit's `Parameter.set(value=…)` removes the default constraint γ = σ
+but leaves γ fixed), so every line was a Lorentzian of the seed width and the areas were
+high by 3 % (Lorentzian-dominated lines) to 36 % (Gaussian-dominated lines); see
+VALIDATION, rows "XPS auto-fit". Starting both widths at the seed FWHM (as up to 3.5.1)
+makes the profile 1.64 times too wide, which once γ is free can end in a local minimum with
+σ = 0 (area +28 % on a synthetic cluster, χ² 8.6 times the minimum);
 atomic concentrations c_i = (A_i/S_i)/Σ(A_j/S_j)
 with Scofield cross sections relative to C 1s (Scofield, J. Electron Spectrosc. 8, 129
 (1976)) or user-supplied instrument factors.

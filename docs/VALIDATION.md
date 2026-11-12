@@ -1,8 +1,9 @@
 # Validation against closed-form synthetic data
 
-Every row compares a quantity recovered by Physiscore 3.5.1 with the value that was
+Every row compares a quantity recovered by Physiscore 3.5.2 with the value that was
 put into an analytical model (single-diode J-V curves, error-function EQE edges,
 Tauc edges with Urbach tails, pseudo-Voigt reflections, Gaussian/Lorentzian bands,
+Voigt spin-orbit doublets,
 Shirley-type XPS backgrounds, log-normal grain sizes, strained cubic lattices,
 piecewise space-charge-limited curves, one-diode intensity series, multi-exponential
 decays with counting noise, equivalent-circuit impedance spectra, one-sided-junction
@@ -15,7 +16,7 @@ regenerated with
 python tools/validation_report.py          # or: python physiscore_cli.py validate
 ```
 
-and the same cases are enforced as unit tests in `tests/` (`pytest`, 428 tests).
+and the same cases are enforced as unit tests in `tests/` (`pytest`, 447 tests).
 Measured-data checks (a perovskite XRD pattern, XPS region scans) run when a local
 `rawdata/` folder is present and are skipped otherwise, because those measurements
 are unpublished.
@@ -28,7 +29,13 @@ within 1 meV of its centre. The transport rows with noise show what the noise al
 a bias of the method: TRPL lifetimes within about 1 % at 10^4 peak counts, impedance
 parameters within 0.1 % at 0.3 % noise, and the burn-in loss and the loss rate of a
 stability trace within 4 % at 0.4 % noise (the two trade against each other in the fit,
-while T80 itself stays within 1 %).
+while T80 itself stays within 1 %). The XPS auto-fit rows with a metallic shoulder fit
+Voigt profiles to GL(30) lines under Poisson noise and give the median of 12 noise
+realisations; a single spectrum scatters more (Pb0/Pb2+ from 0.074 to 0.144 for the
+10th to 90th percentile of 40 realisations, true 0.095). Up to 3.5.1 the auto-fit never
+fitted the Lorentzian width; the same rows then gave +35.5, +20.6 and +3.1 % for the
+three doublet areas, gamma 0.486 eV for 0.300, and +40 % (4f7/2 area) and -33 %
+(Pb0/Pb2+) for the shoulder case.
 
 | Technique | Quantity | Reference | Recovered | Unit | Dev. (%) | Conditions |
 |---|---|---:|---:|---|---:|---|
@@ -90,8 +97,17 @@ while T80 itself stays within 1 %).
 | Raman | Lorentzian FWHM | 6 | 5.97022 | cm-1 | -0.496 |  |
 | XPS | Shirley background error (max) | 0 | 4.09818e-07 | % of step | +nan |  |
 | XPS | atomic % O for equal C and O | 50 | 50 | at.% | +0.000 | Scofield factors |
-| SEM | log-normal sigma | 0.35 | 0.348423 | - | -0.451 | 5000 grains, MLE |
+| SEM | log-normal sigma | 0.35 | 0.348423 | - | -0.451 | 5000 grains, sample s.d. of ln d |
 | SEM | geometric mean | 300 | 299.524 | nm | -0.159 |  |
+| XPS auto-fit | Pb 4f7/2 area, Gaussian-dominated | 1000 | 999.463 | counts eV | -0.054 | Voigt doublet, sigma 0.36 / gamma 0.22 eV, split and 3:4 ratio fixed |
+| XPS auto-fit | Pb 4f7/2 area, mixed | 1000 | 999.44 | counts eV | -0.056 | Voigt doublet, sigma 0.25 / gamma 0.3 eV, split and 3:4 ratio fixed |
+| XPS auto-fit | Lorentzian half-width gamma | 0.3 | 0.299936 | eV | -0.021 | Voigt doublet, sigma 0.25 / gamma 0.3 eV, split and 3:4 ratio fixed |
+| XPS auto-fit | Voigt FWHM | 0.97233 | 0.97228 | eV | -0.005 | Voigt doublet, sigma 0.25 / gamma 0.3 eV, split and 3:4 ratio fixed |
+| XPS auto-fit | Pb 4f7/2 area, Lorentzian-dominated | 1000 | 999.653 | counts eV | -0.035 | Voigt doublet, sigma 0.1 / gamma 0.45 eV, split and 3:4 ratio fixed |
+| XPS auto-fit | Pb 4f7/2 area with metallic shoulder | 4000 | 3937.24 | counts eV | -1.569 | pipeline, GL(30) lines + Shirley step, Poisson, median of 12 |
+| XPS auto-fit | Pb0 / Pb2+ area ratio | 0.095 | 0.0917103 | - | -3.463 | pipeline, GL(30) lines + Shirley step, Poisson, median of 12 |
+| XRD auto-fit | Voigt area, line at 28.4 deg | 500 | 500.697 | counts deg | +0.139 | neighbour 3.5 deg away, window to the midpoint, no smoothing |
+| XRD auto-fit | Voigt area, line at 31.9 deg | 300 | 300.629 | counts deg | +0.210 | neighbour 3.5 deg away, window to the midpoint, no smoothing |
 | Device | Jsc mismatch | 1.21803 | 1.21803 | % | +0.000 | single-diode J-V vs error-function EQE |
 | Device | dV1 + dV2 + dV3 | 0.682769 | 0.682769 | V | +0.000 | loss terms close the Voc deficit |
 | Device | band-gap spread | 30 | 30 | meV | +0.000 | EQE 1.60, Tauc 1.61, PL 1.58 eV |
@@ -122,4 +138,4 @@ while T80 itself stays within 1 %).
 | Stability | burn-in loss | 12 | 12.4455 | % of initial | +3.712 | back-extrapolated linear part |
 | Stability | loss rate after burn-in | 10 | 10.3627 | %/1000 h | +3.627 | 12 % burn-in (tau 40 h) + 10 %/1000 h, 0.4 % noise |
 
-_Generated 2026-11-11 with Physiscore 3.5.1, numpy 2.4.6, scipy 1.17.1._
+_Generated 2026-11-12 with Physiscore 3.5.2, numpy 2.4.6, scipy 1.17.1._

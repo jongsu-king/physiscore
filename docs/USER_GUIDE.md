@@ -439,6 +439,13 @@ rule-based findings; **Interpret fit** shows them in a window (detection and
 quantification limits, unresolved neighbours, residual against noise, then the XRD, PL or
 XPS rules - section 18).
 
+Each Voigt component has both its Gaussian and its Lorentzian width fitted. Up to 3.5.1
+the Lorentzian width was held at its starting value, which made XPS and XRD auto-fit areas
+3 to 36 % too high: fit such tables again with 3.5.2 (METHODS section 9). In the XRD
+workspace each reflection's window stops halfway to a neighbouring reflection. The
+default smoothing window there (31 points) widens narrow reflections; lower it before
+taking Scherrer sizes from the auto-fit table (METHODS section 5).
+
 XPS block: **Background** (Shirley by default, or AsLS), **Charge shift** (eV added to
 every binding energy, e.g. 284.8 minus the measured C 1s), **Doublet split** and **area
 ratio** (0 for s levels; typical values are listed in the panel), **Region of interest**.

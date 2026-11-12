@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from lmfit.models import VoigtModel, ConstantModel
 
-from spectra.core.fit_common import voigt_fwhm
+from spectra.core.fit_common import voigt_fwhm, voigt_seed
 
 
 def fit_xps_doublet_voigts(
@@ -35,13 +35,14 @@ def fit_xps_doublet_voigts(
     params["b_c"].set(value=float(np.median(yr)))
 
     fwhm = max(float(init_fwhm), 1e-6)
-    sigma0 = max(fwhm / 2.3548, 1e-6)
-    gamma0 = max(fwhm / 2.0, 1e-6)
+    sigma0, gamma0 = voigt_seed(fwhm)        # start at the seed FWHM (3.5.2)
     amp0 = float(max(init_height, 1e-6) * fwhm)
 
     params["p0_center"].set(value=float(init_center), min=x0, max=x1)
     params["p0_sigma"].set(value=float(sigma0), min=1e-6, max=(x1 - x0))
-    params["p0_gamma"].set(value=float(gamma0), min=1e-6, max=(x1 - x0))
+    # vary=True: VoigtModel starts with gamma tied to sigma (vary=False) and
+    # set(value=...) does not free it (see fit_common.fit_voigts; fixed in 3.5.2)
+    params["p0_gamma"].set(value=float(gamma0), min=1e-6, max=(x1 - x0), vary=True)
     params["p0_amplitude"].set(value=float(amp0), min=0.0)
 
     params["p1_center"].expr = "p0_center + " + str(float(split_ev))
@@ -52,7 +53,7 @@ def fit_xps_doublet_voigts(
         params["p1_gamma"].expr = "p0_gamma"
     else:
         params["p1_sigma"].set(value=float(sigma0), min=1e-6, max=(x1 - x0))
-        params["p1_gamma"].set(value=float(gamma0), min=1e-6, max=(x1 - x0))
+        params["p1_gamma"].set(value=float(gamma0), min=1e-6, max=(x1 - x0), vary=True)
 
     try:
         res = model.fit(yr, params, x=xr)

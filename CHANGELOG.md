@@ -3,6 +3,58 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
+## [3.5.2] - 2026-11-12
+
+Correction of the auto-fit workspace (`spectra/`: the XPS tool and the XRD auto-fit).
+XPS and XRD auto-fit tables made with 2.0.0 to 3.5.1 should be fitted again; no other
+tool changes.
+
+### Fixed
+- **Voigt line shapes in the auto-fit were never fitted.** lmfit's `VoigtModel` ties
+  gamma to sigma (an expression, vary=False); `Parameter.set(value=...)` removes the
+  expression but leaves gamma fixed. Gamma stayed at FWHM_seed/2, sigma went to zero, and
+  every line was a Lorentzian of the seed width. On synthetic Pb 4f doublets the 4f7/2
+  area came out +35.5 % (Gaussian-dominated), +20.6 % (mixed) and +3.1 %
+  (Lorentzian-dominated) too high; the reported heights sat above the data. Gamma is now
+  free in `fit_voigts` and `fit_xps_doublet_voigts` (both width modes); the same cases
+  return the areas within 0.1 % and gamma within 0.1 %.
+- **Starting widths.** A Voigt started with Gaussian and Lorentzian FWHM both equal to the
+  seed FWHM is 1.64 times too wide; with gamma free that start ended in a local minimum
+  (sigma = 0, area +28 %, chi-square 8.6 times the minimum) on one of 40 synthetic
+  clusters. Both widths now start at FWHM_seed/1.6376, so the starting Voigt has the
+  seed FWHM.
+- **Width bounds.** The comment said a component cannot grow wider than three times its
+  seed, but the bounds were sigma, gamma < 3 FWHM, a Gaussian FWHM of up to 7 times. With
+  gamma free, a noise candidate grew into a 4 eV wide component under the main line.
+  The Gaussian and Lorentzian FWHM are each bounded to three times the seed FWHM.
+- **XRD auto-fit windows.** One Voigt per candidate in a window of +-3.5 deg: a
+  neighbouring line inside the window had no component and lowered the areas (-18 and
+  -35 % for two lines 3.5 deg apart, noise-free). The window now stops at the midpoint to
+  any neighbour of at least 10 % of the line's height (never closer than 3 seed FWHM),
+  which returns both areas to 0.2 %.
+- `docs/METHODS.md` section 8: the log-normal sigma of the grain sizes is the sample
+  standard deviation of ln d (divisor N - 1), not the maximum-likelihood value; the two
+  differ by (N/(N-1))^1/2, 0.1 % at N = 400. The numbers are unchanged.
+
+### Added
+- Nine validation rows (98 in total): Pb 4f doublet areas in three line shapes, gamma and
+  FWHM, the 4f7/2 area and Pb0/Pb2+ ratio of the metallic-shoulder pipeline case (median
+  of 12 noise realisations), and two XRD lines 3.5 deg apart.
+- `tests/test_voigt_fit.py` (19 tests; each fails on 3.5.1).
+
+### Changed
+- `tests/test_xps.py`: the metallic-shoulder test checks the absolute 4f7/2 area (3.5.1:
+  5780 for 4000). Its single-spectrum Pb0/Pb2+ check is a range (0.05-0.2); the 0.095
+  +- 35 % it asked before was met only because 3.5.1 overestimated both lines alike.
+  The ratio is now checked as a median over noise realisations.
+
+### Known limitations (unchanged in 3.5.2)
+- XRD auto-fit: the default smoothing (31-point Savitzky-Golay, 0.62 deg on a 0.02 deg
+  grid) and AsLS baseline widen narrow lines by +3 to +28 % and lower areas by 4 to 12 %
+  on a synthetic pattern. Lower the smoothing window before taking Scherrer sizes from
+  the auto-fit table. The XRD analysis window (`scripts/XRD`) is a separate path.
+- XPS doublet mode still fits each candidate in its own window.
+
 ## [3.5.1] - 2026-11-11
 
 Documentation release; the program and the numbers it computes are the same as in 3.5.0.

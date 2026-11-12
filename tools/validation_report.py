@@ -249,8 +249,66 @@ def spectroscopy():
     record("XPS", "atomic % O for equal C and O", 50.0, c["O1s"], "at.%", "Scofield factors")
     d = np.random.default_rng(0).lognormal(np.log(300.0), 0.35, 5000)
     st = size_statistics(d)
-    record("SEM", "log-normal sigma", 0.35, st["lognorm_sigma"], "-", "5000 grains, MLE")
+    record("SEM", "log-normal sigma", 0.35, st["lognorm_sigma"], "-", "5000 grains, sample s.d. of ln d")
     record("SEM", "geometric mean", 300.0, st["geo_mean"], "nm", "")
+
+
+def autofit():
+    """Voigt fits of the auto-fit workspace (spectra/). Up to 3.5.1 the
+    Lorentzian width gamma was never fitted; these rows hold the fix (3.5.2)."""
+    import tempfile
+    from scipy.special import voigt_profile
+    from spectra.app import build_default_configs
+    from spectra.core.fit_common import fit_windows_to_midpoints, voigt_fwhm
+    from spectra.core.fit_xps import fit_xps_doublet_voigts
+    from spectra.pipelines.run_xps import run_xps_pipeline
+    import pandas as pd
+
+    be = np.arange(132.0, 150.0001, 0.05)
+    for name, s_, g_ in (("Gaussian-dominated", 0.36, 0.22), ("mixed", 0.25, 0.30), ("Lorentzian-dominated", 0.10, 0.45)):
+        rng = np.random.default_rng(1)
+        y = 1000.0 * voigt_profile(be - 138.6, s_, g_) + 750.0 * voigt_profile(be - 143.47, s_, g_) + rng.normal(0, 1.0, be.size)
+        fw = voigt_fwhm(s_, g_)
+        d = fit_xps_doublet_voigts(be, y, (135.5, 147.0), 138.6, float(y.max()), fw, 4.87, 0.75)[0]
+        cond = f"Voigt doublet, sigma {s_} / gamma {g_} eV, split and 3:4 ratio fixed"
+        record("XPS auto-fit", f"Pb 4f7/2 area, {name}", 1000.0, float(d["area_amplitude"].iloc[0]), "counts eV", cond)
+        if name == "mixed":
+            record("XPS auto-fit", "Lorentzian half-width gamma", g_, float(d["gamma"].iloc[0]), "eV", cond)
+            record("XPS auto-fit", "Voigt FWHM", fw, float(d["fwhm"].iloc[0]), "eV", cond)
+    # pipeline: Pb 4f with a metallic shoulder, GL(30) lines, Shirley step, Poisson noise
+    bx = np.arange(132.0, 150.0, 0.05)
+
+    def gl(c, fwhm, area, m=0.3):
+        sg = fwhm / 2.355
+        g = np.exp(-((bx - c) ** 2) / (2 * sg * sg)) / (sg * np.sqrt(2 * np.pi))
+        lo = (fwhm / 2) / np.pi / ((bx - c) ** 2 + (fwhm / 2) ** 2)
+        return area * ((1 - m) * g + m * lo)
+    _, _, cfg = build_default_configs()
+    main, metal = [], []
+    with tempfile.TemporaryDirectory() as tmp:
+        for seed in range(12):
+            pk = gl(138.60, 0.95, 4000) + gl(143.47, 0.95, 3000) + gl(136.85, 0.8, 380) + gl(141.72, 0.8, 285)
+            yy = np.random.default_rng(seed).poisson(np.clip(pk + 900 + 0.12 * np.cumsum(pk[::-1])[::-1] * 0.05, 1, None)).astype(float)
+            _, _, f = run_xps_pipeline(bx, yy, os.path.join(tmp, str(seed)), cfg, log_cb=lambda m: None)
+
+            def area_at(c):
+                return float(f.iloc[(f["center"] - c).abs().argmin()]["area_amplitude"])
+            main.append(area_at(138.60))
+            metal.append(area_at(136.85) / area_at(138.60))
+    cond = "pipeline, GL(30) lines + Shirley step, Poisson, median of 12"
+    record("XPS auto-fit", "Pb 4f7/2 area with metallic shoulder", 4000.0, float(np.median(main)), "counts eV", cond)
+    record("XPS auto-fit", "Pb0 / Pb2+ area ratio", 0.095, float(np.median(metal)), "-", cond)
+    # XRD: two lines 3.5 deg apart, default 3.5 deg window, fit only (no smoothing or baseline)
+    tt = np.arange(10.0, 60.0, 0.02)
+    lines = [(14.1, 0.18, 0.06, 800.0), (28.4, 0.12, 0.10, 500.0), (31.9, 0.05, 0.14, 300.0), (43.2, 0.20, 0.02, 400.0)]
+    y = sum(a * voigt_profile(tt - c, s, g) for c, s, g, a in lines)
+    cand = pd.DataFrame({"x": [c for c, *_ in lines], "height": [float(y[np.abs(tt - c).argmin()]) for c, *_ in lines],
+                         "fwhm_x": [voigt_fwhm(s, g) for _, s, g, _ in lines]})
+    f = pd.concat(fit_windows_to_midpoints(tt, y, cand, 3.5), ignore_index=True)
+    for c, s, g, a in lines[1:3]:
+        r = f.iloc[(f["center"] - c).abs().argmin()]
+        record("XRD auto-fit", f"Voigt area, line at {c} deg", a, float(r["area_amplitude"]), "counts deg",
+               "neighbour 3.5 deg away, window to the midpoint, no smoothing")
 
 
 def cross_technique():
@@ -391,6 +449,7 @@ def main():
     xrd_extra()
     photoluminescence()
     spectroscopy()
+    autofit()
     cross_technique()
     transport()
 
