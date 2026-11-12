@@ -9,6 +9,8 @@ from typing import Optional, Tuple, List, Dict, Any
 
 import pandas as pd
 import numpy as np
+
+from scripts.common import textio as _textio
 import openpyxl
 
 from scripts.common import app_config
@@ -140,12 +142,7 @@ def parse_dark_jv_file(file_path: str,
                 for vv, jj in zip(v, j) if -3 <= vv <= 3]
         return ({"Filename": name, "RShunt (ohms)": "non"} if rows else None), rows
     try:
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = f.readlines()
-        except UnicodeDecodeError:
-            with open(file_path, 'r', encoding='cp949') as f:
-                data = f.readlines()
+        data = _textio.read_text(file_path).splitlines(keepends=True)
     except Exception as e:
         return None, []
 

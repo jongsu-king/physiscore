@@ -26,6 +26,8 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from scripts.common import textio
+
 GENERIC_EXTENSIONS = (".csv", ".tsv", ".dat", ".xlsx", ".xls")
 RESULT_SHEETS = {"CombinedData", "SummaryTable", "BestPerformance", "BestCombinedData", "CurveAnalysis"}
 
@@ -55,8 +57,7 @@ def _read_table(path: str) -> pd.DataFrame:
     if ext in (".xlsx", ".xls"):
         return pd.read_excel(path)
     # skip a non-numeric preamble: find the header row just above the first numeric row
-    with open(path, "r", encoding="utf-8", errors="replace") as fh:
-        lines = fh.read().splitlines()
+    lines = textio.read_text(path).splitlines()
     num = re.compile(r"^\s*[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?\s*[,;\t ]\s*[-+]?(\d|\.)")
     first = next((i for i, ln in enumerate(lines) if num.match(ln)), None)
     if first is None:

@@ -2,6 +2,8 @@
 raman_core.py - Raman Analysis Core Logic
 """
 import pandas as pd
+
+from scripts.common.textio import csv_source
 import numpy as np
 import os
 
@@ -14,10 +16,10 @@ def load_data(file_path, max_layers=10):
             df = pd.read_excel(file_path, header=0)
         else:
             try:
-                df = pd.read_csv(file_path, header=0)
-                if df.shape[1] < 2: df = pd.read_csv(file_path, sep='\t', header=0)
+                df = pd.read_csv(csv_source(file_path), header=0)
+                if df.shape[1] < 2: df = pd.read_csv(csv_source(file_path), sep='\t', header=0)
             except:
-                df = pd.read_csv(file_path, sep='\t', header=None)
+                df = pd.read_csv(csv_source(file_path), sep='\t', header=None)
 
         df = df.apply(pd.to_numeric, errors='coerce').dropna()
         cols = df.shape[1]

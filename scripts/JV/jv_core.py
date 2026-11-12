@@ -9,6 +9,8 @@ from typing import Optional, Tuple, List, Dict, Any
 
 import pandas as pd
 import numpy as np
+
+from scripts.common import textio as _textio
 import openpyxl
 from openpyxl.styles import PatternFill
 
@@ -159,12 +161,7 @@ def parse_jv_file(file_path: str,
     if file_path.lower().endswith(GENERIC_EXTENSIONS):
         return _parse_generic_jv(file_path, display_name_from_path(file_path), cell_area_cm2(area_cm2))
     try:
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = f.readlines()
-        except UnicodeDecodeError:
-            with open(file_path, 'r', encoding='cp949') as f:
-                data = f.readlines()
+        data = _textio.read_text(file_path).splitlines(keepends=True)
     except Exception as e:
         return None, []
 
@@ -1202,12 +1199,7 @@ def read_jv_curve(file_path: str, area_cm2: Optional[float] = None):
     the duplicate-voltage averaging that `parse_jv_file` performs. Needed to
     separate forward and reverse sweeps."""
     try:
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-        except UnicodeDecodeError:
-            with open(file_path, "r", encoding="cp949") as f:
-                lines = f.readlines()
+        lines = _textio.read_text(file_path).splitlines(keepends=True)
     except Exception:
         return np.array([]), np.array([])
     factor = current_conversion_factor(area_cm2)

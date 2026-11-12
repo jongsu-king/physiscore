@@ -22,6 +22,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from scripts.common.textio import csv_source
 import customtkinter as ctk
 
 import matplotlib
@@ -543,7 +545,7 @@ class EQEWindow(ctk.CTkToplevel):
                 self.df = pd.read_excel(self.target_file, sheet_name=sh, engine=engine)
                 self.sheet_name = sh
             else:
-                self.df = pd.read_csv(self.target_file, sep=None, engine="python")
+                self.df = pd.read_csv(csv_source(self.target_file), sep=None, engine="python")
                 self.sheet_name = self.target_file.stem
 
             lam = self.df.iloc[:, 0].to_numpy(dtype=float)

@@ -2,6 +2,8 @@
 pl_core.py - Fixed Origin Connection & Gaussian Fit Visualization
 """
 import pandas as pd
+
+from scripts.common.textio import csv_source
 from typing import Any, Dict, Optional
 import numpy as np
 from scipy.signal import find_peaks, savgol_filter
@@ -129,12 +131,12 @@ def load_data_preview(file_path):
         else:
             try: 
                 # Try to read with separator auto-detection
-                df = pd.read_csv(file_path, sep=None, engine='python')
+                df = pd.read_csv(csv_source(file_path), sep=None, engine='python')
                 # If header is numeric, re-read without header
                 if len(df.columns) > 0 and str(df.columns[0]).replace('.','',1).isdigit():
-                     df = pd.read_csv(file_path, sep=None, engine='python', header=None)
+                     df = pd.read_csv(csv_source(file_path), sep=None, engine='python', header=None)
             except: 
-                df = pd.read_csv(file_path, sep=None, engine='python', header=None)
+                df = pd.read_csv(csv_source(file_path), sep=None, engine='python', header=None)
         
         # 2. Clean and find X-axis column
         df = df.dropna(how='all', axis=0).dropna(how='all', axis=1)

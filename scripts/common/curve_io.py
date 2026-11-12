@@ -16,6 +16,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
+from scripts.common import textio
+
 
 _NUMBER = re.compile(r"^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$")
 _DECIMAL_COMMA = re.compile(r"^[-+]?\d+,\d+(?:[eE][-+]?\d+)?$")
@@ -56,14 +58,7 @@ def read_text_table(path: str) -> pd.DataFrame:
     column names (and units). Without such a line the columns are col0, col1,
     ... and the caller falls back to positions.
     """
-    with open(path, "rb") as f:
-        raw = f.read()
-    for enc in ("utf-8-sig", "cp949", "latin-1"):
-        try:
-            text = raw.decode(enc)
-            break
-        except UnicodeDecodeError:
-            continue
+    text = textio.read_text(path)
     lines = [ln for ln in text.splitlines()]
     probe = [ln for ln in lines if ln.strip()][:400]
     best_sep, best_n = None, 0

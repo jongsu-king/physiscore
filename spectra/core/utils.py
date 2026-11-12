@@ -45,8 +45,9 @@ def robust_read_csv(path: str):
     import re
     import pandas as pd
 
+    from scripts.common.textio import csv_source
     try:
-        df = pd.read_csv(path)
+        df = pd.read_csv(csv_source(path))
         if df.shape[1] >= 2:
             num0 = pd.to_numeric(df.iloc[:, 0], errors="coerce")
             if num0.notna().sum() >= max(3, int(0.5 * len(df))):
@@ -54,8 +55,8 @@ def robust_read_csv(path: str):
     except Exception:
         pass
 
-    with open(path, encoding="utf-8", errors="replace") as f:
-        lines = f.read().splitlines()
+    from scripts.common import textio
+    lines = textio.read_text(path).splitlines()
     num_re = re.compile(
         r"^\s*[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?\s*[,;\t ]\s*[-+]?\d")
     start = next((i for i, ln in enumerate(lines) if num_re.match(ln)), None)

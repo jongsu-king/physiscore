@@ -58,12 +58,9 @@ def read_curve(path: str, area_cm2: float) -> Tuple[np.ndarray, np.ndarray, str]
     solar-cell reader keeps only -3 ... 3 V, which would cut the Child regime -
     and any other table goes through the column-name rules of the J-V tools.
     Only magnitudes are used afterwards, so the sign convention does not matter."""
+    from scripts.common import textio
     try:
-        with open(path, "r", encoding="utf-8") as fh:
-            lines = fh.read().splitlines()
-    except UnicodeDecodeError:
-        with open(path, "r", encoding="cp949", errors="replace") as fh:
-            lines = fh.read().splitlines()
+        lines = [] if path.lower().endswith((".xlsx", ".xls")) else textio.read_text(path).splitlines()
     except Exception:
         lines = []                                    # a workbook: handled below
     start = next((i + 1 for i, ln in enumerate(lines) if "Vmeas" in ln and "Imeas" in ln), None)

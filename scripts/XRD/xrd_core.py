@@ -3,6 +3,8 @@ xrd_core.py - XRD Core with Total Fitting & Origin Fit Export
 """
 import math
 import pandas as pd
+
+from scripts.common.textio import csv_source
 from typing import Any, Dict, Optional
 import numpy as np
 from scipy.signal import find_peaks, peak_widths
@@ -29,11 +31,11 @@ def load_data(file_path):
             df = pd.read_excel(file_path)
         else:
             try:
-                df = pd.read_csv(file_path)
+                df = pd.read_csv(csv_source(file_path))
                 if df.shape[1] < 2:
-                    df = pd.read_csv(file_path, sep=None, engine='python')
+                    df = pd.read_csv(csv_source(file_path), sep=None, engine='python')
             except:
-                df = pd.read_csv(file_path, sep=None, engine='python', header=None)
+                df = pd.read_csv(csv_source(file_path), sep=None, engine='python', header=None)
         
         df = df.apply(pd.to_numeric, errors='coerce').dropna()
         if df.shape[1] < 2:
