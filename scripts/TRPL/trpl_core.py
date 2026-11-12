@@ -780,7 +780,7 @@ def analyse(t, y, model: str = "auto", background: Any = "auto", skip: float = 0
         res["y"] = yy - off
         res.update({"mask": sel, "t_fit": tw, "y_fit": yw, "fit": f["fit_curve"] - off, "residuals": f["residual_curve"],
                     "model": chosen, "candidates": rfits, "components": comps, "irf_curve": resp,
-                    "method": "reconvolution, " + ("Gaussian response" if irf == "gaussian" else "measured response"),
+                    "method": "reconvolution",
                     "irf_fwhm": float(f["irf_fwhm_fit"]), "irf_fwhm_err": float(f["irf_fwhm_err"]),
                     "irf_at_bound": bool(f["irf_at_bound"]), "t0": float(f.get("t0", np.nan)),
                     "irf_shift": float(f.get("irf_shift", np.nan)), "irf_shift_err": float(f.get("irf_shift_err", np.nan)),
@@ -867,6 +867,7 @@ def summary_rows(r: Dict[str, Any]) -> List[Tuple[str, Any, str]]:
     rows: List[Tuple[str, Any, str]] = [("Model", r["model"], ""), ("Method", r.get("method", "tail fit"), ""),
                                         ("Points fitted", len(r["t_fit"]), "")]
     if r.get("irf", "none") != "none":
+        rows.append(("Response", "Gaussian" if r["irf"] == "gaussian" else "measured file", ""))
         if r["irf"] == "gaussian":
             how = "entered" if r.get("irf_fixed") else "fitted"
             rows += [(f"Response FWHM ({how})", r["irf_fwhm"], u)]

@@ -29,9 +29,9 @@ quality. The algorithms are documented with equations and references in
 | **XPS** | Shirley background, Voigt singlet/doublet fitting, charge referencing, atomic concentration |
 | **Light intensity** | ideality factor from Voc against ln(irradiance) with its error, Jsc ∝ I^α, Suns-Voc pseudo J-V, pseudo fill factor and the transport loss, local ideality |
 | **SCLC** | ohmic, trap-filling and Child regimes from the local slope, V_TFL and trap density with its resolution limit, Mott–Gurney mobility (optionally Murgatroyd), conductivity and n0, sweep hysteresis |
-| **Impedance** | complex least-squares fit of R(RC), R(RQ), R(RC)(RC) or R(RQ)(RQ) chosen by AICc, parameter errors, time constants, effective capacitance, linear Kramers–Kronig test |
+| **Impedance** | complex least-squares fit of R(RC), R(RQ), R(RC)(RC) or R(RQ)(RQ) chosen by AICc, parameter errors, time constants, effective capacitance, linear Kramers–Kronig test, distribution of relaxation times (regularised, processes and their resistances) |
 | **C–V (Mott–Schottky)** | straight section of 1/C² found automatically, doping density, built-in voltage, depletion width, doping profile N(W), full-depletion limit N_min |
-| **TRPL** | one to three exponentials or a stretched exponential chosen by AICc (Poisson weights for counts), amplitude- and intensity-weighted mean lifetimes, τ(1/e), differential lifetime, diffusion length |
+| **TRPL** | one to three exponentials or a stretched exponential chosen by AICc (Poisson maximum likelihood for counts), reconvolution with a Gaussian or measured instrument response, amplitude- and intensity-weighted mean lifetimes, τ(1/e), differential lifetime, diffusion length |
 | **Stability** | T80 (measured, or extrapolated and marked as such), burn-in amplitude and time constant, stabilised Ts80, loss rate per 1000 h, ISOS protocol on record |
 | **Device summary** | J-V + EQE (+ absorbance, PL) of one device: Jsc cross-check, band gap from three techniques, Voc vs Voc,rad and Voc,SQ with the loss breakdown, fractions of the SQ limits |
 
@@ -204,7 +204,7 @@ page, which can be switched off. See [CONFIG.md](CONFIG.md).
 
 ```bash
 pip install pytest
-pytest -q                          # 462 tests on closed-form synthetic data
+pytest -q                          # 524 tests on closed-form synthetic data
 python tools/validation_report.py  # the table in docs/VALIDATION.md
 python tools/gui_smoke.py          # every window, the launcher and a session (needs a display)
 ```
@@ -218,7 +218,7 @@ absent.
 A software paper is in preparation; please cite the archived release in the meantime:
 
 > Kim, K., Shin, J., Lim, J., Ji, H., Lee, S.-E., & Lee, J. (2026). *Physiscore*
-> (Version 3.5.3) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
+> (Version 3.6.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
 
 The concept DOI always resolves to the latest archived release. Full metadata is in
 `CITATION.cff`; the methods and their references are in [docs/METHODS.md](docs/METHODS.md).

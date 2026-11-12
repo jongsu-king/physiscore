@@ -1,12 +1,14 @@
 # Validation against closed-form synthetic data
 
-Every row compares a quantity recovered by Physiscore 3.5.3 with the value that was
+Every row compares a quantity recovered by Physiscore 3.6.0 with the value that was
 put into an analytical model (single-diode J-V curves, error-function EQE edges,
 Tauc edges with Urbach tails, pseudo-Voigt reflections, Gaussian/Lorentzian bands,
 Voigt spin-orbit doublets,
 Shirley-type XPS backgrounds, log-normal grain sizes, strained cubic lattices,
 piecewise space-charge-limited curves, one-diode intensity series, multi-exponential
-decays with counting noise, equivalent-circuit impedance spectra, one-sided-junction
+decays with counting noise, decays convolved with Gaussian and tailed instrument
+responses, equivalent-circuit impedance spectra and their relaxation-time
+distributions, one-sided-junction
 capacitance, burn-in plus linear degradation traces). The
 deviation column is therefore the extraction error alone; for the cross-technique rows
 the "reference" is the independent calculation the summary must reproduce. The table is
@@ -16,7 +18,7 @@ regenerated with
 python tools/validation_report.py          # or: python physiscore_cli.py validate
 ```
 
-and the same cases are enforced as unit tests in `tests/` (`pytest`, 462 tests).
+and the same cases are enforced as unit tests in `tests/` (`pytest`, 524 tests).
 Measured-data checks (a perovskite XRD pattern, XPS region scans) run when a local
 `rawdata/` folder is present and are skipped otherwise, because those measurements
 are unpublished.
@@ -28,7 +30,8 @@ Nelson-Riley extrapolation removes, and the Rau band gap of an error-function ed
 within 1 meV of its centre. The automatic Tauc region is biased low by a constant sub-gap
 absorbance (0.02 here: -10 meV for the direct edge, -87 meV for the indirect one); the rows
 with the offset subtracted (3.5.3) show the correction. The transport rows with noise show what the noise allows, not
-a bias of the method: TRPL lifetimes within about 1 % at 10^4 peak counts, impedance
+a bias of the method: TRPL lifetimes within about 1 % at 10^4 peak counts and 1.4 % at
+10^3, a 0.3 ns component under a 0.5 ns response within 2.2 % by reconvolution, impedance
 parameters within 0.1 % at 0.3 % noise, and the burn-in loss and the loss rate of a
 stability trace within 4 % at 0.4 % noise (the two trade against each other in the fit,
 while T80 itself stays within 1 %). The XPS auto-fit rows with a metallic shoulder fit
@@ -44,6 +47,14 @@ tails (the row for the line at 14.1 deg; with the true background the areas are 
 1 %). Up to 3.5.2 the auto-fit fitted the smoothed curve: FWHM +2 to +29 % on the same
 pattern and +174 % for the 0.11 deg line at 50.5 deg, and on a 0.2 eV XPS scan +7.5 %;
 the doublet mode then returned four doublets for the two of the Pb 4f example.
+Up to 3.5.3 TRPL counts were weighted by sigma = sqrt(N) (Neyman chi-square), which
+biases a fitted level low by about one count: the low-count rows then gave 4.78 and
+76.1 ns (-4.4 and -4.9 %; median of 8 noise realisations -4.5 and -4.8 %), and the
+10^4-count rows -1.1 and -0.7 %. A tail fit of the reconvolution case gives 0.409 ns
+for the 0.3 ns component (+36 %). The DRT rows give the resistance of each process as
+the area of its peak; the peak of the broad low-frequency CPE distribution sits 2.5 %
+off its time constant (0.6 % without noise at the same regularisation), since noise and
+smoothing move the maximum of a broad distribution more than its area.
 
 | Technique | Quantity | Reference | Recovered | Unit | Dev. (%) | Conditions |
 |---|---|---:|---:|---|---:|---|
@@ -138,17 +149,35 @@ the doublet mode then returned four doublets for the two of the Pb 4f example.
 | Light intensity | ideality factor from Jsc-Voc | 1.5 | 1.5 | - | -0.000 | one-diode cell, 1-100 mW/cm2, Rs 3 Ohm cm2 |
 | Light intensity | Jsc exponent alpha | 0.97 | 0.97 | - | -0.000 | one-diode cell, 1-100 mW/cm2, Rs 3 Ohm cm2 |
 | Light intensity | Voc slope | 86.611 | 86.611 | mV/decade | -0.000 | n_id alpha kT/q ln 10 |
-| TRPL | tau 1 | 5 | 4.94316 | ns | -1.137 | bi-exponential, 10^4 peak counts, Poisson noise, background 5 |
-| TRPL | tau 2 | 80 | 79.4221 | ns | -0.722 | bi-exponential, 10^4 peak counts, Poisson noise, background 5 |
-| TRPL | amplitude-weighted lifetime | 27.5 | 27.365 | ns | -0.491 | sum A_i tau_i / sum A_i |
-| TRPL | intensity-weighted lifetime | 70.4545 | 70.0185 | ns | -0.619 | sum A_i tau_i^2 / sum A_i tau_i |
+| TRPL | tau 1 | 5 | 4.96317 | ns | -0.737 | bi-exponential, 10^4 peak counts, Poisson noise, background 5 |
+| TRPL | tau 2 | 80 | 79.6977 | ns | -0.378 | bi-exponential, 10^4 peak counts, Poisson noise, background 5 |
+| TRPL | amplitude-weighted lifetime | 27.5 | 27.4171 | ns | -0.302 | sum A_i tau_i / sum A_i |
+| TRPL | intensity-weighted lifetime | 70.4545 | 70.2336 | ns | -0.314 | sum A_i tau_i^2 / sum A_i tau_i |
 | TRPL | decay terms chosen by AICc | 2 | 2 | - | +0.000 | model = auto |
-| TRPL | stretching exponent beta | 0.6 | 0.60287 | - | +0.478 | stretched exponential, tau 40 ns |
+| TRPL | stretching exponent beta | 0.6 | 0.602332 | - | +0.389 | stretched exponential, tau 40 ns |
+| TRPL | tau 1 at low counts | 5 | 4.97449 | ns | -0.510 | 10^3 peak counts, background 2, Poisson likelihood |
+| TRPL | tau 2 at low counts | 80 | 78.8817 | ns | -1.398 | 10^3 peak counts, background 2, Poisson likelihood |
+| TRPL | tau 1, reconvolution | 0.3 | 0.306603 | ns | +2.201 | 0.3 + 3 ns, 0.5 ns Gaussian response, width fitted (tail fit: tau 1 = 0.409 ns) |
+| TRPL | tau 2, reconvolution | 3 | 3.00313 | ns | +0.104 | 0.3 + 3 ns, 0.5 ns Gaussian response, width fitted (tail fit: tau 1 = 0.409 ns) |
+| TRPL | response FWHM, fitted | 0.5 | 0.498761 | ns | -0.248 | 0.3 + 3 ns, 0.5 ns Gaussian response, width fitted (tail fit: tau 1 = 0.409 ns) |
+| TRPL | background, fitted with the decay | 3 | 3.0158 | counts | +0.527 | 0.3 + 3 ns, 0.5 ns Gaussian response, width fitted (tail fit: tau 1 = 0.409 ns) |
+| TRPL | tau 1, measured response | 0.3 | 0.303105 | ns | +1.035 | measured response: 0.4 ns Gaussian + 30 % in a 0.25 ns tail, 0.12 ns colour shift, 2x10^4 counts |
+| TRPL | tau 2, measured response | 3 | 3.00322 | ns | +0.107 | measured response: 0.4 ns Gaussian + 30 % in a 0.25 ns tail, 0.12 ns colour shift, 2x10^4 counts |
+| TRPL | shift of the measured response | 0.12 | 0.120646 | ns | +0.538 | measured response: 0.4 ns Gaussian + 30 % in a 0.25 ns tail, 0.12 ns colour shift, 2x10^4 counts |
 | Impedance | Rs | 10 | 10.0082 | Ohm | +0.082 | R(RQ)(RQ), 1 MHz - 0.1 Hz, 0.3 % noise |
 | Impedance | R of the high-frequency arc | 200 | 200.025 | Ohm | +0.012 | R(RQ)(RQ), 1 MHz - 0.1 Hz, 0.3 % noise |
 | Impedance | R of the low-frequency arc | 1500 | 1499.52 | Ohm | -0.032 | R(RQ)(RQ), 1 MHz - 0.1 Hz, 0.3 % noise |
 | Impedance | CPE exponent, high-frequency arc | 0.95 | 0.949539 | - | -0.049 | R(RQ)(RQ), 1 MHz - 0.1 Hz, 0.3 % noise |
 | Impedance | CPE exponent, low-frequency arc | 0.85 | 0.850861 | - | +0.101 | R(RQ)(RQ), 1 MHz - 0.1 Hz, 0.3 % noise |
+| Impedance | DRT processes | 2 | 2 | - | +0.000 | DRT of the same spectrum (no circuit assumed) |
+| Impedance | DRT: R of the high-frequency process | 200 | 200.131 | Ohm | +0.066 | DRT of the same spectrum (no circuit assumed) |
+| Impedance | DRT: R of the low-frequency process | 1500 | 1499.29 | Ohm | -0.047 | DRT of the same spectrum (no circuit assumed) |
+| Impedance | DRT: tau of the low-frequency process | 0.0031628 | 0.00324275 | s | +2.528 | tau = (R Q)^(1/alpha) |
+| Impedance | DRT: R of an ideal RC arc (50 Ohm) | 50 | 49.9898 | Ohm | -0.020 | R(RC)(RC), tau 10 us and 10 ms, 0.3 % noise |
+| Impedance | DRT: tau of an ideal RC arc | 1e-05 | 1.00326e-05 | s | +0.326 | R(RC)(RC), tau 10 us and 10 ms, 0.3 % noise |
+| Impedance | DRT: R of an ideal RC arc (200 Ohm) | 200 | 200.209 | Ohm | +0.105 | R(RC)(RC), tau 10 us and 10 ms, 0.3 % noise |
+| Impedance | DRT: R of a CPE arc | 100 | 99.8486 | Ohm | -0.151 | R(RQ), alpha 0.8 (Cole-Cole distribution), 0.3 % noise |
+| Impedance | DRT: peak tau of a CPE arc | 0.001 | 0.00100435 | s | +0.435 | R(RQ), alpha 0.8 (Cole-Cole distribution), 0.3 % noise |
 | C-V | doping density (Mott-Schottky) | 1e+17 | 1e+17 | cm-3 | +0.000 | one-sided junction, 0.1 cm2, eps_r 25 |
 | C-V | built-in potential | 0.9 | 0.9 | V | +0.000 | intercept + kT/q |
 | Stability | T80 (measured crossing) | 800 | 794.475 | h | -0.691 | 12 % burn-in (tau 40 h) + 10 %/1000 h, 0.4 % noise |
@@ -156,4 +185,4 @@ the doublet mode then returned four doublets for the two of the Pb 4f example.
 | Stability | burn-in loss | 12 | 12.4455 | % of initial | +3.712 | back-extrapolated linear part |
 | Stability | loss rate after burn-in | 10 | 10.3627 | %/1000 h | +3.627 | 12 % burn-in (tau 40 h) + 10 %/1000 h, 0.4 % noise |
 
-_Generated 2026-11-12 with Physiscore 3.5.3, numpy 2.4.6, scipy 1.17.1._
+_Generated 2026-11-12 with Physiscore 3.6.0, numpy 2.4.6, scipy 1.17.1._

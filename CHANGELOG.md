@@ -3,6 +3,49 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
+## [3.6.0] - 2026-11-12
+
+TRPL fits with the instrument response, an unbiased fit at low counts, the distribution
+of relaxation times for impedance spectra, and UTF-16 text exports in every reader.
+TRPL tail fits of counting data give different numbers (Poisson likelihood, background
+below); every other tool computes the same numbers as 3.5.3.
+
+### Added
+- TRPL **reconvolution** (`Response`: gaussian or measured; CLI `--irf`, `--irf-fwhm`,
+  `--irf-file`). The model convolved with the response is fitted from the rising edge:
+  a Gaussian response in closed form with the width fitted or entered, or a recorded
+  response with its shift fitted, and a background offset. On a 0.3 + 3 ns decay under
+  a 0.5 ns response (25 ps bins, 10⁴ counts) 0.307 ns is recovered; a tail fit gives
+  0.409 ns. With a SPAD-like response (30 % in a 0.25 ns tail, 0.12 ns colour shift)
+  the measured response gives 0.303 ns and the shift 0.121 ns, while a Gaussian gives
+  0.41 ns. New toolbar button *Instrument response file...*, the response drawn in the
+  decay views, components drawn convolved, and the tail fit of the same trace in the
+  results for comparison.
+- Impedance **distribution of relaxation times**: Tikhonov-regularised non-negative least
+  squares with λ by the discrepancy principle, processes with τ, f and R, a DRT view and
+  sheet, and an interpretation finding that compares the number of processes with the
+  circuit's arcs. On the example spectrum the two processes have 200.1 and 1499 Ω (true
+  200 and 1500).
+- `scripts/common/textio.py`: UTF-16/UTF-32 text exports are decoded in the curve tools,
+  J-V, dark J-V, XRD, Raman, FTIR, PL, EQE, SCLC and XPS readers. Before, such files
+  failed or were read as nonsense.
+- Screenshots `trpl_irf.png` and `eis_drt.png`; `tools/screenshots.py` resets every
+  parameter before a window is captured (a window restored the values another window of
+  the same run had saved).
+
+### Changed
+- TRPL counting data are fitted by **Poisson maximum likelihood** (deviance residuals)
+  instead of σ = √N least squares. The old weights bias a fitted level low by about one
+  count: at 10³ peak counts both lifetimes of a bi-exponential came out 4.5 to 4.8 % short
+  (median of 8 noise realisations); now 0.3 to 0.5 %. At 10⁴ counts the change is below
+  1 %. Plotted residuals and χ² use the model's variance.
+- TRPL automatic background: the points before the pulse now stop twice the rise time
+  before it, and their mean is used for counts (the median of a few counts is an integer).
+
+### Checks
+- 18 new validation rows (126 in all) and 62 new tests (524 in all). The new TRPL and
+  encoding tests fail on 3.5.3.
+
 ## [3.5.3] - 2026-11-12
 
 Second correction of the auto-fit workspace (`spectra/`: the XPS tool and the XRD

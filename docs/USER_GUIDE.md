@@ -594,8 +594,17 @@ low light, series resistance or heating at high light) - restrict the fit window
 ### 13.4 TRPL
 
 Decay trace from time-correlated single-photon counting or a streak camera: a time
-column and a counts (or intensity) column. The fit starts at the maximum of the decay
-(tail fit, no deconvolution of the instrument response).
+column and a counts (or intensity) column. With *Response* = *none* the fit starts at
+the maximum of the decay (tail fit). With *gaussian* or *measured* the model is
+convolved with the instrument response and the rising edge is fitted too
+(reconvolution), which resolves lifetimes down to about a tenth of the response width.
+
+![trpl_irf](images/trpl_irf.png)
+
+*Reconvolution with a Gaussian response whose width is fitted: 0.36 and 3.21 ns are
+recovered (input 0.35 and 3.2 ns, response 0.5 ns FWHM, 25 ps bins); the grey line is the
+fitted response. A tail fit of the same trace gives 0.41 ns for the short component.
+Synthetic example data.*
 
 | Group | Parameter | Meaning |
 |---|---|---|
@@ -604,7 +613,9 @@ column and a counts (or intensity) column. The fit starts at the maximum of the 
 | Fit | Skip after peak | time left out after the maximum (in the time unit), e.g. the response width |
 | Fit | Fit until | end of the fit window; empty = the whole trace |
 | Fit | Time unit | unit of the time column: ps, ns, us, ms, s |
-| Fit | IRF FWHM | width of the instrument response; lifetimes below it are flagged |
+| Instrument response | Response | *none* (tail fit), *gaussian* (reconvolution with a Gaussian response) or *measured* (reconvolution with the response file) |
+| Instrument response | FWHM (0 = fit) | *gaussian*: the response width, or 0 to fit it to the rising edge; *none*: lifetimes below it are flagged |
+| Instrument response | IRF file | *measured*: the response recorded with a scatterer (Ludox, a rough surface) at the excitation wavelength with the same settings - time and counts columns on the same time axis. The toolbar button *Instrument response file...* picks it and switches to *measured* |
 | Diffusion length | Mobility (cm²/Vs) | with a value, L_D = √(μ kT/q · ⟨τ⟩) is reported |
 | Diffusion length | Temperature (K) | kT/q of the diffusion coefficient |
 
@@ -612,10 +623,23 @@ Views: **Decay (log)** and **Decay (linear)** with the fit and the weighted resi
 **Differential lifetime** (τ_diff(t) = −(d ln I/dt)⁻¹, model-free), **Components** (the
 individual exponentials).
 
-Results: the model used, every lifetime with its standard error, amplitude fraction and
-intensity fraction; ⟨τ⟩ amplitude-weighted and intensity-weighted; the model-free 1/e
-time; the late differential lifetime; reduced χ², R², the Durbin-Watson statistic; the
-background and the dynamic range; the diffusion length when a mobility is entered.
+Results: the model used and the method (tail fit or reconvolution), every lifetime with
+its standard error, amplitude fraction and intensity fraction; ⟨τ⟩ amplitude-weighted
+and intensity-weighted; the model-free 1/e time; the late differential lifetime;
+reduced χ², R², the Durbin-Watson statistic; the background and the dynamic range; the
+diffusion length when a mobility is entered. With reconvolution also the response width
+(fitted or entered) or the shift of the measured response, the time zero, and the tail
+fit of the same trace for comparison.
+
+Counting data are fitted by Poisson maximum likelihood (since 3.6.0), which stays
+unbiased at a few hundred counts per bin; the plotted residuals are (model − data)/√model.
+
+When to use which response: *measured* whenever a response was recorded - a real
+detector response has a slow tail that a Gaussian does not have, and a Gaussian fitted
+to such a trace overestimates a lifetime near the response width (validation: 0.41 ns
+for 0.30 ns). *gaussian* with the width fitted when no response was recorded; enter the
+width when it is known from the instrument. Keep *none* for decays much slower than the
+response (beyond about twice its FWHM the tail fit is within 0.5 %).
 
 Which lifetime to quote: the amplitude-weighted ⟨τ⟩ is proportional to the
 time-integrated emission and is the one to compare between samples; the
@@ -630,6 +654,12 @@ decades, is flagged because the fit cannot determine it.
 *Nyquist plot with the fitted R(RQ)(RQ) circuit; the Kramers-Kronig residuals are in the
 view "Residuals". Synthetic example data.*
 
+![eis_drt](images/eis_drt.png)
+
+*The DRT view of the same spectrum: two processes at 2.1 µs and 3.2 ms with 200 and
+1499 Ω, next to the time constants of the circuit's arcs (dashed). The grey bands are
+time constants outside the measured frequency range.*
+
 Impedance spectrum with three columns: frequency (Hz), Z′ and Z″ (Ohm). Files that store
 −Z″ are recognised.
 
@@ -643,12 +673,20 @@ Impedance spectrum with three columns: frequency (Hz), Z′ and Z″ (Ohm). File
 
 Views: **Nyquist** (−Z″ against Z′ with equal axes), **Bode** (|Z| and phase),
 **Residuals** (circuit and Kramers-Kronig residuals in % of |Z|), **Capacitance**
-(C(f) = Im(1/Z)/ω).
+(C(f) = Im(1/Z)/ω), **DRT** (distribution of relaxation times γ(τ)).
 
 Results: the circuit; Rs; for each arc R, Q, α, the effective capacitance, the time
 constant and the peak frequency, with standard errors; the total arc resistance; the rms
 residual of the circuit; the rms and maximum residual of the Kramers-Kronig test and the
-number of RC elements it used.
+number of RC elements it used; the DRT processes with their time constant, frequency
+and resistance, R∞, the area R_pol, λ and the DRT residual.
+
+The **distribution of relaxation times** assumes no circuit: each peak is a relaxation
+process, its area is the resistance of that process. Use it to decide how many arcs the
+circuit needs - the interpretation compares the two - and to see processes that overlap
+in the Nyquist plot. It cannot describe an inductive loop (negative capacitance); a
+check says when its residual is large. Small side peaks next to a broad peak are
+regularisation artefacts and are merged into it.
 
 The **Kramers-Kronig test** comes first: a spectrum that fails it (maximum residual
 above 2 %) was not stationary during the sweep - usually drift at low frequency - and no
@@ -896,8 +934,8 @@ the supplementary information.
 | Device summary | Jsc cross-check, band-gap agreement, fractions of the detailed-balance limit, voltage-loss split |
 | SCLC | whether a Mott-Gurney region exists and has slope 2, trap density against the resolution limit n_diff, sweep hysteresis (mobile ions), ohmic conductivity |
 | Light intensity | ideality factor and its uncertainty, Jsc exponent α, transport loss in the fill factor (pFF − FF), pseudo fill factor |
-| TRPL | fit quality (reduced χ², Durbin-Watson), the decay law and what its lifetimes mean, the two average lifetimes, the differential lifetime, diffusion length |
-| Impedance | Kramers-Kronig test, circuit residual, assignment of the arcs, CPE exponent, permittivity |
+| TRPL | fit quality (reduced χ², Durbin-Watson), the instrument response (reconvolution, or a lifetime a tail fit overestimates), the decay law and what its lifetimes mean, the two average lifetimes, the differential lifetime, diffusion length |
+| Impedance | Kramers-Kronig test, circuit residual, assignment of the arcs, CPE exponent, permittivity, number of processes in the DRT against the circuit |
 | C-V | whether a Mott-Schottky region exists, doping density against the resolution limit N_min, built-in potential, depletion width against the thickness, doping profile |
 | Stability | T80 reached or extrapolated (and how far), burn-in loss and Ts80, loss rate |
 
@@ -925,7 +963,8 @@ interpretation never changes a number and needs no account or network.
 | SCLC gives no mobility | there is no region with slope 2: measure to higher voltage; if the slope never settles at 2 the device is not single-carrier or its contacts limit the current (section 13.2) |
 | The trap density is flagged as below n_diff | the rise is diffusion of injected carriers, not trap filling; the number is not a trap density (a thicker layer lowers the limit as 1/L²) |
 | A J-V set is refused: fewer than three files carry an irradiance | name the files with the intensity (`cell_0.1sun.txt`, `cell_53mW.txt`, `cell_OD1.0.txt`) or make a table with irradiance and Voc columns (section 13.3) |
-| TRPL: reduced χ² far above 1.3 | the model has too few terms, or the first points after the peak still contain the instrument response: try the next model, or set *Skip after peak* |
+| TRPL: reduced χ² far above 1.3 | the model has too few terms, or the first points after the peak still contain the instrument response: try the next model, fit with the response (*Response* gaussian or measured), or set *Skip after peak* |
+| A file from a Windows program reads as empty or as nonsense | fixed in 3.6.0 for "Unicode text" (UTF-16) exports; with an older version save the file as UTF-8 or ANSI |
 | Impedance: the Kramers-Kronig test fails | the device changed during the sweep; the circuit values are not meaningful (section 13.5) |
 | C-V: N is below or near N_min | the layer is fully depleted; the straight line is the geometric capacitance, not doping. Check the thickness, unit and area (section 13.6) |
 | T80 is "extrapolated" | the trace did not reach the level; the value comes from the fitted model and is an estimate (section 13.7) |

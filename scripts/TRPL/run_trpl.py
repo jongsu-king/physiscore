@@ -21,6 +21,7 @@ from scripts.common.curve_tool import (CurveToolWindow, data_kw, fit_kw, legend,
 
 _NAMES = {"exp1": "mono-exponential", "exp2": "bi-exponential", "exp3": "tri-exponential",
           "stretched": "stretched exponential"}
+_SHORT = {"exp1": "mono-exp.", "exp2": "bi-exp.", "exp3": "tri-exp."}
 
 
 class AnalysisWindow(CurveToolWindow):
@@ -135,7 +136,9 @@ class AnalysisWindow(CurveToolWindow):
             plot(result["t_fit"][ok], result["irf_curve"][ok], color=_pal.PLOT_REF, lw=1.0,
                  label="response (scaled)")
         name = _NAMES.get(result["model"], result["model"])
-        plot(result["t_fit"], result["fit"], **fit_kw(name + (", reconvolved" if result.get("irf", "none") != "none" else "")))
+        plot(result["t_fit"], result["fit"], **fit_kw(("reconvolved " if result.get("irf", "none") != "none" else "")
+                                                       + _SHORT.get(result["model"], name)
+                                                       if result.get("irf", "none") != "none" else name))
         if log:
             ref_line(ax, y=result["noise_floor"], text="noise floor", side="right")
             ax.set_ylim(result["noise_floor"] * 0.3, float(y.max()) * 2.0)

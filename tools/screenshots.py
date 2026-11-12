@@ -30,7 +30,8 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 os.environ.setdefault("PHYSISCORE_NO_UPDATE", "1")
 
 NAMES = ("launcher", "workspace", "results", "updates", "jv", "device", "dark", "eqe", "abs", "pl", "xrd", "sem",
-         "raman", "ftir", "xps", "sclc", "intensity", "trpl", "eis", "cv", "stability", "compare", "interpretation")
+         "raman", "ftir", "xps", "sclc", "intensity", "trpl", "trpl_irf", "eis", "eis_drt", "cv", "stability", "compare",
+         "interpretation")
 LAUNCHER_VIEWS = ("launcher", "workspace", "results", "updates")
 PROJECT = "FAPbI3_batch_2026-11"      # the synthetic project folder of the main-window pictures
 HC = 1239.84198
@@ -517,8 +518,18 @@ def shot_launcher(outdir, tmp, view="launcher"):
     return ok
 
 
+def reset_fields(win):
+    """Every parameter at its default: a window restores the values an earlier
+    window of the same run remembered, and the picture must not depend on them."""
+    for f in win.FIELDS:
+        d = f.get("default", "")
+        d = d() if callable(d) else d
+        win.set_param(f["key"], f"{d:g}" if isinstance(d, float) else d)
+
+
 def shot_curve_tool(name, win, tmp):
     """One of the six windows built on CurveToolWindow, with its project files analysed."""
+    reset_fields(win)
     for key, value in PROJECT_PARAMS.get(name, {}).items():
         win.set_param(key, value)
     files = project_files(project(tmp), name)
@@ -527,6 +538,33 @@ def shot_curve_tool(name, win, tmp):
     if win.file_tree.exists(files[0]):
         win.file_tree.selection_set(files[0])
     return all(win.items.get(f, {}).get("result") is not None for f in files)
+
+
+def shot_view(name, win, tmp):
+    """TRPL with a Gaussian-response reconvolution, impedance on its DRT view."""
+    from scripts.EIS import eis_core
+    from scripts.TRPL import trpl_core
+    if name == "trpl_irf":
+        path = os.path.join(tmp, "Film_TRPL_25ps.csv")
+        t, y = trpl_core.simulate(taus=(0.35, 3.2), amps=(0.55, 0.45), peak_counts=1e4, background=3.0, n=1000,
+                                  t_max=25.0, t0=2.0, irf_fwhm=0.5, seed=3)
+        _table(path, {"Time (ns)": t, "Counts": y}, pre="# TCSPC export\n# excitation 640 nm, 40 MHz, 25 ps bins\n")
+        params, view = {"irf": "gaussian", "irf_fwhm": 0.0, "model": "auto"}, "Decay (log)"
+    else:
+        path = os.path.join(tmp, "Cell_EIS_0V_dark.csv")
+        f, zr, zi = eis_core.simulate()
+        _table(path, {"Frequency (Hz)": f, "Z' (Ohm)": zr, "Z'' (Ohm)": zi})
+        params, view = {}, "DRT"
+    reset_fields(win)
+    for key, value in params.items():
+        win.set_param(key, value)
+    win.load_paths([path], run=False)
+    win.run(sync=True)
+    if win.file_tree.exists(path):
+        win.file_tree.selection_set(path)
+    win.var_view.set(view)
+    win._redraw()
+    return win.items.get(path, {}).get("result") is not None
 
 
 def shot_tool(name, outdir, tmp):
@@ -691,6 +729,18 @@ def shot_tool(name, outdir, tmp):
         win.geometry(TOOL_SIZE)
         pump(root, 1)
         done = shot_curve_tool(name, win, tmp)
+        pump(root, 2)
+        ok = grab(win, out) and done
+
+    elif name in ("trpl_irf", "eis_drt"):
+        if name == "trpl_irf":
+            from scripts.TRPL.run_trpl import AnalysisWindow
+        else:
+            from scripts.EIS.run_eis import AnalysisWindow
+        win = AnalysisWindow(root, "")
+        win.geometry(TOOL_SIZE)
+        pump(root, 1)
+        done = shot_view(name, win, tmp)
         pump(root, 2)
         ok = grab(win, out) and done
 

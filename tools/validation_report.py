@@ -447,6 +447,31 @@ def transport():
     t, y = trpl_core.simulate(taus=(40.0,), amps=(1.0,), beta=0.6, seed=0)
     r = trpl_core.analyse(t, y, model="stretched")
     record("TRPL", "stretching exponent beta", 0.6, r["beta"], "-", "stretched exponential, tau 40 ns")
+    t, y = trpl_core.simulate(taus=(5.0, 80.0), amps=(0.7, 0.3), peak_counts=1000.0, background=2.0, seed=0)
+    r = trpl_core.analyse(t, y, model="exp2")
+    note = "10^3 peak counts, background 2, Poisson likelihood"
+    record("TRPL", "tau 1 at low counts", 5.0, r["taus"][0], "ns", note)
+    record("TRPL", "tau 2 at low counts", 80.0, r["taus"][1], "ns", note)
+
+    # TRPL reconvolution: 25 ps bins, decay convolved on a 10x finer grid and binned
+    grid = dict(n=1000, t_max=25.0, t0=2.0)
+    t, y = trpl_core.simulate(taus=(0.3, 3.0), amps=(0.6, 0.4), peak_counts=1e4, background=3.0, irf_fwhm=0.5,
+                              seed=0, **grid)
+    r = trpl_core.analyse(t, y, irf="gaussian")
+    tail = r["tail"]["taus"][0]
+    note = f"0.3 + 3 ns, 0.5 ns Gaussian response, width fitted (tail fit: tau 1 = {tail:.3f} ns)"
+    record("TRPL", "tau 1, reconvolution", 0.3, r["taus"][0], "ns", note)
+    record("TRPL", "tau 2, reconvolution", 3.0, r["taus"][1], "ns", note)
+    record("TRPL", "response FWHM, fitted", 0.5, r["irf_fwhm"], "ns", note)
+    record("TRPL", "background, fitted with the decay", 3.0, r["background"], "counts", note)
+    t, y = trpl_core.simulate(taus=(0.3, 3.0), amps=(0.6, 0.4), peak_counts=1e4, background=3.0, irf_fwhm=0.4,
+                              irf_tail_tau=0.25, irf_tail_frac=0.3, irf_delay=0.12, seed=0, **grid)
+    ti, yi = trpl_core.simulate_irf(0.4, 0.25, 0.3, peak_counts=2e4, background=2.0, seed=100, **grid)
+    r = trpl_core.analyse(t, y, irf="measured", irf_t=ti, irf_y=yi)
+    note = "measured response: 0.4 ns Gaussian + 30 % in a 0.25 ns tail, 0.12 ns colour shift, 2x10^4 counts"
+    record("TRPL", "tau 1, measured response", 0.3, r["taus"][0], "ns", note)
+    record("TRPL", "tau 2, measured response", 3.0, r["taus"][1], "ns", note)
+    record("TRPL", "shift of the measured response", 0.12, r["irf_shift"], "ns", note)
 
     # impedance: Rs + two R-CPE arcs, 0.3 % noise
     f, zre, zim = eis_core.simulate()
@@ -457,6 +482,24 @@ def transport():
     record("Impedance", "R of the low-frequency arc", 1500.0, r["arcs"][1]["R"], "Ohm", note)
     record("Impedance", "CPE exponent, high-frequency arc", 0.95, r["arcs"][0]["alpha"], "-", note)
     record("Impedance", "CPE exponent, low-frequency arc", 0.85, r["arcs"][1]["alpha"], "-", note)
+    d = r["drt"]
+    note = "DRT of the same spectrum (no circuit assumed)"
+    record("Impedance", "DRT processes", 2, d["n_processes"], "-", note)
+    record("Impedance", "DRT: R of the high-frequency process", 200.0, d["peaks"][0]["R"], "Ohm", note)
+    record("Impedance", "DRT: R of the low-frequency process", 1500.0, d["peaks"][1]["R"], "Ohm", note)
+    record("Impedance", "DRT: tau of the low-frequency process", (1500.0 * 5e-6) ** (1 / 0.85), d["peaks"][1]["tau_s"], "s",
+           "tau = (R Q)^(1/alpha)")
+    f, zre, zim = eis_core.simulate("R(RC)(RC)", (10.0, 50.0, 2e-7, 200.0, 5e-5), np.geomspace(1e6, 0.1, 71))
+    d = eis_core.drt(f, zre + 1j * zim)
+    note = "R(RC)(RC), tau 10 us and 10 ms, 0.3 % noise"
+    record("Impedance", "DRT: R of an ideal RC arc (50 Ohm)", 50.0, d["peaks"][0]["R"], "Ohm", note)
+    record("Impedance", "DRT: tau of an ideal RC arc", 1e-5, d["peaks"][0]["tau_s"], "s", note)
+    record("Impedance", "DRT: R of an ideal RC arc (200 Ohm)", 200.0, d["peaks"][1]["R"], "Ohm", note)
+    f, zre, zim = eis_core.simulate("R(RQ)", (5.0, 100.0, 1e-3 ** 0.8 / 100.0, 0.8), np.geomspace(1e6, 0.1, 71))
+    d = eis_core.drt(f, zre + 1j * zim)
+    note = "R(RQ), alpha 0.8 (Cole-Cole distribution), 0.3 % noise"
+    record("Impedance", "DRT: R of a CPE arc", 100.0, d["peaks"][0]["R"], "Ohm", note)
+    record("Impedance", "DRT: peak tau of a CPE arc", 1e-3, d["peaks"][0]["tau_s"], "s", note)
 
     # C-V: one-sided abrupt junction
     v, c = cv_core.simulate(n_cm3=1e17, v_bi=0.9, eps_r=25.0, area_cm2=0.1)

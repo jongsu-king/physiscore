@@ -100,20 +100,20 @@ class AnalysisWindow(CurveToolWindow):
             for k, (name, _d, r) in enumerate(others):
                 if r.get("drt"):
                     ax.semilogx(r["drt"]["tau"], r["drt"]["gamma"], **other_kw(k, name))
-            ax.semilogx(d["tau"], d["gamma"], color=_pal.series_color(0), lw=1.8, label="DRT γ(τ)")
+            ax.semilogx(d["tau"], d["gamma"], color=_pal.series_color(0), lw=1.8, label="DRT")
             w = 2 * np.pi * f
             ax.axvspan(d["tau"][0], 1.0 / w.max(), color=_pal.PLOT_REF, alpha=0.12, lw=0)
             ax.axvspan(1.0 / w.min(), d["tau"][-1], color=_pal.PLOT_REF, alpha=0.12, lw=0,
-                       label="outside the measured range")
+                       label="beyond the data")
             for i, arc in enumerate(result["arcs"]):
                 if np.isfinite(arc.get("tau_s", np.nan)):
                     ax.axvline(arc["tau_s"], color=_pal.series_color(i + 1), lw=1.1, ls="--",
-                               label=f"circuit arc {i + 1}: τ = {arc['tau_s']:.3g} s")
+                               label=f"circuit arc {i + 1}")
             lines = []
             for i, pk in enumerate(d["peaks"], 1):
                 ax.plot([pk["tau_s"]], [pk["gamma_max"]], ls="none", marker="v", ms=6, color=_pal.PLOT_TICK)
-                lines.append(f"peak {i}: τ = {pk['tau_s']:.3g} s, R = {pk['R']:.3g} Ω")
-            lines.append(f"R∞ = {d['R_inf']:.3g} Ω,  λ = {d['lam']:.2g}")
+                lines.append(f"peak {i}: τ = {pk['tau_s']:.3g} s, R = {pk['R']:.4g} Ω")
+            lines.append(f"R∞ = {d['R_inf']:.4g} Ω,  λ = {d['lam']:.2g}")
             note_box(ax, "\n".join(lines), "upper left")
             ax.set_xlim(d["tau"][0], d["tau"][-1])
             ax.set_ylim(bottom=0)

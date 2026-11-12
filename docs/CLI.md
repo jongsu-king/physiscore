@@ -141,7 +141,8 @@ physiscore intensity [--temperature K] [--i-min I] [--i-max I] FILE [FILE ...]
 physiscore intensity --jv-set JV_FILE [JV_FILE ...] [--area CM2]
                      [--sweep reverse|forward|combined]
 physiscore trpl      [--model auto|exp1|exp2|exp3|stretched] [--background auto|none|NUMBER]
-                     [--skip T] [--t-end T] [--time-unit ps|ns|us|ms|s] [--irf-fwhm T]
+                     [--skip T] [--t-end T] [--time-unit ps|ns|us|ms|s]
+                     [--irf none|gaussian|measured] [--irf-fwhm T] [--irf-file IRF]
                      [--mobility CM2_VS] [--temperature K] FILE [FILE ...]
 physiscore eis       [--model auto|R(RC)|R(RQ)|R(RC)(RC)|R(RQ)(RQ)]
                      [--convention auto|Z''|-Z''] [--f-min HZ] [--f-max HZ]
@@ -168,8 +169,8 @@ Defaults that matter:
 |---|---|---|
 | `sclc` | thickness 500 nm, eps_r 25, 300 K, branch auto, sweep up, V_bi 0, window 5 points | `--area` is needed only for files that store a current instead of a current density; without it the area of the settings is used. `--field-dependent` fits the Murgatroyd law instead of Mott-Gurney. |
 | `intensity` | 300 K, whole intensity range | `--i-min`/`--i-max` restrict the fits. With `--jv-set` the irradiance is read from each file name (`0.1sun`, `53mW`, `10pct`, `OD1.0`); fewer than three such names is an error. |
-| `trpl` | model auto (lowest AICc among the valid fits), background auto, time unit ns | `--irf-fwhm` and `--mobility` are 0 (not stated): the shortest lifetime is not compared with the instrument response and no diffusion length is given. `--skip`, `--t-end` and `--irf-fwhm` are in the unit of `--time-unit`. |
-| `eis` | circuit auto (lowest AICc among the valid fits), sign convention auto | `--area` and `--thickness` are 0 (none). The area adds the area-normalised resistances and capacitances; area and thickness together add the relative permittivity from the high-frequency arc. |
+| `trpl` | model auto (lowest AICc among the valid fits), background auto, time unit ns, response none (tail fit) | `--irf gaussian` fits by reconvolution with a Gaussian response, its width fitted when `--irf-fwhm` is 0 and fixed otherwise; `--irf measured --irf-file IRF.csv` reconvolves with the recorded response (time and counts columns, same time axis) and fits its shift. With `--irf none`, `--irf-fwhm` only flags lifetimes below the response width. `--mobility` 0: no diffusion length. `--skip` is used by tail fits only. `--skip`, `--t-end` and `--irf-fwhm` are in the unit of `--time-unit`. |
+| `eis` | circuit auto (lowest AICc among the valid fits), sign convention auto | `--area` and `--thickness` are 0 (none). The area adds the area-normalised resistances and capacitances; area and thickness together add the relative permittivity from the high-frequency arc. The distribution of relaxation times is always computed (rows `DRT ...`, sheet `DRT` with `--out`). |
 | `cv` | eps_r 25, 300 K, capacitance in F, m = 2 | the Mott-Schottky window is chosen automatically unless `--v-min`/`--v-max` are given. `--thickness` adds the geometric capacitance and the resolution limit N_min; without it a check says that the density could not be compared with the limit. The area of the settings is used unless `--area` is given. |
 | `stability` | time in h, normalised to the first point, threshold 0.8 (T80), model auto | `--protocol` is one of `ISOS-D-1`, `ISOS-D-2`, `ISOS-D-3`, `ISOS-L-1`, `ISOS-L-2`, `ISOS-L-3`, `ISOS-T-1`, `ISOS-O-1`, `ISOS-V-1`, `ISOS-LC-1`, `MPP tracking`; it is recorded with the result and does not change the numbers; without it a check says that a lifetime is comparable only with its protocol. |
 

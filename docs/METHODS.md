@@ -4,7 +4,7 @@ This document states, for every quantity Physiscore reports, the equation that i
 evaluated, the numerical procedure, its defaults, and the primary reference. It is
 written so that the methods section of a paper can cite it (or copy from it) and so
 that a reviewer can check a number against the code. File references are to the
-3.5.3 source tree; all functions are GUI-free and importable.
+3.6.0 source tree; all functions are GUI-free and importable.
 
 Conventions: J in mA cm⁻², V in V, R in Ω cm², E in eV, T = 298.15 K unless stated.
 Constants: q = 1.602176634×10⁻¹⁹ C, k = 1.380649×10⁻²³ J K⁻¹, hc = 1239.84198 eV nm.
@@ -260,6 +260,10 @@ with Scofield cross sections relative to C 1s (Scofield, J. Electron Spectrosc. 
 - Baselines: ALS and arPLS solve (W + λ D'D) z = W y with a sparse second-difference
   operator D; λ is the stiffness (10⁴ flexible … 10⁹ straight).
 - Peak finding: scipy `find_peaks` with prominence = max(fraction of range, k × MAD noise).
+- Text files (`scripts/common/textio.py`, since 3.6.0): UTF-16 and UTF-32 exports
+  ("Unicode text" of Windows programs) are recognised by the byte-order mark or by the
+  pattern of zero bytes and decoded before parsing; other files are read as UTF-8, cp949
+  or latin-1, in that order, and reach the parsers unchanged.
 - Figures (screen and export) follow OriginLab's default graph: white page, black 1.5 pt
   axis box, ticks in on all four sides (major 6 pt, minor 3 pt, one minor between majors),
   no grid, Arial, 1.5 pt lines, square black-framed legend, Origin's colour order
@@ -500,6 +504,7 @@ as warnings under the topic **Check**.
 | Average lifetime | ⟨τ⟩_amp and ⟨τ⟩_int given together with what each one means: note | Lakowicz (2006) |
 | Differential lifetime | median of the last third > 2 × median of the first third: note (rate falls with carrier density); otherwise good (one rate over the window). Needs 9 or more points | Krückemeier et al., Adv. Energy Mater. 11, 2003489 (2021) |
 | Diffusion length | L_D from the entered mobility: note (an estimate) | Kirchartz et al. (2020) |
+| Instrument response | reconvolution: note giving the response (Gaussian width entered or fitted, or measured with its shift) and the shortest lifetime of a tail fit of the same trace; with a Gaussian the next step is to record the real response. Tail fit with an entered FWHM and τ_min < 1.5 FWHM: note (a tail fit overestimates such a lifetime: +5 % at τ = FWHM, +20 % at FWHM/2 in the validation) | O'Connor, Phillips, *Time-Correlated Single Photon Counting* (1984), ch. 7 |
 
 ### 16.16 Impedance
 
@@ -510,6 +515,7 @@ as warnings under the topic **Check**.
 | Assignment of the arcs | two arcs: high-frequency arc = geometric capacitance with recombination and transport resistance, low-frequency arc = ionic and interfacial polarisation (note) | Guerrero et al. (2021) |
 | Arc ideality | CPE exponent α ≥ 0.9: good (C_eff well defined) | Hsu, Mansfeld, Corrosion 57, 747 (2001) |
 | Permittivity | ε_r from the fastest arc when area and thickness are entered: note | von Hauff, Klotz, J. Mater. Chem. C 10, 742 (2022) |
+| Distribution of relaxation times | as many DRT processes as circuit arcs: good; more: note (the circuit merges processes; choose the circuit by the peaks); fewer: note (more arcs than the spectrum resolves) | Wan, Saccoccio, Chen, Ciucci, Electrochim. Acta 184, 483 (2015) |
 
 ### 16.17 C-V (Mott-Schottky)
 
@@ -619,48 +625,102 @@ Solid-State Electron. 24, 788 (1981).
 
 ## 19. Time-resolved photoluminescence (`scripts/TRPL/trpl_core.py`)
 
-A tail fit: the decay is fitted from its maximum (plus an optional `skip`) to `t_end`,
-without deconvolution of the instrument response. Lifetimes shorter than the response
-are therefore not resolved, and a check says so when the response width is entered. At
-least 12 points, 10 of them inside the window.
+Two ways of fitting, chosen with `irf`:
 
-**Background** — `prepare`: `auto` takes the median of the points before the pulse (5 or
-more points ahead of the rise), otherwise the median of a flat tail below 5 % of the
-peak; a number or `none` can be entered instead. The source is recorded in the result.
+- `none` — a tail fit: the decay is fitted from its maximum (plus an optional `skip`) to
+  `t_end`. Lifetimes comparable to the instrument response are overestimated (validation,
+  single exponential under a 0.5 ns Gaussian response, 10⁴ counts: +5 % at τ = FWHM,
+  +19 % at FWHM/2, +81 % at FWHM/5, below 0.5 % from 2 FWHM on), and a check says so
+  when the response width is entered.
+- `gaussian` or `measured` — iterative reconvolution (O'Connor & Phillips 1984, ch. 7):
+  the model convolved with the response is fitted from the rising edge on,
+
+  I(t) = IRF(t) ⊗ Σ A_i exp(−(t − t₀)/τ_i) H(t − t₀) + b.
+
+  For a Gaussian response of standard deviation s the convolution has the closed form
+  A/2 · exp(s²/2τ² − x/τ) · erfc((s/τ − x/s)/√2), x = t − t₀, written with erfcx where
+  the product would overflow (`gauss_exp`); the FWHM = 2√(2 ln 2) s is entered or fitted
+  (start: the 10-90 % rise time / 2.56). A measured response (`irf_file`, a time and a
+  counts column on the same time axis, `read_response`) is background-subtracted (mean
+  before its rise), set to zero outside its main lobe (the run of points around the peak
+  above twice the noise), normalised to unit area on the decay's grid and moved by a
+  fitted shift (colour shift between the scatterer and the emission; linear
+  interpolation between samples). The response is taken as constant within a time bin,
+  so the exponential kernel is integrated exactly over each bin (`_exp_kernel`), and the
+  convolution is done by FFT. The fit window starts 4 s + 3 bins before the 10 % point
+  of the rise (Gaussian) or 3 bins before the response lobe (measured); `skip` is not
+  used. A constant offset b is fitted with the decay, so the background is set by the
+  pre-pulse points and the late tail together. Starting points: the tail fit of the same
+  model, the same with its shortest lifetime halved, and two generic ones, each with two
+  or more response starts; every start runs 40 evaluations and the best two are refined.
+  Exponential models only; the stretched form stays a tail fit. Times must be equally
+  spaced for a measured response. A measured response recorded with other bins is
+  interpolated onto the decay's grid (a check says so).
+
+At least 12 points, 10 of them inside the window.
+
+**Background** — `prepare`: `auto` takes the points before the pulse that are free of its
+rising edge (more than twice the 10 %-to-peak rise time plus two bins before the 10 %
+point, at most 80 % of the points before it; 5 or more needed): their mean for counting
+data (the median of a few counts per bin is an integer and biased by up to half a
+count; before 3.6.0 the median of the first 80 % of the points before the 10 % point was
+used) and their median otherwise. Without such points, the median of a flat tail below
+5 % of the peak; a number or `none` can be entered instead. The source is recorded in
+the result.
 
 **Models** — `exp1`, `exp2`, `exp3`: Σ A_i exp(−t/τ_i); `stretched`:
 A exp(−(t/τ)^β), 0.2 ≤ β ≤ 1. Parameters are fitted in log space from several starting
-points (`fit_model`). Photon-counting data (integers with a maximum of 50 or more) are
-weighted with σ = √N, which makes χ² absolute; other data use the same weight shape with
-the errors scaled by the residuals.
+points (`fit_model`, `fit_reconvolution`).
+
+**Weights** — photon-counting data (integers with a maximum of 50 or more) are fitted by
+Poisson maximum likelihood since 3.6.0: the residual vector is the signed deviance
+residual sign(m − y) √(2 (m − y + y ln(y/m))) of model m (plus background) and raw
+counts y, whose sum of squares is the Poisson deviance (`deviance_residuals`; Laurence &
+Chromy 2010). Up to 3.5.3 the residuals were weighted with σ = √N, which biases a fitted
+level low by about one count (Neyman's χ²): at 10³ peak counts both lifetimes of the
+validation trace came out about 5 % short (median of 8 noise realisations −4.5 and
+−4.8 %; maximum likelihood −0.3 and −0.5 %). Parameter errors come from the Jacobian of
+the deviance residuals (the Fisher information). The reduced χ² and the plotted
+residuals use the model's own variance (Pearson residuals), and the AICc uses the
+deviance. Other data use the weight shape √signal with the errors scaled by the
+residuals and AICc = n ln(χ²/n) + 2k + correction.
 
 **Model selection** — `choose_model`: the lowest AICc among the valid exponential models,
 the simpler one being kept when it is within 2 AICc units. A model is not valid when two
 lifetimes are closer than a factor 1.5, when a component carries less than 1 % of the
-amplitude, or when the relative error of a lifetime exceeds 100 %. The stretched form is
-fitted for comparison and used when requested.
+amplitude, or when the relative error of a lifetime exceeds 100 % (for a reconvolved
+single exponential too). The stretched form is fitted for comparison (tail fits) and
+used when requested.
 
 **Lifetimes** — ⟨τ⟩_amp = Σ A_i τ_i/Σ A_i (proportional to the time-integrated emission);
 ⟨τ⟩_int = Σ A_i τ_i²/Σ A_i τ_i (mean emission time); for the stretched form
 ⟨τ⟩ = (τ/β) Γ(1/β). Standard errors are propagated numerically from the covariance
 matrix. `tau_1e` is the model-free time at which the signal has fallen to 1/e of the
-peak.
+peak. With reconvolution the amplitudes refer to t₀ rather than to the peak, and the
+result also carries the tail fit of the same trace for comparison.
 
 **Differential lifetime** — `differential_lifetime`: τ_diff(t) = −(d ln I/dt)⁻¹ from a
-Savitzky-Golay derivative of ln I; points within 3 times the noise floor are left out.
-It shows whether the rate changes during the decay without assuming a model
-(Krückemeier et al. 2021).
+Savitzky-Golay derivative of ln I over the tail window; points within 3 times the noise
+floor are left out. It shows whether the rate changes during the decay without assuming
+a model (Krückemeier et al. 2021).
 
 **Diffusion length** — `diffusion_length_um`: L_D = √(D τ), D = μ kT/q, with the entered
 mobility and ⟨τ⟩_amp.
 
 **Fit diagnostics and checks**: reduced χ² (outside 0.7-1.3 flagged for counting data),
-Durbin-Watson statistic of the weighted residuals (< 1.5 flagged), shortest lifetime
-below 3 time bins or below the response FWHM, longest lifetime above half the fit
-window, dynamic range below 1.5 decades, stretched form better than exp2/exp3 by more
-than 10 AICc units, background taken from a flat tail, requested model not supported.
+Durbin-Watson statistic of the weighted residuals (< 1.5 flagged), longest lifetime
+above half the fit window, dynamic range below 1.5 decades, background taken from a flat
+tail, requested model not supported. Tail fits: shortest lifetime below 3 time bins or
+below the response FWHM, stretched form better than exp2/exp3 by more than 10 AICc
+units. Reconvolution: shortest lifetime below 0.1 FWHM (width known: entered or
+measured) or 0.2 FWHM (width fitted) — in the validation the error at 0.1 FWHM was at
+most 3 % with the width entered and 19 % with it fitted; response width or shift at the
+limit of its range; a measured response moved by more than twice its width or recorded
+with other bins; `skip` entered but not used.
 
 References: Lakowicz, *Principles of Fluorescence Spectroscopy*, 3rd ed. (2006), ch. 4;
+O'Connor & Phillips, *Time-Correlated Single Photon Counting* (1984), ch. 7; Grinvald &
+Steinberg, Anal. Biochem. 59, 583 (1974); Laurence & Chromy, Nat. Methods 7, 338 (2010);
 Burnham & Anderson, *Model Selection and Multimodel Inference* (2002); Kirchartz,
 Márquez, Stolterfoht & Unold, Adv. Energy Mater. 10, 1904134 (2020); Krückemeier et
 al., Adv. Energy Mater. 11, 2003489 (2021); Peán et al., ACS Energy Lett. 5, 3244
@@ -697,6 +757,28 @@ C_eff = Q^(1/α) R^((1−α)/α) (Hsu & Mansfeld 2001). Arcs are ordered by time
 With area and thickness, ε_r = C_eff d/(ε₀ A) for the fastest arc. The capacitance
 spectrum C(f) = Im(1/Z)/ω is plotted (`capacitance_spectrum`).
 
+**Distribution of relaxation times** — `drt` (since 3.6.0):
+Z(ω) = R∞ + jωL + ∫ γ(ln τ)/(1 + jωτ) d ln τ, with γ collocated on 10 points per decade
+from one decade below 1/ω_max to one decade above 1/ω_min. γ ≥ 0, R∞ ≥ 0 and L ≥ 0 are
+found by non-negative least squares on real and imaginary parts together, residuals
+weighted with 1/|Z|, with a Tikhonov penalty λ‖D₂γ‖² on the second difference of γ
+(Wan et al. 2015). λ, relative to the scale of the data, is the largest value of a grid
+from 10⁻⁷ to 10² (four per decade) whose rms residual stays within 5 % of that of the
+least regularised fit (the discrepancy principle with the noise level taken from the
+spectrum itself; Hansen 1998). The Re-Im cross-validation of Saccoccio et al. (2014) was
+tried first and did not select on CPE spectra (its criterion fell monotonically).
+Processes are the peaks of γ with a prominence of at least 5 % of the largest; the
+resistance of each is the area of γ between the minima around it, and a peak holding
+less than 5 % of the total area (a regularisation side lobe of a broad distribution) is
+added to the nearest larger peak. Reported per process: τ at the interpolated maximum,
+f = 1/(2πτ) and R; with R∞, R_pol = ∫ γ d ln τ, λ and the rms residual. γ ≥ 0 cannot
+describe an inductive loop or a negative capacitance; a check says so when the DRT
+residual is large or the spectrum is inductive at low frequency, and another when more
+than 10 % of the area lies outside the measured range. In the validation the process
+resistances are within 0.2 % at 0.3 % noise; the peak of a broad CPE distribution is
+2.5 % off its time constant, and R∞ is smaller than Rs when the fastest arc extends past
+the highest frequency.
+
 **Validity checks**: Kramers-Kronig residual above 2 % (maximum) or 1 % (rms); residuals
 growing towards low frequency (drift during the sweep); circuit rms above 2 %; requested
 circuit not supported; two or more inductive points at low frequency (negative
@@ -706,7 +788,10 @@ of frequency; α < 0.7; an arc whose peak frequency lies outside the measured ra
 References: Boukamp, J. Electrochem. Soc. 142, 1885 (1995); Schönleber, Klotz &
 Ivers-Tiffée, Electrochim. Acta 131, 20 (2014); Hsu & Mansfeld, Corrosion 57, 747
 (2001); Guerrero, Bisquert & Garcia-Belmonte, Chem. Rev. 121, 14430 (2021); von Hauff &
-Klotz, J. Mater. Chem. C 10, 742 (2022); Ebadi et al., Nat. Commun. 10, 1574 (2019).
+Klotz, J. Mater. Chem. C 10, 742 (2022); Ebadi et al., Nat. Commun. 10, 1574 (2019);
+Wan, Saccoccio, Chen & Ciucci, Electrochim. Acta 184, 483 (2015); Saccoccio, Wan, Chen &
+Ciucci, Electrochim. Acta 147, 470 (2014); Hansen, *Rank-Deficient and Discrete
+Ill-Posed Problems* (SIAM, 1998).
 
 ## 21. Capacitance-voltage, Mott-Schottky (`scripts/CV/cv_core.py`)
 
