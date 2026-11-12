@@ -1,8 +1,9 @@
 """Impedance window: equivalent-circuit fit with a Kramers-Kronig test.
 
 Complex non-linear least squares with modulus weighting, circuit choice by
-AICc, the linear Kramers-Kronig test of Schoenleber et al. and the
-capacitance spectrum. All numbers come from `eis_core`.
+AICc, the linear Kramers-Kronig test of Schoenleber et al., the
+capacitance spectrum and the distribution of relaxation times. All numbers
+come from `eis_core`.
 """
 from __future__ import annotations
 
@@ -31,7 +32,7 @@ class AnalysisWindow(CurveToolWindow):
         dict(key="area_cm2", label="Area (cm²)", default=0.0, min=0.0, group="Device (optional)"),
         dict(key="thickness_nm", label="Thickness (nm)", default=0.0, min=0.0, group="Device (optional)"),
     ]
-    VIEWS = ["Nyquist", "Bode", "Residuals", "Capacitance"]
+    VIEWS = ["Nyquist", "Bode", "Residuals", "Capacitance", "DRT"]
     BATCH = curve_batch.batch_columns("eis")
     METHOD_SECTION = "20."
     NOTES = ("The circuit was fitted to Z' and Z'' together with modulus weighting; with 'auto' the valid circuit "
@@ -40,7 +41,9 @@ class AnalysisWindow(CurveToolWindow):
              "(2014)). The effective capacitance of a constant-phase element follows C = (Q R^(1-alpha))^(1/alpha) "
              "(Hsu and Mansfeld, Corrosion 57, 747 (2001)). Low-frequency arcs of perovskite cells are ionic and "
              "must not be read as a recombination resistance (von Hauff and Klotz, J. Mater. Chem. C 10, 742 "
-             "(2022)).")
+             "(2022)). The distribution of relaxation times was obtained by Tikhonov-regularised non-negative "
+             "least squares (Wan et al., Electrochim. Acta 184, 483 (2015)), with the regularisation chosen by "
+             "the discrepancy principle.")
 
     # ---- data ----------------------------------------------------------------------
     def demo(self):
@@ -89,6 +92,35 @@ class AnalysisWindow(CurveToolWindow):
             legend(a1, "upper right")
             return
         ax = fig.add_subplot(111)
+        if view == "DRT":
+            d = result.get("drt")
+            if not d:
+                raise ValueError("no distribution of relaxation times for this spectrum: "
+                                 + result.get("drt_error", "it could not be computed"))
+            for k, (name, _d, r) in enumerate(others):
+                if r.get("drt"):
+                    ax.semilogx(r["drt"]["tau"], r["drt"]["gamma"], **other_kw(k, name))
+            ax.semilogx(d["tau"], d["gamma"], color=_pal.series_color(0), lw=1.8, label="DRT γ(τ)")
+            w = 2 * np.pi * f
+            ax.axvspan(d["tau"][0], 1.0 / w.max(), color=_pal.PLOT_REF, alpha=0.12, lw=0)
+            ax.axvspan(1.0 / w.min(), d["tau"][-1], color=_pal.PLOT_REF, alpha=0.12, lw=0,
+                       label="outside the measured range")
+            for i, arc in enumerate(result["arcs"]):
+                if np.isfinite(arc.get("tau_s", np.nan)):
+                    ax.axvline(arc["tau_s"], color=_pal.series_color(i + 1), lw=1.1, ls="--",
+                               label=f"circuit arc {i + 1}: τ = {arc['tau_s']:.3g} s")
+            lines = []
+            for i, pk in enumerate(d["peaks"], 1):
+                ax.plot([pk["tau_s"]], [pk["gamma_max"]], ls="none", marker="v", ms=6, color=_pal.PLOT_TICK)
+                lines.append(f"peak {i}: τ = {pk['tau_s']:.3g} s, R = {pk['R']:.3g} Ω")
+            lines.append(f"R∞ = {d['R_inf']:.3g} Ω,  λ = {d['lam']:.2g}")
+            note_box(ax, "\n".join(lines), "upper left")
+            ax.set_xlim(d["tau"][0], d["tau"][-1])
+            ax.set_ylim(bottom=0)
+            ax.set_xlabel("Relaxation time τ (s)")
+            ax.set_ylabel("γ (Ω)")
+            legend(ax, "upper right")
+            return
         if view == "Capacitance":
             c = np.asarray(result["C_spectrum_F"], float)
             scale, unit = (1.0 / result["area_cm2"], "F/cm²") if result["area_cm2"] > 0 else (1.0, "F")

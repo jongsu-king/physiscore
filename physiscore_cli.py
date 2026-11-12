@@ -15,7 +15,7 @@ for scripted and reproducible batch processing.
     python physiscore_cli.py batch eqe|abs|pl|xrd|raman|ftir FOLDER_OR_FILES... [--all-columns] [--out summary.xlsx] [--json]
     python physiscore_cli.py sclc      FILE... [--thickness NM] [--eps 25] [--area CM2] [--field-dependent] [--out x.xlsx] [--interpret] [--json]
     python physiscore_cli.py intensity FILE... | --jv-set JV_FILE... [--temperature 300] [--i-min X] [--i-max X] [--out x.xlsx] [--interpret] [--json]
-    python physiscore_cli.py trpl      FILE... [--model auto|exp1|exp2|exp3|stretched] [--background auto|none|VALUE] [--skip T] [--out x.xlsx] [--interpret] [--json]
+    python physiscore_cli.py trpl      FILE... [--model auto|exp1|exp2|exp3|stretched] [--background auto|none|VALUE] [--skip T] [--irf none|gaussian|measured] [--irf-fwhm W] [--irf-file IRF] [--out x.xlsx] [--interpret] [--json]
     python physiscore_cli.py eis       FILE... [--model auto|"R(RC)"|"R(RQ)"|...] [--f-min HZ] [--f-max HZ] [--area CM2] [--out x.xlsx] [--interpret] [--json]
     python physiscore_cli.py cv        FILE... [--area CM2] [--eps 25] [--thickness NM] [--c-unit F|nF|...] [--out x.xlsx] [--interpret] [--json]
     python physiscore_cli.py stability FILE... [--time-unit h] [--threshold 0.8] [--model auto] [--protocol ISOS-L-1] [--out x.xlsx] [--interpret] [--json]
@@ -346,7 +346,10 @@ CURVE_OPTIONS = {
              ("--skip", "skip", float, "time skipped after the peak (default 0)"),
              ("--t-end", "t_end", float, "end of the fit window"),
              ("--time-unit", "time_unit", str, "unit of the time column (default ns)"),
-             ("--irf-fwhm", "irf_fwhm", float, "FWHM of the instrument response, same unit (default 0: not stated)"),
+             ("--irf", "irf", str, "instrument response: none (tail fit, default), gaussian or measured (reconvolution)"),
+             ("--irf-fwhm", "irf_fwhm", float, "FWHM of the instrument response, same unit; with --irf gaussian 0 fits it "
+              "(default 0)"),
+             ("--irf-file", "irf_file", str, "measured response (time, counts) for --irf measured"),
              ("--mobility", "mobility_cm2_Vs", float, "mobility in cm2/Vs for the diffusion length (default 0: none)"),
              ("--temperature", "temperature_k", float, "temperature in K (default 300)")],
     "eis": [("--model", "model", str, "equivalent circuit (default auto: lowest AICc among the valid fits)"),

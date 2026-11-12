@@ -1,5 +1,6 @@
 """Impedance spectroscopy: equivalent-circuit fit (complex non-linear least
-squares) and the linear Kramers-Kronig validity test.
+squares), the linear Kramers-Kronig validity test and the distribution of
+relaxation times (DRT).
 
 Circuits (series resistance plus one or two parallel arcs)
     R(RC)        Rs + R1 || C1
@@ -25,6 +26,13 @@ M is the smallest number of elements whose rms residual is within 10 % of
 the lowest residual any M reaches; the criterion mu of Schoenleber is
 reported with it (mu < 0.85 marks an over-fitted chain).
 
+Distribution of relaxation times: Z = R_inf + j w L + integral gamma(ln tau)
+/ (1 + j w tau) d ln tau, solved for gamma >= 0 by Tikhonov-regularised
+non-negative least squares (second-derivative penalty, modulus weighting);
+the regularisation is the largest whose residual stays within 5 % of the
+least regularised fit. It shows how many relaxation processes the spectrum
+holds without choosing a circuit first; a peak's area is its resistance.
+
 Sign convention: capacitive Z'' is negative. Files that store -Z'' (most
 positive values) are detected and converted.
 
@@ -35,6 +43,8 @@ References
     Guerrero, Bisquert, Garcia-Belmonte, Chem. Rev. 121, 14430 (2021)
     von Hauff, Klotz, J. Mater. Chem. C 10, 742 (2022)
     Ebadi et al., Nat. Commun. 10, 1574 (2019)                       negative capacitance
+    Wan, Saccoccio, Chen, Ciucci, Electrochim. Acta 184, 483 (2015)  DRT by regularised regression
+    Hansen, Rank-Deficient and Discrete Ill-Posed Problems (SIAM, 1998), ch. 7   choice of lambda
 """
 from __future__ import annotations
 
@@ -255,6 +265,151 @@ def lin_kk(f, z, mu_limit: float = 0.85, max_m: Optional[int] = None) -> Dict[st
     return out
 
 
+# ---------------------------------------------------------------------------
+# distribution of relaxation times
+# ---------------------------------------------------------------------------
+DRT_PER_DECADE, DRT_EXTEND_DEC = 10, 1.0
+DRT_LAMBDAS = np.logspace(-7, 2, 37)
+DRT_DISCREPANCY = 1.05              # allowed rms residual, relative to the least regularised fit
+DRT_PEAK_PROMINENCE = 0.05          # of the largest gamma
+DRT_MINOR = 0.05                    # a peak below this fraction of R_pol is merged into the nearest larger one
+
+
+def _drt_design(f, tau) -> Tuple[np.ndarray, float]:
+    """Columns R_inf, L (j w), gamma_m dln(tau) / (1 + j w tau_m)."""
+    w = 2 * np.pi * np.asarray(f, float)
+    dln = float(np.log(tau[1] / tau[0]))
+    k = dln / (1.0 + 1j * w[:, None] * tau[None, :])
+    return np.column_stack([np.ones(len(w), complex), 1j * w, k]), dln
+
+
+def _nnls_tikhonov(a_rows: np.ndarray, b: np.ndarray, lam: float, n_gamma: int, cols: Sequence[int]) -> np.ndarray:
+    """min ||a x - b||^2 + lam ||D2 gamma||^2 with x >= 0 over the chosen
+    columns (the others are zero); columns are scaled to unit norm first."""
+    from scipy.optimize import nnls
+    cols = list(cols)
+    a = a_rows[:, cols]
+    scale = np.linalg.norm(a, axis=0)
+    scale[scale == 0] = 1.0
+    a = a / scale
+    n_extra = len(cols) - n_gamma
+    d2 = np.zeros((n_gamma - 2, len(cols)))
+    for i in range(n_gamma - 2):
+        d2[i, n_extra + i:n_extra + i + 3] = (1.0, -2.0, 1.0)
+    d2 = d2 / scale                     # the penalty acts on gamma itself, not on the scaled unknowns
+    d2 = d2 * (np.linalg.norm(a[:, n_extra:]) / max(np.linalg.norm(d2), 1e-300))
+    m = np.vstack([a, np.sqrt(lam) * d2])
+    rhs = np.r_[b, np.zeros(n_gamma - 2)]
+    x = nnls(m, rhs, maxiter=50 * m.shape[1])[0] / scale
+    out = np.zeros(a_rows.shape[1])
+    out[cols] = x
+    return out
+
+
+def drt(f, z, lam: Optional[float] = None, per_decade: int = DRT_PER_DECADE,
+        extend_dec: float = DRT_EXTEND_DEC) -> Dict[str, Any]:
+    """Distribution of relaxation times by Tikhonov-regularised non-negative
+    least squares.
+
+        Z(w) = R_inf + j w L + integral gamma(ln tau) / (1 + j w tau) d ln tau
+
+    gamma is collocated on `per_decade` points per decade, `extend_dec`
+    decades beyond 1 / w at both ends of the spectrum, with a second-
+    derivative penalty and modulus weighting. lam (relative to the scale of
+    the data) is the largest value of a logarithmic grid whose rms residual
+    stays within 5 % of the residual of the least regularised fit
+    (discrepancy principle, with the noise level taken from the spectrum
+    itself). Peaks with a prominence of at least 5 % of the largest gamma
+    are processes; the resistance of each is the area of gamma between the
+    minima around it, and a peak below 5 % of the total area is merged into
+    the nearest larger one."""
+    f, z = np.asarray(f, float), np.asarray(z, complex)
+    w = 2 * np.pi * f
+    mod = np.abs(z)
+    tau = np.geomspace(1.0 / w.max() / 10 ** extend_dec, 1.0 / w.min() * 10 ** extend_dec,
+                       int(round(np.log10(w.max() / w.min()) + 2 * extend_dec) * per_decade) + 1)
+    a, dln = _drt_design(f, tau)
+    n_g = len(tau)
+    a_w = np.vstack([a.real / mod[:, None], a.imag / mod[:, None]])
+    b_w = np.r_[z.real / mod, z.imag / mod]
+    cols = [0, 1] + list(range(2, 2 + n_g))
+
+    def solve(lm):
+        x = _nnls_tikhonov(a_w, b_w, lm, n_g, cols)
+        zf = a @ x
+        r = np.r_[100.0 * (z.real - zf.real) / mod, 100.0 * (z.imag - zf.imag) / mod]
+        return x, zf, r
+
+    if lam is None:
+        trials = [solve(lm) for lm in DRT_LAMBDAS]
+        rms = np.array([float(np.sqrt(np.mean(t[2] ** 2))) for t in trials])
+        ok = np.where(rms <= DRT_DISCREPANCY * rms[0] + 1e-12)[0]
+        i = int(ok[-1])
+        lam_best, (x, zfit, res_pct) = float(DRT_LAMBDAS[i]), trials[i]
+        at_edge = i == len(DRT_LAMBDAS) - 1
+    else:
+        lam_best, at_edge = float(lam), False
+        x, zfit, res_pct = solve(lam_best)
+        rms = np.array([float(np.sqrt(np.mean(res_pct ** 2)))])
+    gamma = x[2:]
+    r_pol = float(gamma.sum() * dln)
+    peaks = _merge_minor(_drt_peaks(tau, gamma, dln), r_pol)
+    inside = (tau >= 1.0 / w.max()) & (tau <= 1.0 / w.min())
+    return {"tau": tau, "gamma": gamma, "dln_tau": dln, "R_inf": float(x[0]), "L": float(x[1]), "R_pol": r_pol,
+            "lam": lam_best, "lam_at_edge": bool(at_edge), "lambdas": DRT_LAMBDAS.copy() if lam is None else np.array([lam_best]),
+            "rms_curve": rms, "zfit": zfit, "rms_pct": float(np.sqrt(np.mean(res_pct ** 2))),
+            "max_pct": float(np.abs(res_pct).max()), "peaks": peaks,
+            "n_processes": len(peaks),
+            "outside_R": float(gamma[~inside].sum() * dln)}
+
+
+def _merge_minor(peaks: List[Dict[str, float]], r_pol: float) -> List[Dict[str, Any]]:
+    """A peak holding less than DRT_MINOR of the polarisation resistance is
+    not resolved as a process of its own (regularisation side lobes of a
+    broad distribution look like this): its area is added to the nearest
+    larger peak in ln tau."""
+    for pk in peaks:
+        pk["minor"] = bool(r_pol > 0 and pk["R"] < DRT_MINOR * r_pol)
+        pk["merged"] = 0
+    major = [pk for pk in peaks if not pk["minor"]]
+    if not major:
+        return peaks
+    for pk in peaks:
+        if pk["minor"]:
+            near = min(major, key=lambda q: abs(np.log(q["tau_s"] / pk["tau_s"])))
+            near["R"] += pk["R"]
+            near["merged"] += 1
+    return major
+
+
+def _drt_peaks(tau, gamma, dln: float) -> List[Dict[str, float]]:
+    from scipy.signal import find_peaks
+    if not np.any(gamma > 0):
+        return []
+    g = np.r_[0.0, gamma, 0.0]                 # a peak at the edge of the grid counts too
+    idx, _ = find_peaks(g, prominence=DRT_PEAK_PROMINENCE * float(gamma.max()))
+    idx = idx - 1
+    out: List[Dict[str, float]] = []
+    bounds = [0]
+    for a_, b_ in zip(idx[:-1], idx[1:]):
+        bounds.append(int(a_ + np.argmin(gamma[a_:b_ + 1])))
+    bounds.append(len(gamma) - 1)
+    lt = np.log(tau)
+    for k, i in enumerate(idx):
+        lo, hi = bounds[k], bounds[k + 1]
+        r = float(gamma[lo:hi + 1].sum() * dln) if k == len(idx) - 1 else float(gamma[lo:hi].sum() * dln)
+        if 0 < i < len(gamma) - 1:
+            y0, y1, y2 = gamma[i - 1], gamma[i], gamma[i + 1]
+            den = y0 - 2 * y1 + y2
+            shift = 0.5 * (y0 - y2) / den if den != 0 else 0.0
+            lpk = lt[i] + float(np.clip(shift, -0.5, 0.5)) * (lt[1] - lt[0])
+        else:
+            lpk = lt[i]
+        t_pk = float(np.exp(lpk))
+        out.append({"tau_s": t_pk, "f_Hz": 1.0 / (2 * np.pi * t_pk), "R": r, "gamma_max": float(gamma[i])})
+    return out
+
+
 def capacitance_spectrum(f, z) -> np.ndarray:
     """C(f) = Im(1 / Z) / w, the capacitance of the parallel representation."""
     return (1.0 / np.asarray(z, complex)).imag / (2 * np.pi * np.asarray(f, float))
@@ -293,6 +448,11 @@ def analyse(f, zre, zim, model: str = "auto", convention: str = "auto", f_min: O
     for k in ("p", "perr", "names", "arcs", "Rs", "Rs_err", "rms_pct", "aicc", "valid", "reason"):
         res[k] = fit[k]
     res["R_total"] = float(sum(a["R"] for a in fit["arcs"]))
+    try:
+        res["drt"] = drt(f, z)
+    except Exception as exc:                       # noqa: BLE001 - the DRT is an addition to the circuit fit
+        res["drt"] = None
+        res["drt_error"] = str(exc)
     res["eps_r"] = np.nan
     if area_cm2 > 0 and thickness_nm > 0:
         res["eps_r"] = float(fit["arcs"][0]["C_eff_F"] * thickness_nm * 1e-9 / (EPS0 * area_cm2 * 1e-4))
@@ -330,6 +490,15 @@ def checks(r: Dict[str, Any]) -> List[str]:
         if a["f_peak_Hz"] > r["f"].max() or a["f_peak_Hz"] < r["f"].min():
             w.append(f"The characteristic frequency of arc {i} ({a['f_peak_Hz']:.3g} Hz) lies outside the measured "
                      "range: the arc is only partly seen and its resistance is an extrapolation.")
+    d = r.get("drt")
+    if d:
+        if r["lf_inductive"] >= 2 or d["rms_pct"] > max(2.0, 3.0 * r["kk"]["rms_pct"]):
+            w.append(f"The distribution of relaxation times leaves {d['rms_pct']:.1f} % rms residuals: a non-negative "
+                     "DRT cannot represent an inductive loop or a negative capacitance, so read it only for the "
+                     "capacitive processes.")
+        if d["outside_R"] > 0.1 * max(d["R_pol"], 1e-300):
+            w.append(f"{100 * d['outside_R'] / d['R_pol']:.0f} % of the DRT area lies at time constants outside the "
+                     "measured frequency range: a process there is extrapolated, extend the sweep to see it.")
     return w
 
 
@@ -352,6 +521,14 @@ def summary_rows(r: Dict[str, Any]) -> List[Tuple[str, Any, str]]:
              ("Kramers-Kronig residual (max)", r["kk"]["max_pct"], "% of |Z|"), ("Kramers-Kronig RC elements", r["kk"]["M"], "")]
     if np.isfinite(r["eps_r"]):
         rows.append(("Relative permittivity (high-frequency arc)", r["eps_r"], ""))
+    d = r.get("drt")
+    if d:
+        rows.append(("DRT processes", d["n_processes"], ""))
+        for i, pk in enumerate(d["peaks"], 1):
+            rows += [(f"DRT peak {i}: tau", pk["tau_s"], "s"), (f"DRT peak {i}: f", pk["f_Hz"], "Hz"),
+                     (f"DRT peak {i}: R" + (" (with merged side peaks)" if pk["merged"] else ""), pk["R"], "Ohm")]
+        rows += [("DRT R_inf", d["R_inf"], "Ohm"), ("DRT R_pol (area)", d["R_pol"], "Ohm"),
+                 ("DRT lambda", d["lam"], ""), ("DRT residual (rms)", d["rms_pct"], "% of |Z|")]
     return rows
 
 

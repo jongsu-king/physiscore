@@ -24,9 +24,11 @@ REF_KOSTER_JSC = "Koster et al., Appl. Phys. Lett. 87, 203502 (2005)"
 REF_MIHAILETCHI = "Mihailetchi et al., Phys. Rev. Lett. 94, 126602 (2005)"
 REF_SINTON = "Sinton, Cuevas, Proc. 16th EU PVSEC, 1152 (2000)"
 REF_LAKOWICZ = "Lakowicz, Principles of Fluorescence Spectroscopy, 3rd ed. (2006), ch. 4"
+REF_OCONNOR = "O'Connor, Phillips, Time-Correlated Single Photon Counting (Academic Press, 1984), ch. 7"
 REF_KRUECKEMEIER = "Krückemeier et al., Adv. Energy Mater. 11, 2003489 (2021)"
 REF_KIRCHARTZ_PL = "Kirchartz et al., Adv. Energy Mater. 10, 1904134 (2020)"
 REF_SCHOENLEBER = "Schönleber et al., Electrochim. Acta 131, 20 (2014)"
+REF_WAN_DRT = "Wan, Saccoccio, Chen, Ciucci, Electrochim. Acta 184, 483 (2015)"
 REF_GUERRERO = "Guerrero et al., Chem. Rev. 121, 14430 (2021)"
 REF_VONHAUFF = "von Hauff, Klotz, J. Mater. Chem. C 10, 742 (2022)"
 REF_HSU = "Hsu, Mansfeld, Corrosion 57, 747 (2001)"
@@ -166,6 +168,27 @@ def interpret_trpl(r: dict, subject: str = "") -> Report:
         rep.add("good", "Fit quality", "The model describes the decay within the counting noise.",
                 f"reduced chi-square {float(chi):.2f}, Durbin-Watson {_f(dw, '.2f')}",
                 "0.7 <= chi-square <= 1.3 and Durbin-Watson >= 1.5 (Poisson weights)", REF_LAKOWICZ)
+    irf = r.get("irf", "none")
+    fw = r.get("irf_fwhm")
+    if irf != "none":
+        tl = r.get("tail") or {}
+        t_tail = float(np.nanmin(np.atleast_1d(tl.get("taus", [np.nan]))))
+        if irf == "gaussian":
+            how = (f"a Gaussian response of {float(fw):.3g} {u} FWHM ("
+                   + ("entered" if r.get("irf_fixed") else "fitted to the rising edge") + ")")
+        else:
+            how = (f"the measured response ({float(fw):.3g} {u} FWHM, moved by {float(r.get('irf_shift', 0.0)):.3g} "
+                   f"{u})")
+        rep.add("note", "Instrument response", f"The decay was fitted by reconvolution with {how}. The shortest "
+                f"lifetime is {taus.min():.3g} {u}; a tail fit of the same trace gives {t_tail:.3g} {u}.",
+                f"tail-fit model {tl.get('model', '-')}", "I(t) = IRF(t) (x) sum A_i exp(-t / tau_i)", REF_OCONNOR,
+                "Record the response with a scatterer at the excitation wavelength and fit with it: a Gaussian "
+                "has no slow tail, which a real detector response has." if irf == "gaussian" else "")
+    elif _ok(fw) and float(fw) > 0 and taus.min() < 1.5 * float(fw):
+        rep.add("note", "Instrument response", f"The shortest lifetime ({taus.min():.3g} {u}) is within 1.5 response "
+                f"widths ({float(fw):.3g} {u} FWHM). A tail fit overestimates a lifetime of that size.", "",
+                "tail-fit error about +5 % at tau = FWHM, +20 % at FWHM / 2 (validation)", REF_OCONNOR,
+                "Fit with the response: Response gaussian with this FWHM, or measured with the IRF file.")
     if r["model"] == "exp1":
         rep.add("note", "Decay law", f"The decay is mono-exponential with tau = {taus[0]:.3g} {u}: a single "
                 "first-order channel, as for trap-assisted recombination at low injection.",
@@ -230,6 +253,25 @@ def interpret_eis(r: dict, subject: str = "") -> Report:
     if r["rms_pct"] <= 1.0:
         rep.add("good", "Circuit fit", f"The {r['model']} circuit reproduces the spectrum.",
                 f"rms residual {r['rms_pct']:.2f} % of |Z|", "rms <= 1 % with modulus weighting; AICc selection", REF_GUERRERO)
+    d = r.get("drt")
+    if d and d["peaks"]:
+        major = d["peaks"]
+        n_arc = len(r["arcs"])
+        ev = "; ".join(f"tau = {pk['tau_s']:.3g} s (f = {pk['f_Hz']:.3g} Hz), R = {pk['R']:.3g} Ohm" for pk in major)
+        if d["n_processes"] == n_arc:
+            rep.add("good", "Distribution of relaxation times", f"The DRT, which assumes no circuit, finds "
+                    f"{d['n_processes']} process" + ("es" if d["n_processes"] != 1 else "") + f", as many as the "
+                    f"{r['model']} circuit has arcs.", ev, "peaks with a prominence of 5 % of the largest; "
+                    "Tikhonov-regularised non-negative least squares", REF_WAN_DRT)
+        else:
+            rep.add("note", "Distribution of relaxation times", f"The DRT finds {d['n_processes']} process"
+                    + ("es" if d["n_processes"] != 1 else "") + f" while the {r['model']} circuit has {n_arc} arc"
+                    + ("s" if n_arc != 1 else "") + ". " + ("The circuit merges processes that the DRT separates."
+                    if d["n_processes"] > n_arc else "The circuit uses more arcs than the spectrum resolves."),
+                    ev, "peaks with a prominence of 5 % of the largest; a peak below 5 % of the area is merged "
+                    "into the nearest larger one", REF_WAN_DRT,
+                    "Choose the circuit by the DRT peaks, or restrict the frequency range to the processes of "
+                    "interest." if d["n_processes"] > n_arc else "")
     arcs = r["arcs"]
     a_cm2 = r.get("area_cm2", 0.0)
     if len(arcs) == 2:

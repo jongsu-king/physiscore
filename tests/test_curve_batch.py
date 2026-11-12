@@ -57,6 +57,7 @@ def test_defaults_are_arguments_of_the_core(tool):
     if tool == "intensity":
         accepted |= set(inspect.signature(core.from_jv_files).parameters)
     accepted |= set(inspect.signature(getattr(core, "read_curve", core.analyse)).parameters)
+    accepted |= set(inspect.signature(getattr(core, "read_response", core.analyse)).parameters)
     unknown = set(cb.TOOLS[tool]["defaults"]) - accepted
     assert not unknown, f"{tool}: {sorted(unknown)} are not arguments of the analysis"
 

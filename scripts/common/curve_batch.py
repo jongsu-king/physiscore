@@ -55,8 +55,10 @@ TOOLS: Dict[str, Dict[str, Any]] = {
     "trpl": {
         "name": "TRPL", "core": "scripts.TRPL.trpl_core", "interpret": "interpret_trpl",
         "defaults": {"model": "auto", "background": "auto", "skip": 0.0, "t_end": None, "time_unit": "ns",
-                     "irf_fwhm": 0.0, "mobility_cm2_Vs": 0.0, "temperature_k": 300.0},
-        "batch": [("Model", "model", ""), ("<tau> amp.", "tau_amp", ""), ("<tau> int.", "tau_int", ""),
+                     "irf": "none", "irf_fwhm": 0.0, "irf_file": "", "mobility_cm2_Vs": 0.0, "temperature_k": 300.0},
+        "batch": [("Model", "model", ""), ("Response", "irf", ""),
+                  ("tau short", lambda r: float(np.nanmin(np.atleast_1d(r["taus"]))), ""),
+                  ("<tau> amp.", "tau_amp", ""), ("<tau> int.", "tau_int", ""),
                   ("tau 1/e", "tau_1e", ""), ("chi2 red.", "chi2_red", ""), ("Unit", "time_unit", "")],
     },
     "eis": {
@@ -64,7 +66,8 @@ TOOLS: Dict[str, Dict[str, Any]] = {
         "defaults": {"model": "auto", "convention": "auto", "f_min": None, "f_max": None, "area_cm2": 0.0,
                      "thickness_nm": 0.0},
         "batch": [("Circuit", "model", ""), ("Rs", "Rs", "Ohm"), ("R total", "R_total", "Ohm"),
-                  ("Fit rms", "rms_pct", "%"), ("KK rms", _sub("kk", "rms_pct"), "%")],
+                  ("Fit rms", "rms_pct", "%"), ("KK rms", _sub("kk", "rms_pct"), "%"),
+                  ("DRT processes", lambda r: r["drt"]["n_processes"] if r.get("drt") else None, "")],
     },
     "cv": {
         "name": "C-V (Mott-Schottky)", "core": "scripts.CV.cv_core", "interpret": "interpret_cv",
@@ -126,7 +129,8 @@ def choices(tool: str) -> Dict[str, List[str]]:
     return {
         "sclc": lambda: {"branch": ["auto", "positive", "negative"], "sweep": ["up", "down", "all"]},
         "intensity": lambda: {"sweep": ["reverse", "forward", "combined"]},
-        "trpl": lambda: {"model": ["auto"] + list(c.MODELS), "time_unit": list(c.TIME_UNITS)},
+        "trpl": lambda: {"model": ["auto"] + list(c.MODELS), "time_unit": list(c.TIME_UNITS),
+                         "irf": list(c.IRF_KINDS)},
         "eis": lambda: {"model": ["auto"] + list(c.MODELS), "convention": ["auto", "Z''", "-Z''"]},
         "cv": lambda: {"c_unit": ["F", "mF", "uF", "nF", "pF"]},
         "stability": lambda: {"time_unit": list(c.TIME_TO_HOURS), "norm": ["initial", "maximum", "none"],
@@ -210,10 +214,13 @@ def analyse(tool: str, data: Dict[str, Any], params: Dict[str, Any]) -> Dict[str
         return c.analyse(data["intensity"], data["voc"], jsc=data.get("jsc"), ff=data.get("ff"),
                          pce=data.get("pce"), temperature_k=p["temperature_k"], i_min=p["i_min"], i_max=p["i_max"])
     if tool == "trpl":
+        irf_t = irf_y = None
+        if p["irf"] == "measured":
+            irf_t, irf_y = c.read_response(p.get("irf_file") or "")
         return c.analyse(data["t"], data["y"], model=p["model"], background=parse_background(p["background"]),
                          skip=p["skip"], t_end=p["t_end"], irf_fwhm=p["irf_fwhm"],
                          mobility_cm2_Vs=p["mobility_cm2_Vs"], time_unit=p["time_unit"],
-                         temperature_k=p["temperature_k"])
+                         temperature_k=p["temperature_k"], irf=p["irf"], irf_t=irf_t, irf_y=irf_y)
     if tool == "eis":
         for key in ("f", "zre", "zim"):
             if key not in data:
@@ -323,6 +330,11 @@ def _tables_trpl(data, r):
                                   "In fit window": np.asarray(r["mask"], bool)}),
            "Fit": pd.DataFrame({f"t ({u})": r["t_fit"], "Signal": r["y_fit"], "Model": r["fit"],
                                 "Weighted residual": r["residuals"]})}
+    comps = r.get("components") or []
+    for i, cmp in enumerate(comps if len(comps) > 1 else []):
+        out["Fit"][f"Component {i + 1}"] = cmp
+    if r.get("irf_curve") is not None:
+        out["Fit"]["Response (scaled to the peak)"] = r["irf_curve"]
     td, tau = r["tau_diff"]
     if len(td):
         out["Differential lifetime"] = pd.DataFrame({f"t ({u})": td, f"tau_diff ({u})": tau})
@@ -331,11 +343,18 @@ def _tables_trpl(data, r):
 
 def _tables_eis(data, r):
     z, zf, kk = r["z"], r["zfit"], r["kk"]
-    return {"Spectrum": pd.DataFrame({
+    out = {"Spectrum": pd.DataFrame({
         "f (Hz)": r["f"], "Z' (Ohm)": z.real, "Z'' (Ohm)": z.imag, "Fit Z' (Ohm)": zf.real,
         "Fit Z'' (Ohm)": zf.imag, "Fit residual Z' (%)": r["res_re_pct"], "Fit residual Z'' (%)": r["res_im_pct"],
         "KK residual Z' (%)": kk["res_re_pct"], "KK residual Z'' (%)": kk["res_im_pct"],
         "C = Im(1/Z)/omega (F)": r["C_spectrum_F"]})}
+    d = r.get("drt")
+    if d:
+        out["DRT"] = pd.DataFrame({"tau (s)": d["tau"], "f = 1/(2 pi tau) (Hz)": 1.0 / (2 * np.pi * d["tau"]),
+                                   "gamma (Ohm)": d["gamma"]})
+        out["Spectrum"]["DRT Z' (Ohm)"] = d["zfit"].real
+        out["Spectrum"]["DRT Z'' (Ohm)"] = d["zfit"].imag
+    return out
 
 
 def _tables_cv(data, r):
