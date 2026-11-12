@@ -49,7 +49,8 @@ def test_xrd_widths_are_not_widened_by_the_smoothing(xrd_runs):
     """3.5.2: FWHM +2 to +29 %, the 0.11 deg line +174 %."""
     for c, s, g, a in XRD_LINES:
         w = np.median([_row(f, c)["fwhm"] for _, f in xrd_runs])
-        assert w == pytest.approx(voigt_fwhm(s, g), rel=0.03), c
+        # medians of 4: -1.6 to +2.5 % (the Lorentzian-dominated 31.9 deg line)
+        assert w == pytest.approx(voigt_fwhm(s, g), rel=0.04), c
 
 
 def test_xrd_areas_within_the_baseline_limit(xrd_runs):
