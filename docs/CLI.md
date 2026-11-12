@@ -62,8 +62,12 @@ JSON keys include `Jsc_mA_cm2`, `Eg_Rau_eV`, `Eg_sigma_eV`, `Eg_inflection_eV`,
 
 ```
 physiscore abs FILE [--sheet NAME] [--column NAME] [--mode direct|indirect|direct_forbidden|indirect_forbidden]
-                   [--thickness NM] [--expected-eg EV] [--json]
+                   [--thickness NM] [--expected-eg EV] [--subtract-offset] [--json]
 ```
+
+`--subtract-offset` subtracts the sub-gap absorbance (median of the lowest-energy 5 % of the
+spectrum, which must lie 0.15 eV or more below the edge) before the Tauc fit; a constant
+offset otherwise lowers the gap (METHODS §4). Added in 3.5.3.
 
 ## xrd
 

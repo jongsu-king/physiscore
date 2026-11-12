@@ -304,14 +304,18 @@ Urbach_Data, DetailedBalance) and its side-car; Report; Origin.
 2. **Load and plot** - absorption spectrum and Tauc plot.
 3. Choose **Direct** or **Indirect** (Tauc exponent 2 or 1/2). *Y basis* A or alpha:
    with a film thickness, α = 2.303·A/d is used; the band gap does not change, only the
-   y scale.
+   y scale. *Sub-gap offset* Keep or Subtract: a constant absorbance below the gap
+   (reflection, scattering, substrate) lowers the Tauc gap, by about 10 meV at 0.02 for a
+   direct edge and 87 meV for an indirect one; Subtract removes the median absorbance of
+   the lowest-energy 5 % of the spectrum (it must lie at least 0.15 eV below the edge;
+   the log says when it does not). It does not correct interference fringes (3.5.3).
 4. **Auto fit** - selects the linear part of the edge automatically (see METHODS §4);
    *Expected Eg* (optional) restricts the search to ±0.6 eV around it. Or drag across
    the Tauc plot to fit your own range.
 
 The **Band-gap results** table gives the Tauc band gap with its standard error, the
 region and number of points, R², the derivative band gap (maximum of dA/dE) and the
-Urbach energy below the edge. Outputs: `<file>_result.xlsx` (Result, UV-Vis, Tauc_Data)
+Urbach energy below the edge, and the sub-gap offset subtracted (if any). Outputs: `<file>_result.xlsx` (Result, UV-Vis, Tauc_Data)
 and side-car; Report; Origin.
 
 ## 8. PL

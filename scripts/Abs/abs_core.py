@@ -219,14 +219,52 @@ def derivative_bandgap(wavelength_nm, absorbance, smooth_window: int = 7) -> flo
     return float(hv[int(np.argmax(cand))])
 
 
+def subgap_offset(wavelength_nm, absorbance, edge_ev: Optional[float] = None,
+                  fraction: float = 0.05, clearance_ev: float = 0.15) -> Dict[str, float]:
+    """Sub-gap absorbance offset (reflection, scattering, substrate): the median
+    absorbance of the lowest-energy ``fraction`` of the spectrum (at least 5
+    points).  When ``edge_ev`` is given, the offset is valid only if that
+    stretch ends at least ``clearance_ev`` below the edge; otherwise it is NaN
+    (the spectrum does not reach far enough below the gap).
+
+    A constant offset A0 bends the Tauc edge, (A + A0)^2 hv^2 containing a term
+    in A0 sqrt(hv - Eg): the automatic Tauc gap of a direct edge comes out 10 meV
+    low at A0 = 0.02 and 23 meV at 0.05 (indirect 87 and 177 meV)."""
+    wl = np.asarray(wavelength_nm, dtype=float)
+    a = np.asarray(absorbance, dtype=float)
+    ok = np.isfinite(wl) & np.isfinite(a) & (wl > 0)
+    e, a = HC_EV_NM / wl[ok], a[ok]
+    out = {"offset": float("nan"), "e_lo": float("nan"), "e_hi": float("nan"), "n_points": 0}
+    if len(e) < 20:
+        return out
+    order = np.argsort(e)
+    e, a = e[order], a[order]
+    n = max(5, int(round(fraction * len(e))))
+    out.update(e_lo=float(e[0]), e_hi=float(e[n - 1]), n_points=int(n))
+    if edge_ev is not None and np.isfinite(edge_ev) and e[n - 1] > float(edge_ev) - clearance_ev:
+        return out
+    out["offset"] = float(np.median(a[:n]))
+    return out
+
+
 def analyze_absorbance(wavelength_nm, absorbance, mode: str = "direct",
                        thickness_nm: Optional[float] = None,
-                       expected_eg: Optional[float] = None) -> Dict[str, float]:
+                       expected_eg: Optional[float] = None,
+                       subtract_offset: bool = False) -> Dict[str, float]:
     """Tauc Eg with its automatically selected region, derivative Eg and the
-    Urbach energy of the tail just below the Tauc region."""
+    Urbach energy of the tail just below the Tauc region.  With
+    ``subtract_offset`` the sub-gap offset (subgap_offset, checked against the
+    derivative band gap) is subtracted before the Tauc transform; ``A_offset``
+    reports it (NaN when nothing was subtracted)."""
+    a_off = float("nan")
+    if subtract_offset:
+        off = subgap_offset(wavelength_nm, absorbance, derivative_bandgap(wavelength_nm, absorbance))
+        if np.isfinite(off["offset"]):
+            a_off = off["offset"]
+            absorbance = np.asarray(absorbance, dtype=float) - a_off
     hv, y, label = tauc_transform(wavelength_nm, absorbance, mode, thickness_nm)
     reg = auto_linear_region(hv, y, expected_eg=expected_eg)
-    out = {"mode": mode, "Eg_Tauc_eV": reg["Eg"], "Eg_err_eV": reg["Eg_err"], "Tauc_R2": reg["R2"],
+    out = {"mode": mode, "A_offset": a_off, "Eg_Tauc_eV": reg["Eg"], "Eg_err_eV": reg["Eg_err"], "Tauc_R2": reg["R2"],
            "Tauc_lo_eV": reg["lo"], "Tauc_hi_eV": reg["hi"], "Tauc_slope": reg["slope"],
            "Tauc_intercept": reg["intercept"], "Eg_derivative_eV": derivative_bandgap(wavelength_nm, absorbance),
            "y_label": label}

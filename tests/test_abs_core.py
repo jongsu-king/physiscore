@@ -108,3 +108,35 @@ def test_degenerate_inputs_do_not_raise():
     assert np.isnan(reg["Eg"])
     assert ac.linear_fit([1, 2], [1, 2], 1, 2)["n_points"] == 2
     assert np.isnan(ac.derivative_bandgap([500, 600], [0.1, 0.2]))
+
+
+@pytest.mark.parametrize("mode,low_meV", [("direct", 9.0), ("indirect", 80.0)])
+def test_subgap_offset_removes_the_low_tauc_bias(mode, low_meV):
+    """A constant sub-gap absorbance of 0.02 lowers the automatic Tauc gap by
+    10 meV (direct) and 87 meV (indirect); subtracting the offset (3.5.3)
+    brings both within 2 meV."""
+    wl = np.arange(350.0, 1000.0 + 1e-9, 1.0)
+    e = ac.HC_EV_NM / wl
+    eg, eps, eu = 1.60, 0.002, 0.02
+    if mode == "direct":
+        edge = np.where(e >= eg, 1.2 * np.sqrt(np.clip(e - eg + eps, 0, None)) / e,
+                        1.2 * np.sqrt(eps) / eg * np.exp((e - eg) / eu))
+    else:
+        edge = np.where(e >= eg, 0.8 * np.clip(e - eg + eps, 0, None) ** 2 / e, 0.8 * eps ** 2 / eg * np.exp((e - eg) / eu))
+    a = edge + 0.02 + np.random.default_rng(0).normal(0, 0.0005, e.size)
+    keep = ac.analyze_absorbance(wl, a, mode)
+    sub = ac.analyze_absorbance(wl, a, mode, subtract_offset=True)
+    assert 1000 * ((eg - eps) - keep["Eg_Tauc_eV"]) > low_meV
+    assert np.isnan(keep["A_offset"])
+    assert sub["A_offset"] == pytest.approx(0.02, abs=0.001)
+    assert sub["Eg_Tauc_eV"] == pytest.approx(eg - eps, abs=0.002)
+
+
+def test_subgap_offset_needs_data_below_the_edge():
+    """A spectrum that stops 15 nm below a 1.60 eV edge gives no offset."""
+    wl = np.arange(350.0, 790.0, 1.0)
+    e = ac.HC_EV_NM / wl
+    a = np.where(e >= 1.6, 1.2 * np.sqrt(np.clip(e - 1.598, 0, None)) / e, 0.054 / 1.6 * np.exp((e - 1.6) / 0.02)) + 0.02
+    off = ac.subgap_offset(wl, a, ac.derivative_bandgap(wl, a))
+    assert np.isnan(off["offset"])
+    assert np.isnan(ac.analyze_absorbance(wl, a, "direct", subtract_offset=True)["A_offset"])

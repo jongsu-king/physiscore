@@ -111,8 +111,12 @@ from the fit covariance (Makuła, Pacia & Macyk, J. Phys. Chem. Lett. 9, 6814 (2
 Limits found on synthetic edges (3.5.3): a constant sub-gap absorbance A₀ (reflection,
 scattering, substrate) bends the transformed edge, (A + A₀)²hν² containing a term
 ∝ A₀√(hν − E_g), so the direct gap comes out 10 meV low at A₀ = 0.02 and 23 meV at 0.05
-(indirect: 87 and 177 meV), the same for Urbach energies of 15 to 50 meV; subtracting A₀
-before the transform removes it. A background that rises towards short wavelengths
+(indirect: 87 and 177 meV), the same for Urbach energies of 15 to 50 meV. `subgap_offset`
+estimates A₀ as the median absorbance of the lowest-energy 5 % of the spectrum (at least 5
+points, valid only if they end ≥ 0.15 eV below the derivative band gap); subtracting it
+before the transform (*Sub-gap offset: Subtract*, `analyze_absorbance(subtract_offset=True)`;
+default Keep) returns both gaps within 1 meV (VALIDATION). With interference fringes the
+median lands on a fringe and the correction does not help. A background that rises towards short wavelengths
 (0.05·(500 nm/λ)⁴) or interference fringes can move the steepest point, and so the
 region, above the edge (+0.4 to +0.8 eV for a direct edge); the edge-position rule (§16)
 then warns. Give the expected gap or set the range by hand in such cases.

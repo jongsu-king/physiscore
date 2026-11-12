@@ -45,17 +45,27 @@ absorbance interpretation rule changed.
   every auto-fit Voigt is now at least min(2 grid steps, half the seed FWHM).
 
 ### Added
-- Seven validation rows (105 in total): PL FWHM with an offset under Raw processing, XRD pipeline FWHM of the 0.11 deg line and of a
+- Ten validation rows (108 in total): Tauc gap with the offset subtracted, indirect Tauc
+  gap with and without the offset, PL FWHM with an offset under Raw processing, XRD pipeline FWHM of the 0.11 deg line and of a
   Lorentzian-dominated line, XRD pipeline area (the baseline limit below), XPS FWHM on a
   0.2 eV scan, and the doublet-mode 4f7/2 area and Pb0/Pb2+ ratio.
-- `tests/test_autofit_raw.py` (8 tests), a Tauc rule test and a PL offset test (457 in
-  all); every new test fails on 3.5.2.
+- `tests/test_autofit_raw.py` (8 tests), a Tauc rule test, a PL offset test and three
+  sub-gap offset tests (460 in all); every new test fails on 3.5.2.
 
 - **PL single-band width with an offset.** The single Gaussian had no constant term, and
   the PL window's default processing (Raw) subtracts no baseline: a dark-count offset of
   2, 5 and 10 % of the peak widened a 40 nm band by 2.9, 7.6 and 17 %. The band is now a
   Gaussian plus a constant (`fit_peak_gaussian` also returns `offset`); the same cases
   give 40.0 nm, and the overlapping-band validation row goes from +7.1 to +6.3 %.
+
+- **Absorbance: Sub-gap offset.** New switch in the Absorbance window (Keep by default,
+  so existing numbers are unchanged), `physiscore abs --subtract-offset` and
+  `analyze_absorbance(subtract_offset=True)`:
+  `subgap_offset` takes the median absorbance of the lowest-energy 5 % of the spectrum
+  (only if it lies 0.15 eV or more below the edge) and subtracts it before the Tauc
+  transform. With a constant offset of 0.02 the automatic gap goes from -10 to -0.8 meV
+  (direct) and from -87 to -0.8 meV (indirect). Not a fringe correction. The results
+  table and the report give the offset subtracted.
 
 ### Changed
 - **Absorbance interpretation, Tauc versus derivative.** A Tauc gap more than 40 meV
@@ -77,6 +87,7 @@ absorbance interpretation rule changed.
   absorbance A0 lowers the direct gap by 10 meV at A0 = 0.02 and 23 meV at 0.05 (indirect
   87 and 177 meV), independent of the Urbach energy, and a background rising towards
   short wavelengths or fringes can move the region above the edge (METHODS section 4).
+  The Sub-gap offset switch corrects the first; the second is flagged by Interpret.
   The earlier note that the Urbach tail causes the low gap was wrong: with A0 = 0 the
   gap is within 1 meV for Urbach energies of 15 to 50 meV.
 

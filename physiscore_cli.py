@@ -144,8 +144,10 @@ def cmd_eqe(a):
 def cmd_abs(a):
     from scripts.Abs import abs_core
     x, y, col, _ = _read_xy(a.file, a.sheet, a.column)
-    r = abs_core.analyze_absorbance(x, y, mode=a.mode, thickness_nm=a.thickness, expected_eg=a.expected_eg)
-    lines = [f"Absorbance: {a.file} [{col}], {a.mode} transition",
+    r = abs_core.analyze_absorbance(x, y, mode=a.mode, thickness_nm=a.thickness, expected_eg=a.expected_eg,
+                                    subtract_offset=a.subtract_offset)
+    lines = [f"Absorbance: {a.file} [{col}], {a.mode} transition"
+             + (f", sub-gap offset {_fmt(r['A_offset'], '.4g')} subtracted" if a.subtract_offset else ""),
              f"  Eg (Tauc)             {_fmt(r['Eg_Tauc_eV'], '.4f')} +- {_fmt(r['Eg_err_eV'], '.4f')} eV  "
              f"(region {_fmt(r['Tauc_lo_eV'], '.3f')}-{_fmt(r['Tauc_hi_eV'], '.3f')} eV, R2 {_fmt(r['Tauc_R2'], '.4f')})",
              f"  Eg (derivative)       {_fmt(r['Eg_derivative_eV'], '.4f')} eV",
@@ -544,6 +546,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("abs", help="UV-Vis absorbance (wavelength nm, A)"); p.add_argument("file")
     p.add_argument("--sheet"); p.add_argument("--column"); p.add_argument("--mode", default="direct", choices=sorted(["direct", "indirect", "direct_forbidden", "indirect_forbidden"]))
     p.add_argument("--thickness", type=float, default=None, help="film thickness (nm) to report alpha"); p.add_argument("--expected-eg", type=float, default=None)
+    p.add_argument("--subtract-offset", action="store_true",
+                   help="subtract the sub-gap absorbance (median of the lowest-energy 5 %%) before the Tauc fit")
     common(p); p.set_defaults(func=cmd_abs)
 
     p = sub.add_parser("xrd", help="XRD pattern (2theta, intensity)"); p.add_argument("file")

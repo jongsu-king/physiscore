@@ -16,7 +16,7 @@ regenerated with
 python tools/validation_report.py          # or: python physiscore_cli.py validate
 ```
 
-and the same cases are enforced as unit tests in `tests/` (`pytest`, 457 tests).
+and the same cases are enforced as unit tests in `tests/` (`pytest`, 460 tests).
 Measured-data checks (a perovskite XRD pattern, XPS region scans) run when a local
 `rawdata/` folder is present and are skipped otherwise, because those measurements
 are unpublished.
@@ -25,7 +25,9 @@ Known, documented limitations visible in the table: a single Gaussian fitted to 
 with an unresolved neighbour is biased (+6 % FWHM; the multi-component fit removes most of
 it), the plain mean of a lattice parameter keeps a specimen-displacement error that the
 Nelson-Riley extrapolation removes, and the Rau band gap of an error-function edge sits
-within 1 meV of its centre. The transport rows with noise show what the noise allows, not
+within 1 meV of its centre. The automatic Tauc region is biased low by a constant sub-gap
+absorbance (0.02 here: -10 meV for the direct edge, -87 meV for the indirect one); the rows
+with the offset subtracted (3.5.3) show the correction. The transport rows with noise show what the noise allows, not
 a bias of the method: TRPL lifetimes within about 1 % at 10^4 peak counts, impedance
 parameters within 0.1 % at 0.3 % noise, and the burn-in loss and the loss rate of a
 stability trace within 4 % at 0.4 % noise (the two trade against each other in the fit,
@@ -77,6 +79,9 @@ the doublet mode then returned four doublets for the two of the Pb 4f example.
 | EQE | SQ Jsc at 1.34 eV | 35.4 | 35.0189 | mA/cm2 | -1.077 |  |
 | EQE | AM1.5G integral | 1000.4 | 1000.37 | W/m2 | -0.003 | ASTM G173-03 table |
 | Abs | Eg, automatic Tauc region | 1.598 | 1.588 | eV | -0.626 | direct edge with Urbach tail |
+| Abs | Eg, automatic Tauc region, offset subtracted | 1.598 | 1.59724 | eV | -0.048 | same edge; sub-gap offset 0.02 subtracted |
+| Abs | Eg, indirect edge, automatic Tauc region | 1.598 | 1.51078 | eV | -5.458 | sub-gap offset 0.02 kept |
+| Abs | Eg, indirect edge, offset subtracted | 1.598 | 1.59719 | eV | -0.051 | sub-gap offset 0.02 subtracted |
 | Abs | Eg, derivative | 1.6 | 1.60394 | eV | +0.246 | max dA/dE |
 | Abs | Urbach energy | 25 | 25 | meV | +0.000 | ln A vs E |
 | XRD | 2theta @ 28.2 deg | 28.2 | 28.2001 | deg | +0.000 | overlapping doublet, dtheta = 0.40 deg, ALS background |

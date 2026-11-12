@@ -555,8 +555,8 @@ def interpret_absorbance(res: dict, other_mode_r2: Optional[float] = None, subje
             rep.add("note", "Tauc versus derivative", f"The Tauc gap is {d:.0f} meV below the steepest point of "
                     "the edge: a sub-gap absorbance offset (reflection, scattering, substrate), a tail or an "
                     "excitonic feature bends the edge and lowers the extrapolation.", ev, "difference > 40 meV", ref,
-                    "Subtract the sub-gap baseline absorbance and fit again; quote both values, or use the EQE "
-                    "band gap (Rau) of a device.")
+                    "Set Sub-gap offset to Subtract (Absorbance window) and fit again; quote both values, or use "
+                    "the EQE band gap (Rau) of a device.")
         elif d < -40:
             # synthetic direct edge on a scattering background 0.05 (500 nm/λ)^4: the
             # steepest point of the Tauc curve, and so the region, moved to 2.9-3.5 eV

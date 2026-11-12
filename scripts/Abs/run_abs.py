@@ -211,6 +211,20 @@ class AnalysisWindow(ctk.CTkToplevel):
         self.tauc_basis.set("A")
         self.tauc_basis.pack(side="right")
 
+        # Sub-gap offset (3.5.3): a constant absorbance below the gap (reflection,
+        # scattering, substrate) bends the Tauc edge and lowers the intercept
+        # (abs_core.subgap_offset); "Subtract" removes the median absorbance of
+        # the lowest-energy 5 % of the spectrum before the Tauc transform.
+        off_row = ctk.CTkFrame(ana_card, fg_color="transparent")
+        off_row.pack(fill="x", padx=16, pady=(0, 8))
+        ctk.CTkLabel(off_row, text="Sub-gap offset", text_color=self.text_secondary,
+                     font=_pal.font(12)).pack(side="left")
+        self.offset_mode = ctk.CTkSegmentedButton(
+            off_row, values=["Keep", "Subtract"], command=self._on_offset_change,
+            font=_pal.font(12), width=140)
+        self.offset_mode.set("Keep")
+        self.offset_mode.pack(side="right")
+
         thick_row = ctk.CTkFrame(ana_card, fg_color="transparent")
         thick_row.pack(fill="x", padx=16, pady=(0, 8))
         ctk.CTkLabel(thick_row, text="Film thickness (nm)", text_color=self.text_secondary,
@@ -584,6 +598,17 @@ class AnalysisWindow(ctk.CTkToplevel):
         # y-axis magnitude and label differ.
         hv = self.data_state["x"]
         A = self.absorbance
+        self.a_offset = float("nan")
+        om = getattr(self, "offset_mode", None)
+        if om is not None and om.get() == "Subtract" and self.raw_x is not None:
+            off = abs_core.subgap_offset(self.raw_x, self.raw_y, abs_core.derivative_bandgap(self.raw_x, self.raw_y))
+            if np.isfinite(off["offset"]):
+                self.a_offset = off["offset"]
+                A = np.clip(np.asarray(A, dtype=float) - self.a_offset, 0, None)
+                self.log(f"[Offset] subtracted A = {self.a_offset:.4g} (median of {off['n_points']} points, "
+                         f"{off['e_lo']:.3f}-{off['e_hi']:.3f} eV)")
+            else:
+                self.log("[Offset] not subtracted: the spectrum does not reach 0.15 eV below the edge.")
 
         basis = getattr(self, "tauc_basis", None)
         basis = basis.get() if basis is not None else "A"
@@ -613,6 +638,19 @@ class AnalysisWindow(ctk.CTkToplevel):
             return float(self.entry_thickness.get())
         except (ValueError, AttributeError, TypeError):
             return None
+
+    def _on_offset_change(self, _value=None):
+        """Recompute the Tauc curve with or without the sub-gap offset and refit
+        the current range, so the fit line and the results follow the switch."""
+        if self.data_state.get("x") is None:
+            return
+        self._recompute_tauc_y(self.mode_btn.get())
+        self.line_tauc.set_ydata(self.data_state["y"])
+        self._autoscale_y()
+        if self.fit_result:
+            self._on_span_select(self.fit_result["fitMin"], self.fit_result["fitMax"])
+            self._update_result_table()
+        self.canvas.draw_idle()
 
     def _on_basis_change(self, _value=None):
         if self.data_state.get("x") is None:
@@ -826,6 +864,7 @@ class AnalysisWindow(ctk.CTkToplevel):
             "Eu_meV": float(urb["Eu_meV"]),
             "Eu_R2": float(urb["R2"]),
             "Eg_derivative": float(eg_der),
+            "A_offset": float(getattr(self, "a_offset", float("nan"))),
             "n_points": int(lin["n_points"]),
             "R2": float(R2) if np.isfinite(R2) else np.nan,
             "m": float(m),
@@ -895,7 +934,8 @@ class AnalysisWindow(ctk.CTkToplevel):
                  ("R² of the linear fit", r["R2"], ".4f"),
                  ("Eg, derivative dA/dE maximum (eV)", r.get("Eg_derivative", float('nan')), ".4f"),
                  ("Urbach energy below the edge (meV)", r.get("Eu_meV", float('nan')), ".1f"),
-                 ("Urbach fit R²", r.get("Eu_R2", float('nan')), ".4f")]
+                 ("Urbach fit R²", r.get("Eu_R2", float('nan')), ".4f"),
+                 ("Sub-gap offset subtracted", f"{r['A_offset']:.4g}" if np.isfinite(r.get("A_offset", float("nan"))) else "none")]
         _theme.fill_kv(self.result_tree, items)
 
     def export_report(self):
@@ -906,7 +946,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         if not path:
             return
         r = self.fit_result
-        table = {"Transition": r["mode"], "Eg Tauc (eV)": r["Eg"], "Eg standard error (eV)": r.get("Eg_err"),
+        table = {"Transition": r["mode"], "Sub-gap offset subtracted": r.get("A_offset"), "Eg Tauc (eV)": r["Eg"], "Eg standard error (eV)": r.get("Eg_err"),
                  "Linear region (eV)": f"{r['fitMin']:.3f}-{r['fitMax']:.3f}", "R2": r["R2"],
                  "Eg derivative (eV)": r.get("Eg_derivative"), "Urbach energy (meV)": r.get("Eu_meV"),
                  "Urbach R2": r.get("Eu_R2")}
@@ -963,6 +1003,7 @@ class AnalysisWindow(ctk.CTkToplevel):
             "Eg derivative (eV)": res.get("Eg_derivative"),
             "Urbach energy (meV)": res.get("Eu_meV"),
             "Urbach R2": res.get("Eu_R2"),
+            "Sub-gap offset subtracted": res.get("A_offset"),
         }])
 
         df_uvvis = pd.DataFrame({

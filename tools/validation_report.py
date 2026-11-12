@@ -184,6 +184,15 @@ def absorbance():
                  1.2 * np.sqrt(eps) / eg * np.exp((e - eg) / eu)) + 0.02
     r = abs_core.analyze_absorbance(wl, a, "direct")
     record("Abs", "Eg, automatic Tauc region", eg - eps, r["Eg_Tauc_eV"], "eV", "direct edge with Urbach tail")
+    rs = abs_core.analyze_absorbance(wl, a, "direct", subtract_offset=True)
+    record("Abs", "Eg, automatic Tauc region, offset subtracted", eg - eps, rs["Eg_Tauc_eV"], "eV",
+           "same edge; sub-gap offset 0.02 subtracted")
+    ai = np.where(e >= eg, 0.8 * np.clip(e - eg + eps, 0, None) ** 2 / e, 0.8 * eps ** 2 / eg * np.exp((e - eg) / eu)) + 0.02
+    record("Abs", "Eg, indirect edge, automatic Tauc region", eg - eps,
+           abs_core.analyze_absorbance(wl, ai, "indirect")["Eg_Tauc_eV"], "eV", "sub-gap offset 0.02 kept")
+    record("Abs", "Eg, indirect edge, offset subtracted", eg - eps,
+           abs_core.analyze_absorbance(wl, ai, "indirect", subtract_offset=True)["Eg_Tauc_eV"], "eV",
+           "sub-gap offset 0.02 subtracted")
     record("Abs", "Eg, derivative", eg, r["Eg_derivative_eV"], "eV", "max dA/dE")
     a2 = np.where(e >= eg, 1.2 * np.sqrt(np.clip(e - eg + eps, 0, None)) / e, 1.2 * np.sqrt(eps) / eg * np.exp((e - eg) / 0.025))
     record("Abs", "Urbach energy", 25.0, abs_core.urbach_from_absorbance(wl, a2, eg - 0.2, eg - 0.03)["Eu_meV"], "meV", "ln A vs E")
