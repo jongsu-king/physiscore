@@ -3,7 +3,7 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
-## [3.6.0] - 2026-11-12
+## [3.6.0] - 2026-11-13
 
 TRPL fits with the instrument response, an unbiased fit at low counts, the distribution
 of relaxation times for impedance spectra, and UTF-16 text exports in every reader.
