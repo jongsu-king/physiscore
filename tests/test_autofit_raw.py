@@ -122,7 +122,7 @@ def test_doublet_mode_fits_each_doublet_once(tmp_path):
     cfg = copy.deepcopy(cfg)
     cfg.xps_split_ev, cfg.xps_area_ratio = 4.87, 0.75
     main, metal = [], []
-    for seed in range(12):
+    for seed in range(24):
         be, y = _pb4f(seed, 0.05)
         _, cand, f = run_xps_pipeline(be, y, str(tmp_path / str(seed)), cfg, log_cb=lambda m: None)
         for d, g in f.groupby("doublet_id"):
@@ -136,8 +136,10 @@ def test_doublet_mode_fits_each_doublet_once(tmp_path):
             assert int(((firsts["center"] - c).abs() < 0.3).sum()) == 0
         main.append(_row(firsts, 138.60)["area_amplitude"])
         metal.append(_row(firsts, 136.85)["area_amplitude"] / main[-1])
+    # medians of 24 realisations: -1.1 % and -2.2 %; one spectrum scatters from
+    # 0.06 to 0.16, and the median of only 12 sat at -14 % between two values
     assert np.median(main) == pytest.approx(4000.0, rel=0.03)
-    assert np.median(metal) == pytest.approx(0.095, rel=0.20)
+    assert np.median(metal) == pytest.approx(0.095, rel=0.15)
 
 
 def test_doublet_partner_taller_than_its_first_line_is_still_a_partner():
