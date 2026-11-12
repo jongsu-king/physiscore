@@ -549,12 +549,21 @@ def interpret_absorbance(res: dict, other_mode_r2: Optional[float] = None, subje
     egd = res.get("Eg_derivative")
     if _ok(eg) and _ok(egd):
         d = 1000 * (float(egd) - float(eg))
-        if abs(d) > 40:
-            rep.add("note", "Tauc versus derivative", f"The Tauc gap is {abs(d):.0f} meV "
-                    + ("below" if d > 0 else "above") + " the steepest point of the edge: a tail or an excitonic "
-                    "feature distorts the extrapolation.", f"Eg(Tauc) = {float(eg):.3f}, dA/dE max = {float(egd):.3f} eV",
-                    "|difference| > 40 meV", "Makuła, Pacia & Macyk, J. Phys. Chem. Lett. 9, 6814 (2018)",
-                    "Quote both values, or use the EQE band gap (Rau) of a device.")
+        ev = f"Eg(Tauc) = {float(eg):.3f}, dA/dE max = {float(egd):.3f} eV"
+        ref = "Makuła, Pacia & Macyk, J. Phys. Chem. Lett. 9, 6814 (2018)"
+        if d > 40:
+            rep.add("note", "Tauc versus derivative", f"The Tauc gap is {d:.0f} meV below the steepest point of "
+                    "the edge: a sub-gap absorbance offset (reflection, scattering, substrate), a tail or an "
+                    "excitonic feature bends the edge and lowers the extrapolation.", ev, "difference > 40 meV", ref,
+                    "Subtract the sub-gap baseline absorbance and fit again; quote both values, or use the EQE "
+                    "band gap (Rau) of a device.")
+        elif d < -40:
+            # synthetic direct edge on a scattering background 0.05 (500 nm/λ)^4: the
+            # steepest point of the Tauc curve, and so the region, moved to 2.9-3.5 eV
+            rep.add("warning", "Tauc versus derivative", f"The Tauc gap is {-d:.0f} meV above the steepest point "
+                    "of the edge: the automatic region sits above the edge, on a background that rises towards "
+                    "short wavelengths (scattering, interference fringes) or on a higher transition.", ev,
+                    "difference < -40 meV", ref, "Enter the expected gap, or drag the fit range onto the edge.")
     if _ok(other_mode_r2) and _ok(r2) and float(other_mode_r2) > float(r2) + 0.005:
         rep.add("warning", "Transition type", "The other transition type gives a straighter Tauc plot.",
                 f"R² = {float(r2):.4f} (chosen) vs {float(other_mode_r2):.4f} (other)", "ΔR² > 0.005",

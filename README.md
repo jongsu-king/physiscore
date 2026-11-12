@@ -204,7 +204,7 @@ page, which can be switched off. See [CONFIG.md](CONFIG.md).
 
 ```bash
 pip install pytest
-pytest -q                          # 455 tests on closed-form synthetic data
+pytest -q                          # 456 tests on closed-form synthetic data
 python tools/validation_report.py  # the table in docs/VALIDATION.md
 python tools/gui_smoke.py          # every window, the launcher and a session (needs a display)
 ```

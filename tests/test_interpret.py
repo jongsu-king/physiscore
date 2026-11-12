@@ -105,6 +105,30 @@ def test_tauc_prefers_the_other_transition_when_it_fits_better():
     assert levels(rep)["Transition type"] == "warning"
 
 
+def test_tauc_region_above_the_edge_is_a_warning():
+    """Direct edge at 1.60 eV on a scattering background 0.05 (500 nm/wl)^4:
+    the automatic region moved to the high-energy side (Tauc 2.37 eV, steepest
+    point of the absorbance 1.60 eV).  Up to 3.5.2 the rule called this a tail
+    or an excitonic feature, as for a gap below the edge."""
+    import numpy as np
+    from scripts.Abs import abs_core
+    wl = np.arange(350.0, 1000.0 + 1e-9, 1.0)
+    e = abs_core.HC_EV_NM / wl
+    a = np.where(e >= 1.60, 1.2 * np.sqrt(np.clip(e - 1.598, 0, None)) / e,
+                 1.2 * np.sqrt(0.002) / 1.60 * np.exp((e - 1.60) / 0.02)) + 0.05 * (500 / wl) ** 4
+    r = abs_core.analyze_absorbance(wl, a, "direct")
+    res = {"Eg": r["Eg_Tauc_eV"], "R2": r["Tauc_R2"], "lo": r["Tauc_lo_eV"], "hi": r["Tauc_hi_eV"],
+           "mode": "direct", "Eg_derivative": r["Eg_derivative_eV"]}
+    rep = I.interpret_absorbance(res)
+    assert r["Eg_Tauc_eV"] > 2.0 and abs(r["Eg_derivative_eV"] - 1.60) < 0.01
+    f = [x for x in rep.findings if x.topic == "Tauc versus derivative"][0]
+    assert f.level == "warning" and "above the edge" in f.text
+    # a gap below the steepest point (sub-gap offset) stays a note and names the offset
+    low = I.interpret_absorbance({"Eg": 1.55, "Eg_derivative": 1.60, "mode": "direct"})
+    f = [x for x in low.findings if x.topic == "Tauc versus derivative"][0]
+    assert f.level == "note" and "offset" in f.text
+
+
 # --------------------------------------------------------------- PL
 def test_pl_quenching_shift_stokes_and_width():
     rows = [{"Sample": "ref", "Peak (eV)": 1.60, "FWHM (meV)": 95},

@@ -8,7 +8,7 @@ release dates. Detailed release notes are in `docs/release-notes/`.
 Second correction of the auto-fit workspace (`spectra/`: the XPS tool and the XRD
 auto-fit). XRD and XPS auto-fit tables made with 3.5.2 or earlier should be fitted again
 for widths and S/N, and XPS tables made in doublet mode in any version. No other tool
-changes.
+computes different numbers; one absorbance interpretation rule changed (below).
 
 ### Fixed
 - **Lines were fitted to the smoothed curve.** The Savitzky-Golay output found the peak
@@ -47,7 +47,18 @@ changes.
 - Six validation rows (104 in total): XRD pipeline FWHM of the 0.11 deg line and of a
   Lorentzian-dominated line, XRD pipeline area (the baseline limit below), XPS FWHM on a
   0.2 eV scan, and the doublet-mode 4f7/2 area and Pb0/Pb2+ ratio.
-- `tests/test_autofit_raw.py` (8 tests, 455 in all); every new test fails on 3.5.2.
+- `tests/test_autofit_raw.py` (8 tests) and a Tauc rule test (456 in all); every new
+  test fails on 3.5.2.
+
+### Changed
+- **Absorbance interpretation, Tauc versus derivative.** A Tauc gap more than 40 meV
+  *above* the steepest point of the absorbance edge is now a warning that the automatic
+  region sits above the edge (on a background rising towards short wavelengths, fringes
+  or a higher transition), with the advice to enter the expected gap or set the range;
+  before, both directions were a note blaming a tail or an excitonic feature. On a
+  synthetic direct edge at 1.60 eV with a scattering background 0.05 (500 nm/wl)^4 the
+  automatic Tauc gap is 2.37 eV. A gap below the edge names a sub-gap absorbance offset
+  as a likely cause.
 
 ### Known limitations
 - XRD auto-fit areas are 5 to 10 % low on the synthetic pattern: the AsLS baseline follows
@@ -55,6 +66,12 @@ changes.
   stiffer baseline helps lines on a flat background but raises the area of a line on an
   amorphous hump by up to 13 %, so the default stays; compare areas between patterns
   processed with the same settings.
+- Automatic Tauc region (`abs_core.auto_linear_region`, unchanged): a constant sub-gap
+  absorbance A0 lowers the direct gap by 10 meV at A0 = 0.02 and 23 meV at 0.05 (indirect
+  87 and 177 meV), independent of the Urbach energy, and a background rising towards
+  short wavelengths or fringes can move the region above the edge (METHODS section 4).
+  The earlier note that the Urbach tail causes the low gap was wrong: with A0 = 0 the
+  gap is within 1 meV for Urbach energies of 15 to 50 meV.
 
 ## [3.5.2] - 2026-11-12
 

@@ -108,6 +108,14 @@ regression (window = max(7, 4 % of the points)); the steepest locally linear
 gap when given); the region grows while the slope stays ≥ 60 % of the anchor slope and
 is trimmed until the straight-line R² ≥ 0.98. E_g = −b/m with a standard error propagated
 from the fit covariance (Makuła, Pacia & Macyk, J. Phys. Chem. Lett. 9, 6814 (2018)).
+Limits found on synthetic edges (3.5.3): a constant sub-gap absorbance A₀ (reflection,
+scattering, substrate) bends the transformed edge, (A + A₀)²hν² containing a term
+∝ A₀√(hν − E_g), so the direct gap comes out 10 meV low at A₀ = 0.02 and 23 meV at 0.05
+(indirect: 87 and 177 meV), the same for Urbach energies of 15 to 50 meV; subtracting A₀
+before the transform removes it. A background that rises towards short wavelengths
+(0.05·(500 nm/λ)⁴) or interference fringes can move the steepest point, and so the
+region, above the edge (+0.4 to +0.8 eV for a direct edge); the edge-position rule (§16)
+then warns. Give the expected gap or set the range by hand in such cases.
 
 **Cross-checks** — `derivative_bandgap`: energy of max dA/dE (Savitzky–Golay smoothed);
 `urbach_from_absorbance`: ln A vs E below the edge (baseline = minimum A subtracted).
@@ -365,7 +373,7 @@ pass/fail criteria for every material system.
 |---|---|---|
 | Band gap | x-intercept of the straight Tauc region (note, with its error and range) | Tauc, Grigorovici & Vancu, Phys. Status Solidi 15, 627 (1966) |
 | Linearity | R² of the linear region < 0.99 warning; region narrower than 0.05 eV warning | Makuła, Pacia & Macyk, J. Phys. Chem. Lett. 9, 6814 (2018) |
-| Edge position | Tauc gap and the steepest point of the edge differ by > 40 meV: note (tail or excitonic feature) | Makuła et al. (2018) |
+| Edge position | Tauc gap > 40 meV below the steepest point of the edge: note (sub-gap offset, tail or excitonic feature); > 40 meV above it: warning (region on a rising background or a higher transition) | Makuła et al. (2018) |
 | Transition type | the other transition (direct/indirect) fits better by ΔR² > 0.005: warning | - |
 | Tail | Eu > 25 meV note | De Wolf et al. (2014) |
 
