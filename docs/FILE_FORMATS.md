@@ -100,7 +100,8 @@ before the numbers are read directly. Either axis order works.
 
 ## 9. Transport and recombination tools
 
-The six tools added in 3.5 read a table by **column name first and position second**.
+The six tools added in 3.5, and PLQY and the spectral mismatch (3.7), read a table by
+**column name first and position second**.
 Each tool lists the quantities it needs; a column whose header contains one of the listed
 words is taken for that quantity, and a quantity without a matching header is taken from
 the stated position. The window, the report and the CLI state which column was read as
@@ -206,6 +207,60 @@ The unit of the time column is a parameter (s, min, h, day; h by default). The v
 be an absolute efficiency or power or an already normalised trace; the normalisation is a
 parameter.
 
+### 9.7 PLQY and QFLS
+
+**Integrating-sphere spectra** (one file per sample):
+
+| Quantity | Header contains | Position without a header |
+|---|---|---|
+| wavelength (nm; µm is converted) | `wave`, `lambda`, `nm`, `wl` | 1st column |
+| A: empty sphere, laser only | `empty`, `blank`, `no sample`, `without`, `ref`, `A` | 2nd |
+| B: sample in the sphere, out of the beam (optional) | `out of beam`, `indirect`, `off beam`, `B` | 3rd of four |
+| C: sample in the beam | `in beam`, `direct`, `on beam`, `C` | last |
+
+```
+# integrating sphere, 532 nm laser, spectra corrected for the system response
+Wavelength (nm),Empty sphere (A),Out of beam (B),In beam (C)
+450.0,2,9,5
+...
+532.0,200035,170837,33892
+...
+775.0,0,70,408
+...
+```
+
+The spectra must be corrected for the spectral response of sphere and spectrometer and
+dark-subtracted; counts (photons) by default, W/nm with *Spectra in = energy*.
+
+**PLQY series** (one row per excitation intensity):
+
+| Quantity | Header contains | Position without a header |
+|---|---|---|
+| intensity (suns, mW/cm² or per cent of one sun) | `intens`, `suns`, `irradi`, `excit`, `power`, `fluen`, `light` | 1st column |
+| PLQY (fraction, or per cent when the header says `%` or a value exceeds 1) | `plqy`, `quantum`, `yield`, `qy` | 2nd |
+| Voc (V), optional | `voc`, `open` | - |
+| Jsc, optional | `jsc`, `short` | - |
+| FF, optional (% or fraction) | `ff`, `fill` | - |
+
+The EQE or absorptance file for J0,rad has a wavelength and a value column (`eqe`,
+`ipce`, `qe`, `quantum`, `absorpt`, `respons`), % or fraction.
+
+### 9.8 Spectral mismatch
+
+Three kinds of two-column table (wavelength in nm, or µm converted):
+
+- **test cell** (the files of the list): EQE in % or as a fraction, or the spectral
+  responsivity in A/W - an EQE export of the EQE tool is read as it is;
+- **simulator spectrum** (*Simulator spectrum* field): irradiance in any scale, in energy
+  units (W m⁻² nm⁻¹) or photon flux (*Spectrum units = photons*); it should cover the
+  whole response range of both cells (300-1200 nm for the 2020 class);
+- **reference cell** (*Reference cell* field): its calibrated responsivity in A/W, or its
+  EQE.
+
+A header with `A/W`, `SR` or `responsivity` marks a responsivity, one with `EQE`,
+`IPCE`, `QE` or `%` an EQE; without a telling header test files are read as EQE and
+reference files as responsivities (*Test files hold*, *Reference holds* override it).
+
 ## 10. What the automatic detection looks at
 
 *Open data*, the *Workspace* tab and `physiscore detect` (METHODS section 23) consider:
@@ -246,6 +301,6 @@ its numbers when that is unambiguous.
 | every Excel export | `<name>.analysis.json` | version, date, inputs, parameters, results |
 | Report (any tool) | `<name>.md` + `<name>.png` | tables, figure, methods note |
 
-The workbooks of the six transport tools hold one row per file in `Summary`, one row per
+The workbooks of the curve tools (section 9) hold one row per file in `Summary`, one row per
 quantity in `Results`, and the curve sheets of up to 20 files; with several files the
 curve sheets are numbered (`1 Decay`, `2 Decay`, ...) in the order of `Summary`.

@@ -24,6 +24,8 @@ by a `.analysis.json` side-car.
 | `eis FILE ...` | impedance spectra | Kramers-Kronig test, equivalent circuit with errors, capacitances, time constants |
 | `cv FILE ...` | capacitance-voltage sweeps | Mott-Schottky doping density, built-in potential, depletion width, resolution limit |
 | `stability FILE ...` | stability traces | T80, burn-in, Ts80, loss rate, extrapolation checks |
+| `plqy FILE ...` | integrating-sphere spectra or PLQY series | PLQY and absorptance (de Mello), −kT ln PLQY, QFLS, QFLS − qVoc, implied ideality, implied J-V |
+| `mismatch EQE_FILE ... --sim --ref` | EQE (or SR) of test cells, lamp spectrum, reference cell | mismatch factor M, Jsc under AM1.5G and on the simulator, IEC 60904-9 class |
 | `detect PATHS` | files or folders | what each file is and which tool opens it |
 | `collect FOLDER` | a project folder | every exported result in one table or workbook |
 | `sq EG` | band gap | Shockley-Queisser limit |
@@ -103,8 +105,11 @@ physiscore sem-stats grains.xlsx               # a column with nm/size/diam in i
 ```
 physiscore device --jv CELL.txt --eqe CELL_EQE.csv [--abs FILM.xlsx --mode direct] [--pl FILM_PL.csv]
                   [--sweep reverse|forward|combined] [--area CM2] [--irradiance 100] [--temperature 300]
-                  [--out device.xlsx] [--json]
+                  [--mismatch M] [--out device.xlsx] [--json]
 ```
+
+`--mismatch M` (from `physiscore mismatch`) divides the J-V current by M before the
+comparison with the EQE and adds `JV_Jsc_corrected` and `JV_PCE_corrected`.
 
 Prints the summary table (quantity, value, unit, origin) and the warnings. JSON keys
 follow `scripts.common.device_summary.summarize_device` (`JV_*`, `diode_*`, `EQE_*`,
@@ -128,10 +133,11 @@ Example: compare the band gaps of a composition series
 physiscore batch abs data/2026-11_series --all-columns --out series_bandgaps.xlsx
 ```
 
-## sclc, intensity, trpl, eis, cv, stability
+## sclc, intensity, trpl, eis, cv, stability, plqy, mismatch
 
-The six transport and recombination commands share one form: one or more files, the
-parameters of the matching window as options, and three common switches.
+The transport and recombination commands, PLQY and the spectral mismatch share one form:
+one or more files, the parameters of the matching window as options, and three common
+switches.
 
 ```
 physiscore sclc      [--thickness NM] [--eps EPS_R] [--area CM2] [--temperature K]
@@ -153,9 +159,16 @@ physiscore stability [--time-unit s|min|h|day] [--norm initial|maximum|none]
                      [--n-initial N] [--threshold FRACTION]
                      [--model auto|linear|exponential|burn-in|bi-exponential]
                      [--protocol NAME] FILE [FILE ...]
+physiscore plqy      [--input auto|series|sphere] [--intensity-unit suns|mW/cm2|percent]
+                     [--radiative eqe|bandgap|j0|none] [--eqe-file EQE] [--eg EV] [--j0 MA_CM2]
+                     [--jsc MA_CM2] [--temperature K] [--i-min I] [--i-max I]
+                     [--units photons|energy] [--laser-lo NM] [--laser-hi NM] [--em-lo NM] [--em-hi NM]
+                     [--power MW_CM2] [--suns X] [--voc V] FILE [FILE ...]
+physiscore mismatch  --sim LAMP_FILE|AM1.5G --ref REF_FILE [--sim-units energy|photons]
+                     [--test-kind auto|eqe|sr] [--ref-kind auto|eqe|sr] EQE_FILE [EQE_FILE ...]
 ```
 
-Common switches of all six:
+Common switches of all of them:
 
 | Switch | Effect |
 |---|---|
@@ -172,6 +185,8 @@ Defaults that matter:
 | `trpl` | model auto (lowest AICc among the valid fits), background auto, time unit ns, response none (tail fit) | `--irf gaussian` fits by reconvolution with a Gaussian response, its width fitted when `--irf-fwhm` is 0 and fixed otherwise; `--irf measured --irf-file IRF.csv` reconvolves with the recorded response (time and counts columns, same time axis) and fits its shift. With `--irf none`, `--irf-fwhm` only flags lifetimes below the response width. `--mobility` 0: no diffusion length. `--skip` is used by tail fits only. `--skip`, `--t-end` and `--irf-fwhm` are in the unit of `--time-unit`. |
 | `eis` | circuit auto (lowest AICc among the valid fits), sign convention auto | `--area` and `--thickness` are 0 (none). The area adds the area-normalised resistances and capacitances; area and thickness together add the relative permittivity from the high-frequency arc. The distribution of relaxation times is always computed (rows `DRT ...`, sheet `DRT` with `--out`). |
 | `cv` | eps_r 25, 300 K, capacitance in F, m = 2 | the Mott-Schottky window is chosen automatically unless `--v-min`/`--v-max` are given. `--thickness` adds the geometric capacitance and the resolution limit N_min; without it a check says that the density could not be compared with the limit. The area of the settings is used unless `--area` is given. |
+| `plqy` | input auto, intensity in suns, no radiative reference (PLQY and −kT ln PLQY only), spectra in photon counts, windows found automatically, excitation 1 sun | A file with a PLQY column is a series, a file with a wavelength and two or three spectra is a sphere measurement (A empty, B out of beam, C in beam, by name or in that order). `--radiative eqe --eqe-file STACK_EQE.csv` takes J0,rad and the one-sun generation current from the EQE of the same stack; `--radiative bandgap --eg 1.60` from a step absorptance (an upper estimate); `--radiative j0 --j0 1e-21 --jsc 24` as entered. `--power` with the laser power density gives the generation current from the measured absorptance; without it `--suns` states the excitation. `--voc` adds QFLS/q − Voc for a sphere file. |
+| `mismatch` | simulator in energy units, response kinds from the column names | `--sim` and `--ref` are required (`--sim AM1.5G` uses the reference spectrum, M = 1). Each test file is one cell; EQE files of the EQE tool are read directly. |
 | `stability` | time in h, normalised to the first point, threshold 0.8 (T80), model auto | `--protocol` is one of `ISOS-D-1`, `ISOS-D-2`, `ISOS-D-3`, `ISOS-L-1`, `ISOS-L-2`, `ISOS-L-3`, `ISOS-T-1`, `ISOS-O-1`, `ISOS-V-1`, `ISOS-LC-1`, `MPP tracking`; it is recorded with the result and does not change the numbers; without it a check says that a lifetime is comparable only with its protocol. |
 
 The text report has the same parts for every command: a header with the number of files
@@ -291,6 +306,6 @@ physiscore docs METHODS --section 3.      # opens Methods and algorithms at sect
 ## Exit status
 
 0 on success; a non-zero status with a message on unreadable input (`jv`/`dark` when a
-folder holds no curve, `batch` when no file is found). The six transport commands return
+folder holds no curve, `batch` when no file is found). The curve commands (sclc ... mismatch) return
 0 when at least one file was analysed and 1 when none was; `detect` returns 1 only when a
 path does not exist; `collect --out` returns 1 when there is nothing to collect.

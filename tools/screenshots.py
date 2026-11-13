@@ -18,7 +18,6 @@ the script ends up in a picture.
 import os
 import subprocess
 import sys
-import tempfile
 import time
 
 import numpy as np
@@ -30,8 +29,8 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 os.environ.setdefault("PHYSISCORE_NO_UPDATE", "1")
 
 NAMES = ("launcher", "workspace", "results", "updates", "jv", "device", "dark", "eqe", "abs", "pl", "xrd", "sem",
-         "raman", "ftir", "xps", "sclc", "intensity", "trpl", "trpl_irf", "eis", "eis_drt", "cv", "stability", "compare",
-         "interpretation")
+         "raman", "ftir", "xps", "sclc", "intensity", "trpl", "trpl_irf", "eis", "eis_drt", "cv", "stability", "plqy",
+         "mismatch", "compare", "interpretation")
 LAUNCHER_VIEWS = ("launcher", "workspace", "results", "updates")
 PROJECT = "FAPbI3_batch_2026-11"      # the synthetic project folder of the main-window pictures
 HC = 1239.84198
@@ -397,6 +396,30 @@ def write_project(folder):
     _table(p("XPS", "Ref_XPS_Pb4f.csv"), {"Binding Energy (eV)": np.round(be, 2), "Counts / s": np.round(xps, 1)})
     write_sem_image(p("SEM", "Ref_SEM_x50k.tif"))
 
+    # PLQY (3.7): sphere spectra of both films and an intensity series of the passivated cell; the
+    # solar-simulator spectrum and the reference cell of the mismatch tool. Their own random
+    # generator, so the files written after them are the same as before 3.7.
+    from scripts.PLQY import plqy_core
+    from scripts.Mismatch import mismatch_core
+    for grp, yield_, seed in (("Ref", 0.012, 11), ("PEAI", 0.061, 12)):
+        d = plqy_core.simulate_sphere(plqy=yield_, absorptance=0.78, indirect=0.12, pl_peak_ev=1.545,
+                                      pl_fwhm_ev=0.085, seed=seed)
+        _table(p("PLQY", f"{grp}_PLQY_sphere.csv"), {"Wavelength (nm)": d["wl"], "Empty sphere (A)": d["a"],
+                                                     "Out of beam (B)": d["b"], "In beam (C)": d["c"]},
+               pre="# integrating sphere, 532 nm laser, spectra corrected for the system response\n")
+    ref = plqy_core.radiative_reference("eqe", eqe_file=p("EQE", "PEAI_EQE.csv"))
+    s_ = plqy_core.simulate_series(plqy_1sun=0.061, n_id=1.25, j_g_1sun=ref["J_G_1sun"], j0_rad=ref["J0_rad"],
+                                   dv_int=0.045, suns=np.logspace(-3, 0, 13))
+    rng_plqy = np.random.default_rng(37)
+    s_["plqy"] = s_["plqy"] * (1 + 0.02 * rng_plqy.standard_normal(len(s_["plqy"])))
+    s_["voc"] = s_["voc"] + 0.0015 * rng_plqy.standard_normal(len(s_["voc"]))
+    _table(p("PLQY", "PEAI_PLQY_intensity.csv"), {"Intensity (suns)": s_["intensity"], "PLQY (%)": 100 * s_["plqy"],
+                                                  "Voc (V)": s_["voc"]})
+    w, irr = mismatch_core.example_simulator()
+    _table(p("Simulator", "Solar_simulator_spectrum.csv"), {"Wavelength (nm)": w, "Irradiance (W m-2 nm-1)": irr})
+    w, sr = mismatch_core.example_reference()
+    _table(p("Simulator", "Reference_cell_SR.csv"), {"Wavelength (nm)": w, "SR (A/W)": sr})
+
     for grp, mu, nt in (("Ref", 1.0, 5e16), ("PEAI", 1.6, 2e16)):
         vv, jj = sclc_core.simulate(thickness_nm=500, eps_r=25, mobility_cm2_Vs=mu, n_t_cm3=nt, n0_cm3=1e13)
         jj = jj * (1 + 0.02 * rng.standard_normal(len(jj)))          # 2 % current noise
@@ -435,9 +458,20 @@ PROJECT_RUNS = {
     "eis": (("EIS", "Ref_EIS_0V_dark.csv"),),
     "cv": (("CV", "Ref_MottSchottky_10kHz.csv"),),
     "stability": (("Stability", "Ref_MPPT_ISOS-L-1.csv"), ("Stability", "PEAI_MPPT_ISOS-L-1.csv")),
+    "plqy": (("PLQY", "Ref_PLQY_sphere.csv"), ("PLQY", "PEAI_PLQY_sphere.csv"), ("PLQY", "PEAI_PLQY_intensity.csv")),
+    "mismatch": (("EQE", "Ref_EQE.csv"), ("EQE", "PEAI_EQE.csv")),
 }
+# a value given as a function is evaluated with the project folder (a file of the project)
 PROJECT_PARAMS = {"sclc": {"thickness_nm": 500.0, "eps_r": 25.0}, "cv": {"area_cm2": 0.1, "eps_r": 25.0, "thickness_nm": 500.0},
-                  "stability": {"protocol": "ISOS-L-1"}}
+                  "stability": {"protocol": "ISOS-L-1"},
+                  "plqy": {"radiative": "eqe", "eqe_file": lambda f: os.path.join(f, "EQE", "PEAI_EQE.csv")},
+                  "mismatch": {"sim_file": lambda f: os.path.join(f, "Simulator", "Solar_simulator_spectrum.csv"),
+                               "ref_file": lambda f: os.path.join(f, "Simulator", "Reference_cell_SR.csv")}}
+PROJECT_SHOW = {"plqy": (2, "QFLS")}          # file of the list and view shown in the picture (default: first, first)
+
+
+def project_params(tool, folder):
+    return {k: (v(folder) if callable(v) else v) for k, v in PROJECT_PARAMS.get(tool, {}).items()}
 
 
 def project_files(folder, tool):
@@ -451,7 +485,7 @@ def write_project_results(folder):
     out = os.path.join(folder, "results")
     os.makedirs(out, exist_ok=True)
     for tool in PROJECT_RUNS:
-        params = curve_batch.parameters(tool, PROJECT_PARAMS.get(tool))
+        params = curve_batch.parameters(tool, project_params(tool, folder))
         items = curve_batch.run_files(tool, project_files(folder, tool), params)
         bad = [it["file"] for it in items if it["result"] is None]
         if bad:
@@ -528,15 +562,21 @@ def reset_fields(win):
 
 
 def shot_curve_tool(name, win, tmp):
-    """One of the six windows built on CurveToolWindow, with its project files analysed."""
+    """One of the windows built on CurveToolWindow, with its project files analysed."""
     reset_fields(win)
-    for key, value in PROJECT_PARAMS.get(name, {}).items():
+    folder = project(tmp)
+    for key, value in project_params(name, folder).items():
         win.set_param(key, value)
-    files = project_files(project(tmp), name)
+    files = project_files(folder, name)
     win.load_paths(files, run=False)
     win.run(sync=True)
-    if win.file_tree.exists(files[0]):
-        win.file_tree.selection_set(files[0])
+    pick, view = PROJECT_SHOW.get(name, (0, None))
+    if win.file_tree.exists(files[pick]):
+        win.file_tree.selection_set(files[pick])
+    if view:
+        win.update()
+        win.var_view.set(view)
+        win._redraw()
     return all(win.items.get(f, {}).get("result") is not None for f in files)
 
 
@@ -724,7 +764,7 @@ def shot_tool(name, outdir, tmp):
     elif name in PROJECT_RUNS:
         import importlib
         folder = {"sclc": "SCLC", "intensity": "Intensity", "trpl": "TRPL", "eis": "EIS", "cv": "CV",
-                  "stability": "Stability"}[name]
+                  "stability": "Stability", "plqy": "PLQY", "mismatch": "Mismatch"}[name]
         win = importlib.import_module(f"scripts.{folder}.run_{name}").AnalysisWindow(root, "")
         win.geometry(TOOL_SIZE)
         pump(root, 1)
@@ -771,7 +811,11 @@ def shot_tool(name, outdir, tmp):
             return None
         pump(app, 1)
         tab = find(app)
-        path = write_xps(os.path.join(tmp, "film_A_Pb4f.csv"))
+        # a relative path from the run's folder: the file field, the summary and the log then show
+        # no folder of this computer
+        os.chdir(tmp)
+        write_xps(os.path.join(tmp, "film_A_Pb4f.csv"))
+        path = "film_A_Pb4f.csv"
         tab.file_path = path
         tab.ent_path.insert(0, path)
         tab._load_file(path)
@@ -790,9 +834,15 @@ def shot_tool(name, outdir, tmp):
     return ok
 
 
+SHOTS_DIR = "/tmp/physiscore_shots"   # fixed, so the folder shown in the pictures is the same on every computer
+
+
 def main(outdir, names):
+    import shutil
     os.makedirs(outdir, exist_ok=True)
-    tmp = tempfile.mkdtemp(prefix="physiscore_shots_")
+    tmp = SHOTS_DIR
+    shutil.rmtree(tmp, ignore_errors=True)
+    os.makedirs(tmp)
     failed = []
     for name in names:
         r = subprocess.run([sys.executable, os.path.abspath(__file__), "--one", name, outdir, tmp])

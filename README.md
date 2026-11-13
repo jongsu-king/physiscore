@@ -4,8 +4,9 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22267588.svg)](https://doi.org/10.5281/zenodo.22267588)
 
 **Physics-constrained analysis of thin-film photovoltaic device and material
-characterisation: sixteen measurement techniques, one set of conventions, cross-checks
-between them, and every number traceable to an equation, a test and a side-car file.**
+characterisation: seventeen measurement techniques and the solar-simulator mismatch
+correction, one set of conventions, cross-checks between them, and every number
+traceable to an equation, a test and a side-car file.**
 
 Physiscore recomputes device and material parameters from the measured curves rather
 than copying an instrument's summary block, applies the standard physical models
@@ -32,8 +33,10 @@ quality. The algorithms are documented with equations and references in
 | **Impedance** | complex least-squares fit of R(RC), R(RQ), R(RC)(RC) or R(RQ)(RQ) chosen by AICc, parameter errors, time constants, effective capacitance, linear Kramers–Kronig test, distribution of relaxation times (regularised, processes and their resistances) |
 | **C–V (Mott–Schottky)** | straight section of 1/C² found automatically, doping density, built-in voltage, depletion width, doping profile N(W), full-depletion limit N_min |
 | **TRPL** | one to three exponentials or a stretched exponential chosen by AICc (Poisson maximum likelihood for counts), reconvolution with a Gaussian or measured instrument response, amplitude- and intensity-weighted mean lifetimes, τ(1/e), differential lifetime, diffusion length |
+| **PLQY and QFLS** | absorptance and absolute PLQY from integrating-sphere spectra (de Mello), or a PLQY series against intensity; QFLS by detailed balance with J0,rad from the EQE of the stack, the band gap or entered; non-radiative loss −kT ln PLQY; QFLS/q − Voc; implied ideality factor, implied J-V, FF and efficiency |
 | **Stability** | T80 (measured, or extrapolated and marked as such), burn-in amplitude and time constant, stabilised Ts80, loss rate per 1000 h, ISOS protocol on record |
-| **Device summary** | J-V + EQE (+ absorbance, PL) of one device: Jsc cross-check, band gap from three techniques, Voc vs Voc,rad and Voc,SQ with the loss breakdown, fractions of the SQ limits |
+| **Spectral mismatch** | mismatch factor M of the solar simulator for each test cell (IEC 60904-7) from the lamp spectrum and the reference-cell response; Jsc under AM1.5G and on the simulator; IEC 60904-9 spectral match class (2007 and 2020 editions) |
+| **Device summary** | J-V + EQE (+ absorbance, PL) of one device: Jsc cross-check (with the J-V current divided by M when given), band gap from three techniques, Voc vs Voc,rad and Voc,SQ with the loss breakdown, fractions of the SQ limits |
 
 **Interpretation** in every window turns the results into findings by explicit rules -
 fill-factor loss split, ideality regime, statistics between conditions, voltage losses,
@@ -70,6 +73,8 @@ All screenshots show synthetic example data (analytical models with noise), prod
 | XRD: pseudo-Voigt fit, reference peak list with hkl ticks, unassigned peak | XPS auto-fit: Shirley background, four Pb 4f components |
 | ![TRPL](docs/images/trpl.png) | ![Impedance](docs/images/eis.png) |
 | TRPL: decay with the fit chosen by AICc, lifetimes, checks | Impedance: Nyquist plot with the fitted circuit and the Kramers–Kronig test |
+| ![PLQY and QFLS](docs/images/plqy.png) | ![Spectral mismatch](docs/images/mismatch.png) |
+| PLQY and QFLS: sphere spectra and an intensity series, QFLS against intensity with the radiative limit and the measured Voc | Spectral mismatch: current per nm of the test and reference cells under AM1.5G and the simulator, M per cell, IEC 60904-9 class |
 | ![SCLC](docs/images/sclc.png) | ![Results](docs/images/results.png) |
 | SCLC: ohmic, trap-filling and Child regions with their tangents | Results tab: every export below the workspace folder with its key numbers |
 
@@ -144,6 +149,8 @@ python physiscore_cli.py trpl decay.csv --model auto --interpret          # life
 python physiscore_cli.py eis spectrum.csv --out eis.xlsx                  # circuit by AICc, Kramers-Kronig
 python physiscore_cli.py cv mott.csv --area 0.1 --thickness 500           # N, Vbi, W, N_min
 python physiscore_cli.py stability mppt/*.csv --protocol ISOS-L-1         # T80, burn-in, rate
+python physiscore_cli.py plqy film_sphere.csv --radiative eqe --eqe-file stack_eqe.csv   # PLQY, QFLS
+python physiscore_cli.py mismatch cell_eqe.csv --sim lamp.csv --ref refcell_sr.csv     # M, simulator class
 python physiscore_cli.py detect project/                                  # which measurement is in which file
 python physiscore_cli.py collect project/ --out results.xlsx              # key numbers of every export
 python physiscore_cli.py batch abs series/ --all-columns --out gaps.xlsx  # one row per spectrum
@@ -174,7 +181,7 @@ s = sclc_core.analyse(v, j_ma_cm2, thickness_nm=500, eps_r=25)   # regimes, V_TF
 ```
 
 Every transport core (`sclc_core`, `intensity_core`, `trpl_core`, `eis_core`, `cv_core`,
-`stability_core`) has the same shape: `analyse(...)` returns a dictionary, `checks(r)` the
+`stability_core`, `plqy_core`, `mismatch_core`) has the same shape: `analyse(...)` returns a dictionary, `checks(r)` the
 validity checks, `summary_rows(r)` the table shown in the window and `simulate(...)` the
 forward model the tests use.
 
@@ -204,7 +211,7 @@ page, which can be switched off. See [CONFIG.md](CONFIG.md).
 
 ```bash
 pip install pytest
-pytest -q                          # 524 tests on closed-form synthetic data
+pytest -q                          # 583 tests on closed-form synthetic data
 python tools/validation_report.py  # the table in docs/VALIDATION.md
 python tools/gui_smoke.py          # every window, the launcher and a session (needs a display)
 ```
@@ -218,7 +225,7 @@ absent.
 A software paper is in preparation; please cite the archived release in the meantime:
 
 > Kim, K., Shin, J., Lim, J., Ji, H., Lee, S.-E., & Lee, J. (2026). *Physiscore*
-> (Version 3.6.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
+> (Version 3.7.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22267588
 
 The concept DOI always resolves to the latest archived release. Full metadata is in
 `CITATION.cff`; the methods and their references are in [docs/METHODS.md](docs/METHODS.md).

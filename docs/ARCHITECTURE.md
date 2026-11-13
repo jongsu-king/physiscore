@@ -15,12 +15,12 @@ scripts/common/             shared, GUI-free unless noted
   batch.py                  table readers and per-file analysers (compare windows + CLI batch)
   iv_io.py                  generic CSV/Excel I-V reader, result-file detection
   curve_io.py               column-aware table reader of the curve tools (names first, positions second)
-  curve_batch.py            the six curve tools without a window: parameters, load, analyse, checks,
+  curve_batch.py            the curve tools without a window: parameters, load, analyse, checks,
                             interpretation, workbook (the windows and the CLI both call it)
   detect.py                 what kind of measurement a file is (name, headers, numbers), folder scan
   results_index.py          every .analysis.json below a folder as one table / workbook
   interpret.py              rule-based interpretation (findings from existing results)
-  interpret_transport.py    the rules of the six curve tools
+  interpret_transport.py    the rules of the curve tools (transport, PLQY, spectral mismatch)
   provenance.py             .analysis.json side-cars
   report.py                 Markdown reports
   docs_viewer.py            offline documentation: Markdown -> HTML, opened in the browser at a section
@@ -31,7 +31,7 @@ scripts/common/             shared, GUI-free unless noted
   analysis_shell.py         menu bar, toolbar, status bar, figure export, thread-safe after() (GUI)
   plot_interactions.py      zoom/pan/context menus (GUI)
   plot_tools.py             data reader, plot details, journal-preset export, data worksheet (GUI)
-  curve_tool.py             CurveToolWindow: the shared window of the six curve tools (GUI)
+  curve_tool.py             CurveToolWindow: the shared window of the curve tools (GUI)
   workspace_panel.py        Workspace and Results tabs of the launcher (GUI)
   interpret_window.py       the Interpretation window (GUI)
   sample_naming.py          rename/preset menus (GUI)
@@ -41,7 +41,7 @@ scripts/common/             shared, GUI-free unless noted
 scripts/<Technique>/        one package per technique
   *_core.py                 physics, GUI-free (jv_core, dark_jv_core, eqe_core, abs_core, pl_core,
                             xrd_core, raman_core, ftir_core, sem_core, sclc_core, intensity_core,
-                            trpl_core, eis_core, cv_core, stability_core)
+                            trpl_core, eis_core, cv_core, stability_core, plqy_core, mismatch_core)
   run_*.py                  the tool window (class AnalysisWindow)
 scripts/Device/run_device.py  Device summary window
 

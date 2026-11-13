@@ -3,6 +3,48 @@
 All notable changes to Physiscore. Versions follow semantic versioning; dates are the
 release dates. Detailed release notes are in `docs/release-notes/`.
 
+## [3.7.0] - 2026-11-13
+
+Two new tools: PLQY and the quasi-Fermi-level splitting it implies, and the spectral
+mismatch factor of a solar simulator; the Device summary can correct the J-V current by
+that factor. Every existing tool computes the same numbers as 3.6.0 (the 126 rows of the
+validation table are unchanged).
+
+### Added
+- **PLQY and QFLS** (`scripts/PLQY`, launcher: Transport and recombination; CLI
+  `physiscore plqy`). Integrating-sphere spectra (A empty sphere, B out of beam, C in
+  beam) give the absorptance and the PLQY by the de Mello method (two-measurement method
+  without B), with the laser and emission windows found automatically. With J0,rad from
+  the EQE of the same stack, a step absorptance at Eg or an entered value: QFLS =
+  kT ln(PLQY J_G/J0,rad), the non-radiative loss −kT ln PLQY and, with a Voc,
+  QFLS/q − Voc. A PLQY series against intensity gives the implied ideality factor, the
+  implied J-V curve, FF and efficiency, and the transport loss against a measured FF.
+  Views: spectra or PLQY, QFLS, implied J-V, voltage-loss ladder. On synthetic sphere
+  spectra (PLQY 5 %, absorptance 80 %, 15 % indirect absorption) 4.9997 % and 80.000 %
+  are recovered; the median of 12 noisy spectra is 5.004 %.
+- **Spectral mismatch** (`scripts/Mismatch`, launcher: Device; CLI `physiscore
+  mismatch`). M = [∫E_ref S_R ∫E_sim S_T]/[∫E_sim S_R ∫E_ref S_T] (IEC 60904-7) for each
+  test cell (EQE or responsivity files) from the lamp spectrum and the reference cell,
+  with the Jsc under AM1.5G and on the simulator, and the IEC 60904-9 spectral match class
+  of the lamp (2007 and 2020 editions, interval by interval). Views: weighted currents,
+  spectra, responses, spectral match. A box-response case integrated from the G173 table
+  is reproduced within 0.03 %.
+- **Device summary**: a *Spectral mismatch M* field (CLI `device --mismatch M`); the J-V
+  current is divided by M before the cross-check with the EQE, and Jsc/M and PCE/M are
+  reported.
+- Measurement detection knows PLQY files (`plqy`, `sphere`, `de-mello`, `qfls` in the
+  name; a PLQY column; empty-sphere, in-beam or out-of-beam columns). Launcher icons
+  `PLQY.png` and `Mismatch.png` (`tools/make_icons.py` can draw a subset).
+- Interpretation rules for both tools (METHODS 16.19, 16.20); METHODS sections 24 and 25;
+  user guide sections 13.8 and 13.9; screenshots `plqy.png` and `mismatch.png`.
+
+### Changed
+- Text fields that hold a file path in the curve windows (IRF file, EQE file, simulator
+  and reference files) scroll to the end of the path, so the file name is visible.
+
+### Checks
+- 13 new validation rows (139 in all) and 59 new tests (583 in all).
+
 ## [3.6.0] - 2026-11-13
 
 TRPL fits with the instrument response, an unbiased fit at low counts, the distribution

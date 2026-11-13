@@ -50,7 +50,7 @@ The main window is a workbench:
 - **Toolbar**: **Open data...** (Ctrl+O) picks one or more data files and opens them in
   the tool their content points to; **Workspace folder...** (Ctrl+Shift+O) lists every
   measurement of a folder in the Workspace tab (section 14).
-- **Analysis tools** (left): the seventeen tools grouped by category (Device, Transport
+- **Analysis tools** (left): the nineteen tools grouped by category (Device, Transport
   and recombination, Optical, Structural, Vibrational, Surface) with their status - *Ready* once the tool's code has
   loaded in the background, *External program* for an external J-V executable on
   Windows, *Unavailable* if a module failed to import. The filter field in the toolbar
@@ -247,15 +247,16 @@ Joins the J-V, EQE, absorbance and PL of one device and checks them against each
 2. Choose the **EQE spectrum** of the same device.
 3. Optionally choose an **absorbance** file of the absorber film (with the Tauc
    transition) and a **PL** spectrum.
-4. Check the **Conditions**: device area, irradiance, temperature and the two warning
-   thresholds. Press **Compute**.
+4. Check the **Conditions**: device area, irradiance, temperature, the two warning
+   thresholds and the **spectral mismatch factor M** of the simulator for this cell
+   (section 13.9; 1 = no correction). Press **Compute**.
 
 The summary table lists each quantity with its unit and the technique it came from:
 
 | Group | Quantities |
 |---|---|
 | J-V | Voc, Jsc, FF, PCE, Rs, Rsh; one-diode n, J0, Rs, Rsh |
-| Jsc check | Jsc from the EQE integral and the mismatch (Jsc,JV - Jsc,EQE)/Jsc,EQE |
+| Jsc check | Jsc from the EQE integral and the mismatch (Jsc,JV - Jsc,EQE)/Jsc,EQE; with M entered, Jsc/M and PCE/M, and the check uses Jsc/M |
 | Band gap | from dEQE/dE (with edge width), from the Tauc plot, from the PL peak; their spread; the Stokes shift |
 | Detailed balance | Urbach energy, J0,rad, Voc,rad; SQ limits (Jsc, Voc, FF, PCE) for the reference gap; Jsc/FF/PCE as fractions of the SQ values |
 | Voltage loss | Voc deficit Eg/q - Voc split into ΔV1 (SQ), ΔV2 (radiative, from the sub-gap tail) and ΔV3 (non-radiative); the implied EQE_EL |
@@ -469,11 +470,15 @@ concentrations with Scofield factors (or the factors of your instrument).
 
 Six tools (new in 3.5) cover the measurements that explain why a device performs as it
 does: space-charge-limited current, light-intensity dependence, time-resolved PL,
-impedance, capacitance-voltage and stability traces. They share one window layout and
-behave the same way; only the parameters, the views and the numbers differ. Everything
-is computed on this computer from the equations of METHODS §17-§22.
+impedance, capacitance-voltage and stability traces. Two more (new in 3.7) use the same
+window: **PLQY and QFLS** (absolute photoluminescence quantum yield and the
+quasi-Fermi-level splitting it implies) and **Spectral mismatch** (the correction of a
+J-V current measured on a solar simulator; listed under Device). They share one window
+layout and behave the same way; only the parameters, the views and the numbers differ.
+Everything is computed on this computer from the equations of METHODS §17-§22, §24 and
+§25.
 
-### 13.1 What the six windows share
+### 13.1 What these windows share
 
 ![trpl](images/trpl.png)
 
@@ -511,7 +516,7 @@ and the validity checks. Synthetic example data.*
 - *Help → Methods of this tool* opens the offline method notes at the section of the tool.
 
 The same analyses run without the window: `physiscore_cli.py sclc | intensity | trpl |
-eis | cv | stability` (CLI.md).
+eis | cv | stability | plqy | mismatch` (CLI.md).
 
 ### 13.2 SCLC
 
@@ -759,6 +764,116 @@ An extrapolated lifetime is always labelled as extrapolated - in the window, the
 file, the report and the interpretation - together with the ratio to the measured time.
 Report it as an estimate, and name the protocol: a T80 without conditions cannot be
 compared with another laboratory's.
+
+### 13.8 PLQY and QFLS
+
+![plqy](images/plqy.png)
+
+*Two films measured in an integrating sphere (PLQY 1.19 and 6.11 %) and an intensity
+series of the passivated cell with its Voc. The QFLS view: the splitting rises by 1.25 kT
+per e-fold of intensity (the implied ideality factor), lies 72 mV below the radiative
+limit at one sun (PLQY 6.2 %) and 44 mV above the measured Voc. J0,rad comes from the EQE
+of the same stack. Synthetic example data.*
+
+The photoluminescence quantum yield measures how much of the recombination in a film or
+a cell is radiative; with detailed balance it gives the quasi-Fermi-level splitting
+(QFLS), the largest open-circuit voltage the absorber could deliver at that excitation.
+Two kinds of file are read:
+
+- **Integrating-sphere spectra** (de Mello method): a wavelength column and the three
+  measurements - **A** the empty sphere with the laser, **B** the sample in the sphere
+  but out of the beam, **C** the sample in the beam. Name the columns (`empty`, `out of
+  beam`, `in beam`, or `A`, `B`, `C`) or give them in that order. Without B the two-
+  measurement method is used. The spectra must be corrected for the spectral response
+  of the sphere and the spectrometer, and dark-subtracted.
+- **A PLQY series**: an intensity column and a PLQY column (fraction or per cent),
+  optionally Voc, Jsc and FF of the device at the same intensities - one row per
+  excitation intensity.
+
+| Group | Parameter | Meaning |
+|---|---|---|
+| Input | File holds | *auto* (a PLQY column makes it a series), *series* or *sphere* |
+| Integrating sphere | Spectra in | *photons* (counts) or *energy* (W/nm; multiplied by λ) |
+| Integrating sphere | Laser window, Emission | the integration windows in nm; empty = found from the spectra (laser line above 1 % of its peak; emission band of C − A above 1 % of its peak, 15 % wider) |
+| Integrating sphere | Laser power (mW/cm²) | with a value, the absorbed photon flux and so the generation current follow from the power, the laser wavelength and the measured absorptance |
+| Integrating sphere | Else excitation (suns) | without a power: the excitation stated in sun equivalents (the laser set to the photon flux of one sun) |
+| Integrating sphere | Device Voc (V) | the Voc of the device under the same excitation, for QFLS/q − Voc |
+| Series | Intensity unit | *suns*, *mW/cm2* (100 = one sun) or *percent* of one sun |
+| Series | Lowest / highest intensity | range of the ideality fit |
+| QFLS | J0,rad from | *eqe* (the EQE or absorptance of the same stack: the toolbar button *EQE file for J0,rad...* picks it), *bandgap* (a step absorptance at Eg: an upper estimate of the QFLS), *j0* (entered) or *none* (PLQY and −kT ln PLQY only) |
+| QFLS | One-sun J_G | the generation current at one sun; 0 = from the EQE (its AM1.5G integral) or the band gap. A measured Jsc is a good value for a device |
+| QFLS | Temperature (K) | kT of detailed balance |
+
+Views: **PLQY** (for sphere spectra the three spectra on a log scale with both windows;
+for a series PLQY against intensity with its power law), **QFLS** (QFLS and Voc against
+intensity with the radiative limit and the ideality fit), **Implied J-V** (series: the
+J-V curve the absorber would give without transport losses, one point per intensity, and
+its maximum-power point), **Voltage losses** (the ladder Eg/q → Voc,rad → QFLS → Voc with
+the radiative, non-radiative and contact losses).
+
+Results: for sphere spectra the method, the laser line and both windows, the emission
+peak, the absorptance at the laser and the laser power; the PLQY, the intensity it
+belongs to, the non-radiative loss −kT ln PLQY; J0,rad, the one-sun generation current
+and Voc,rad; the QFLS (and at one sun); with a Voc, QFLS/q − Voc. For a series also the
+implied ideality factor with its 95 % interval, d ln PLQY/d ln I, the ideality factor from
+Voc, the implied Voc, FF and efficiency, and with an FF the transport loss (implied FF −
+FF).
+
+How to read the numbers: −kT ln PLQY is the voltage lost to non-radiative recombination
+in what was measured - the neat film, the film on one transport layer, or the full
+stack; comparing them shows which interface costs the most. QFLS/q − Voc is what the
+contacts lose on top of that; a Voc above the QFLS means the PLQY or J0,rad is wrong
+(calibration, windows) or the two numbers belong to different samples or intensities.
+The checks name a low absorptance (the PLQY is divided by it), a band cut by the recorded
+range, windows that change the result when widened, spectra that are not dark-corrected,
+and a missing laser power (the QFLS moves by 60 mV per decade of excitation).
+
+### 13.9 Spectral mismatch
+
+![mismatch](images/mismatch.png)
+
+*Two cells (EQE files) on a xenon-arc simulator set with a silicon reference cell. The
+weighted-current view shows the current per nm of each cell under AM1.5G (solid) and
+under the simulator (dashed, scaled so the reference cell gets its AM1.5G current): the
+lamp's lines at 800-1000 nm inflate the reference current, so the perovskite cells read
+7.3 % too little (M = 0.927; 22.51 instead of 24.28 mA/cm²), although the lamp is class A
+in the 2007 edition (B in the 2020 edition). Synthetic example data.*
+
+A solar simulator is set to one sun with a calibrated reference cell. When the test cell
+responds to other wavelengths than the reference cell, it receives a different share of
+the lamp spectrum than of AM1.5G, and its J-V current is off by the mismatch factor M
+(IEC 60904-7). The test cells are the files of the list: an **EQE** (fraction or per cent)
+or a **spectral responsivity** in A/W against wavelength, one file per cell - the EQE
+files of the EQE tool can be added directly. The simulator spectrum and the reference
+cell are chosen once with the toolbar buttons:
+
+| Group | Parameter | Meaning |
+|---|---|---|
+| Simulator | Simulator spectrum | the measured lamp spectrum (wavelength, irradiance); `AM1.5G` uses the reference spectrum itself (M = 1, for a check) |
+| Simulator | Spectrum units | *energy* (W m⁻² nm⁻¹, any scale) or *photons* (photon flux, converted) |
+| Reference cell | Reference cell | the reference cell's calibration: wavelength and responsivity (A/W) or EQE |
+| Reference cell | Reference holds | *auto* (from the column name; responsivity unless it says EQE), *eqe* or *sr* |
+| Test cells | Test files hold | *auto* (EQE unless the column says A/W or SR), *eqe* or *sr* |
+
+Views: **Weighted currents** (the four products of spectrum and response), **Spectra**
+(AM1.5G and the simulator scaled by the reference cell, with the 2020 interval
+boundaries), **Responses** (both cells as responsivities, with the line EQE = 100 %),
+**Spectral match** (the simulator's share in each IEC 60904-9 interval relative to
+AM1.5G against the class bands, both editions).
+
+Results: M and the current error without correction; the test cell's Jsc under AM1.5G
+(from its response) and on the simulator (M Jsc); the reference cell's AM1.5G current;
+how each file was read; the integration range and the share of each cell's current
+inside it; the response ranges; the class for each edition and the ratio of every
+interval.
+
+Use: divide the measured J-V current (and the PCE) by M, or enter M in the Device
+summary (section 5), which does it before comparing with the EQE. A class A simulator can
+still have M far from 1, as the example shows; a reference cell with a response like the
+test cell's (a filtered silicon cell, or a cell of the same absorber) keeps M close to 1.
+The checks name a simulator spectrum that misses part of a cell's response, a response
+that would need an EQE above 100 % (an EQE file read as A/W), and a response that has not
+fallen to zero at the end of its file.
 
 ## 14. Workspace folder and results index
 

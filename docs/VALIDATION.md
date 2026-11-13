@@ -1,6 +1,6 @@
 # Validation against closed-form synthetic data
 
-Every row compares a quantity recovered by Physiscore 3.6.0 with the value that was
+Every row compares a quantity recovered by Physiscore 3.7.0 with the value that was
 put into an analytical model (single-diode J-V curves, error-function EQE edges,
 Tauc edges with Urbach tails, pseudo-Voigt reflections, Gaussian/Lorentzian bands,
 Voigt spin-orbit doublets,
@@ -9,7 +9,8 @@ piecewise space-charge-limited curves, one-diode intensity series, multi-exponen
 decays with counting noise, decays convolved with Gaussian and tailed instrument
 responses, equivalent-circuit impedance spectra and their relaxation-time
 distributions, one-sided-junction
-capacitance, burn-in plus linear degradation traces). The
+capacitance, burn-in plus linear degradation traces, integrating-sphere spectra and PLQY
+series, solar-simulator spectra against box-shaped responses). The
 deviation column is therefore the extraction error alone; for the cross-technique rows
 the "reference" is the independent calculation the summary must reproduce. The table is
 regenerated with
@@ -18,7 +19,7 @@ regenerated with
 python tools/validation_report.py          # or: python physiscore_cli.py validate
 ```
 
-and the same cases are enforced as unit tests in `tests/` (`pytest`, 524 tests).
+and the same cases are enforced as unit tests in `tests/` (`pytest`, 583 tests).
 Measured-data checks (a perovskite XRD pattern, XPS region scans) run when a local
 `rawdata/` folder is present and are skipped otherwise, because those measurements
 are unpublished.
@@ -55,6 +56,15 @@ for the 0.3 ns component (+36 %). The DRT rows give the resistance of each proce
 the area of its peak; the peak of the broad low-frequency CPE distribution sits 2.5 %
 off its time constant (0.6 % without noise at the same regularisation), since noise and
 smoothing move the maximum of a broad distribution more than its area.
+The PLQY rows (3.7) take sphere spectra whose B and C measurements follow the light paths
+of de Mello et al., so the PLQY and absorptance are known; the small deficit of the
+noise-free rows is the emission outside the 1 % window. The two-measurement row recovers
+the PLQY because the indirectly excited emission has the same spectrum; its absorptance
+(83 % for 80 %) includes the indirect absorption and is not a row. The implied fill
+factor is compared with the ideal-diode curve the construction samples; the 0.04 %
+difference is the linear interpolation between intensities. The mismatch rows check the
+definition against AM1.5G itself, a closed-form case and the IEC 60904-9 table; the
+0.26 % in the 900-1100 nm share is the rounding of the standard's 15.9 %.
 
 | Technique | Quantity | Reference | Recovered | Unit | Dev. (%) | Conditions |
 |---|---|---:|---:|---|---:|---|
@@ -184,5 +194,18 @@ smoothing move the maximum of a broad distribution more than its area.
 | Stability | T80 (fitted model) | 800 | 793.031 | h | -0.871 | 12 % burn-in (tau 40 h) + 10 %/1000 h, 0.4 % noise |
 | Stability | burn-in loss | 12 | 12.4455 | % of initial | +3.712 | back-extrapolated linear part |
 | Stability | loss rate after burn-in | 10 | 10.3627 | %/1000 h | +3.627 | 12 % burn-in (tau 40 h) + 10 %/1000 h, 0.4 % noise |
+| PLQY | PLQY, de Mello (three measurements) | 5 | 4.99969 | % | -0.006 | sphere spectra A, B, C; laser 532 nm; band 1.60 eV; 15 % indirect absorption; no noise |
+| PLQY | absorptance at the laser | 80 | 80 | % | +0.000 | sphere spectra A, B, C; laser 532 nm; band 1.60 eV; 15 % indirect absorption; no noise |
+| PLQY | QFLS at one sun | 1.25477 | 1.25477 | eV | -0.000 | QFLS = kT ln(PLQY J_G / J0,rad), J0,rad 1e-21 mA/cm2, J_G 24 mA/cm2 |
+| PLQY | PLQY, two measurements (A, C) | 5 | 4.99969 | % | -0.006 | the same spectra without B |
+| PLQY | PLQY with counting noise (median of 12) | 5 | 5.00441 | % | +0.088 | Poisson noise, laser peak 2e5 counts, band peak about 400 counts |
+| PLQY | implied ideality factor | 1.3 | 1.3 | - | +0.000 | PLQY 2 % at 1 sun rising as I^0.3, 16 intensities 1e-3-1 sun |
+| PLQY | QFLS/q - Voc | 30 | 30 | mV | +0.000 | PLQY 2 % at 1 sun rising as I^0.3, 16 intensities 1e-3-1 sun |
+| PLQY | implied fill factor | 87.7153 | 87.6808 | % | -0.039 | against J = J_G (1 - exp((V - Voc)/(n kT))) on a fine grid |
+| Mismatch | M with AM1.5G as the simulator | 1 | 1 | - | +0.000 | perovskite test cell, c-Si reference |
+| Mismatch | Jsc(AM1.5G) from the responsivity | 22.5853 | 22.5851 | mA/cm2 | -0.001 | SR = EQE lambda / 1239.84 against the EQE integration |
+| Mismatch | M of box responses | 1.08398 | 1.08366 | - | -0.029 | test 400-600 nm, reference 400-800 nm, lamp +20 % below 600 nm; closed form from the G173 table |
+| Mismatch | AM1.5G share 400-500 nm | 18.4 | 18.403 | % | +0.016 | bundled ASTM G173-03 against IEC 60904-9 (2007) Table 1 |
+| Mismatch | AM1.5G share 900-1100 nm | 15.9 | 15.9414 | % | +0.260 | bundled ASTM G173-03 against IEC 60904-9 (2007) Table 1 |
 
-_Generated 2026-11-12 with Physiscore 3.6.0, numpy 2.4.6, scipy 1.17.1._
+_Generated 2026-11-13 with Physiscore 3.7.0, numpy 2.4.6, scipy 1.17.1._

@@ -4,7 +4,7 @@ This document states, for every quantity Physiscore reports, the equation that i
 evaluated, the numerical procedure, its defaults, and the primary reference. It is
 written so that the methods section of a paper can cite it (or copy from it) and so
 that a reviewer can check a number against the code. File references are to the
-3.6.0 source tree; all functions are GUI-free and importable.
+3.7.0 source tree; all functions are GUI-free and importable.
 
 Conventions: J in mA cm⁻², V in V, R in Ω cm², E in eV, T = 298.15 K unless stated.
 Constants: q = 1.602176634×10⁻¹⁹ C, k = 1.380649×10⁻²³ J K⁻¹, hc = 1239.84198 eV nm.
@@ -288,6 +288,9 @@ For one device, the per-technique results are combined:
   and ΔV₃ = V_oc,rad − V_oc (non-radiative), and EQE_EL = exp(−qΔV₃/kT). A V_oc above
   V_oc,SQ is flagged as an inconsistent gap or temperature.
 - The J-V sweep used can be the forward, the reverse or both directions (§1).
+- **Spectral mismatch** (3.7): with the mismatch factor M of the simulator for this cell
+  (§25) entered, J_sc,JV/M is compared with the EQE and reported together with PCE/M
+  (the change of V_oc by kT ln(1/M), below 1.5 mV for |M − 1| < 6 %, is neglected).
 
 ## 12. XRD reference matching (`scripts/XRD/xrd_core.py`)
 
@@ -472,10 +475,11 @@ warning.
 
 ### 16.13 SCLC (`scripts/common/interpret_transport.py`)
 
-The six transport and recombination tools have their rules in `interpret_transport.py`
-(`interpret_sclc`, `interpret_intensity`, `interpret_trpl`, `interpret_eis`,
-`interpret_cv`, `interpret_stability`). Each analysis also returns its own validity
-checks (sections 17-22); the interpretation repeats those it has no rule of its own for
+The transport and recombination tools, PLQY and the spectral mismatch have their rules
+in `interpret_transport.py` (`interpret_sclc`, `interpret_intensity`, `interpret_trpl`,
+`interpret_eis`, `interpret_cv`, `interpret_stability`, `interpret_plqy`,
+`interpret_mismatch`). Each analysis also returns its own validity checks (sections
+17-22, 24, 25); the interpretation repeats those it has no rule of its own for
 as warnings under the topic **Check**.
 
 | Topic | Rule | Reference |
@@ -534,6 +538,25 @@ as warnings under the topic **Check**.
 | T80 (or the chosen level) | reached within the measurement: good. Not reached: extrapolated value up to 2 × the measured time warning (an estimate), beyond that problem (a property of the model; report T > measured time). No crossing within 1000 × the measured time: note | Khenkin et al., Nat. Energy 5, 35 (2020) |
 | Burn-in | burn-in model selected: note with the loss, the stabilised point t_s and Ts80 | Roesch et al., Adv. Energy Mater. 5, 1501407 (2015) |
 | Loss rate | %/1000 h with its standard error: note | Roesch et al. (2015) |
+
+### 16.19 PLQY and QFLS
+
+| Topic | Rule | Reference |
+|---|---|---|
+| PLQY | ≥ 1 % good (−kT ln PLQY ≤ 119 mV); 0.1-1 % note (typical of a film on a transport layer); < 0.1 % warning; > 100 % problem. No positive PLQY: problem, nothing further | Stolterfoht et al., Energy Environ. Sci. 12, 2778 (2019) |
+| Absorptance at the laser | ≥ 30 % good, 10-30 % note, < 10 % warning (the PLQY is divided by A) | de Mello, Wittmann, Friend, Adv. Mater. 9, 230 (1997) |
+| QFLS | the value and its distance from the radiative limit V_oc,rad: note. Without J0,rad: note saying what to give | Ross, J. Chem. Phys. 46, 4590 (1967) |
+| QFLS and V_oc | QFLS/q − V_oc ≤ 20 mV good; 20-50 mV note; > 50 mV warning (energy-level misalignment or recombination at the electrodes); < −10 mV problem (detailed balance forbids it) | Caprioglio et al., Adv. Energy Mater. 9, 1901631 (2019) |
+| Implied ideality factor | slope of QFLS against ln(intensity) in kT: note (0.9-2.2), warning outside | Stolterfoht et al., Nat. Energy 3, 847 (2018) |
+| Implied fill factor | implied FF − measured FF ≤ 3 % good, ≤ 6 % note, > 6 % warning (transport, not recombination); without FF: note with the implied FF and efficiency | Stolterfoht et al. (2018) |
+
+### 16.20 Spectral mismatch
+
+| Topic | Rule | Reference |
+|---|---|---|
+| Mismatch factor | \|M − 1\| ≤ 1 % good, ≤ 3 % note, > 3 % warning, with the current expected on the simulator and the instruction to divide by M | IEC 60904-7:2019; Osterwald, Solar Cells 18, 269 (1986) |
+| Spectral match | class A+ or A good, B note, C warning, outside C problem (edition 3 when the spectrum covers 300-1200 nm, else edition 2); the worst interval is named | IEC 60904-9:2020 |
+| Reference cell | long-wavelength response edges of the reference and test cells more than 150 nm apart: note (lamp lines outside the test cell's range enter M) | Shrotriya et al., Adv. Funct. Mater. 16, 2016 (2006) |
 
 ## 17. Space-charge-limited current (`scripts/SCLC/sclc_core.py`)
 
@@ -879,8 +902,8 @@ computer. Three kinds of evidence add up to one score per measurement kind:
 
 | Evidence | Weight | Example |
 |---|---|---|
-| File name (`name_scores`) | 2.5-4.5 | `trpl`, `tcspc`, `eqe`, `ipce`, `uv-vis`, `xrd`, `raman`, `ftir`, `xps`, `sclc`, `electron-only`, `eis`, `nyquist`, `mott`, `c-v`, `mppt`, `isos`, `suns-voc`, `dark`, `jv`, `sem` |
-| Column names (`column_scores`) | 2.5-4.5 | frequency with Z′/Z″; voltage with capacitance; time with counts; time with PCE; intensity with Voc; wavelength with EQE; a 2θ column; a binding-energy column |
+| File name (`name_scores`) | 2.5-4.5 | `plqy`, `sphere`, `de-mello`, `qfls`, `trpl`, `tcspc`, `eqe`, `ipce`, `uv-vis`, `xrd`, `raman`, `ftir`, `xps`, `sclc`, `electron-only`, `eis`, `nyquist`, `mott`, `c-v`, `mppt`, `isos`, `suns-voc`, `dark`, `jv`, `sem` |
+| Column names (`column_scores`) | 2.5-4.5 | a PLQY column; wavelength with empty-sphere, in-beam or out-of-beam spectra; frequency with Z′/Z″; voltage with capacitance; time with counts; time with PCE; intensity with Voc; wavelength with EQE; a 2θ column; a binding-energy column |
 | Numbers (`numeric_scores`) | 0.8-2.5 | log-spaced first column over three decades with three columns (impedance); voltage axis and a current that changes sign (illuminated J-V); current over decades without photocurrent (dark J-V or SCLC); angle axis with fine steps (XRD); wavelength, wavenumber or time axis with the matching shape |
 
 A score of 5 or more is **high** confidence, 3 or more **medium**, anything lower
@@ -906,3 +929,132 @@ writes the index, one sheet per tool with one row per export and one column per
 result, and an `All values` sheet in long form (one row per value) for pivoting. A
 side-car that cannot be read is listed with its error instead of stopping the scan,
 and the index workbook is not indexed itself.
+
+## 24. Photoluminescence quantum yield and quasi-Fermi-level splitting (`scripts/PLQY/plqy_core.py`)
+
+Two kinds of input, told apart by the columns (`read_table`; `input` forces one):
+
+- **Integrating-sphere spectra**: wavelength and the three measurements of de Mello et
+  al. (1997) - A, the empty sphere with the laser; B, the sample in the sphere but out
+  of the beam (optional); C, the sample in the beam. Columns are found by name (`empty`,
+  `blank`, `out of beam`, `indirect`, `in beam`, `direct`, `A`/`B`/`C`) or taken in the
+  order wavelength, A, B, C (wavelength, A, C for three columns). Spectra must be
+  corrected for the spectral response of sphere and spectrometer; spectra in energy
+  units (W/nm) are turned into photon numbers by the factor λ (`units = energy`).
+- **PLQY series**: excitation intensity (suns, mW/cm² with 100 mW/cm² = one sun, or per
+  cent of one sun) and PLQY (fraction, or per cent when the column name says so or a
+  value exceeds 1), optionally V_oc, J_sc and FF of the device at the same intensities.
+
+**Windows** — `laser_window`: around the maximum of A, where the line stays above 1 % of
+its height above the median floor, two points wider. `emission_window`: the band of
+C − A (5-point running mean) outside the laser window above 1 % of its peak, widened by
+15 % of its width on each side but not into the laser window. A band that still carries
+5 % of its peak at the end of the recorded range is reported as cut. Both windows can be
+entered by hand.
+
+**PLQY** — `de_mello`: L_X = ∫ X over the laser window, P_X = ∫ (X − A) over the emission
+window (the empty-sphere spectrum removes stray light and a dark offset in that window),
+
+  A = 1 − L_C/L_B,  PLQY = [P_C − (1 − A) P_B]/(L_A A).
+
+Without B: A = 1 − L_C/L_A and PLQY = P_C/(L_A A). That absorptance also counts the light
+the sample absorbs after scattering in the sphere (A + μ(1 − A) for an indirect
+absorption μ); the PLQY is still right when the indirectly excited emission has the same
+spectrum (validation, §15). A second evaluation with the laser window 1 nm wider on each
+side and the emission window 10 % wider is compared with the first.
+
+**Generation current** — with the laser power density P (mW/cm²) at the laser
+wavelength λ_L: J_G = q P λ_L A/(hc) (100 mW/cm² at 532 nm, fully absorbed: 42.9 mA/cm²).
+Without P the excitation is the entered sun equivalent, J_G = X J_G,1sun.
+
+**Radiative reference** — `radiative_reference`:
+
+- `eqe`: J0,rad and J_G,1sun from the EQE (or absorptance) of the same stack, §3
+  (radiative_limit with the Urbach tail extrapolated; J_G,1sun = AM1.5G integral).
+- `bandgap`: step absorptance at E_g (J0,SQ, J_sc,SQ). A real edge has a sub-gap tail
+  that raises J0,rad, so the QFLS from this reference is an upper estimate.
+- `j0`: J0,rad as entered; J_G,1sun must be entered.
+- `none`: only the PLQY and the non-radiative loss are reported.
+
+An entered one-sun generation current (a measured J_sc) replaces the one of the
+reference.
+
+**QFLS** — detailed balance (Ross 1967): the emitted photon flux is PLQY times the
+absorbed flux and equals (J0,rad/q) exp(QFLS/kT), so
+
+  QFLS = kT ln(PLQY J_G/J0,rad) = qV_oc,rad + kT ln PLQY,  ΔV_nr = −(kT/q) ln PLQY,
+
+with V_oc,rad = (kT/q) ln(J_G/J0,rad + 1). A V_oc measured at the same intensity gives the
+voltage lost between the absorber and the electrodes, QFLS/q − V_oc (Caprioglio et al.
+2019).
+
+**Intensity series** — QFLS(X) at each intensity X (in suns). The implied ideality factor
+is the slope of QFLS against ln X in units of kT (`intensity_core.fit_voc`, with its
+95 % interval), and d ln PLQY/d ln X = n_id − 1 is reported with it. The values at one
+sun are interpolated in ln X (PLQY in ln PLQY); a series that ends within a factor 3 of
+one sun is extrapolated along the ideality fit and marked. **Implied J-V**
+(`intensity_core.pseudo_jv`, Suns-PLQY; Stolterfoht et al. 2018): the points
+(QFLS(X)/q, J_G,1sun (X_ref − X)) for X ≤ 1.05 sun, referenced to the highest of them
+X_ref, with the short-circuit point added; implied FF from the maximum power on a
+400-point interpolation, implied efficiency = J_G,1sun V_implied FF_implied (per cent of
+100 mW/cm²). With a measured FF at X_ref, the transport loss is FF_implied − FF.
+
+**Validity checks**: a PLQY ≤ 0 or > 100 %; no radiative reference; J0,rad from a step
+absorptance; no one-sun generation current; absorptance below 10 %; no absorptance (laser
+in C not below B); laser in B more than 2 % above A (drift or swapped columns); more
+emission in B than in C; emission band cut by the recorded range; PLQY changing by more
+than 5 % with the wider windows; an empty-sphere floor above 1 % of the laser peak
+(spectra not dark-corrected); no laser power (sun equivalent assumed); less than one
+decade of intensity; QFLS against ln X with R² < 0.99; implied n_id outside 0.9-2.2;
+one sun extrapolated; the lowest intensity above the implied maximum-power voltage;
+implied J-V referenced below 0.8 sun; V_oc above the QFLS by more than 10 mV.
+
+References: de Mello, Wittmann, Friend, Adv. Mater. 9, 230 (1997); Ross, J. Chem. Phys.
+46, 4590 (1967); Rau, Phys. Rev. B 76, 085303 (2007); Stolterfoht et al., Nat. Energy 3,
+847 (2018); Stolterfoht et al., Energy Environ. Sci. 12, 2778 (2019); Caprioglio et al.,
+Adv. Energy Mater. 9, 1901631 (2019); Kirchartz, Márquez, Stolterfoht, Unold, Adv. Energy
+Mater. 10, 1904134 (2020).
+
+## 25. Spectral mismatch factor and spectral match class (`scripts/Mismatch/mismatch_core.py`)
+
+A simulator is set to one sun with a calibrated reference cell. A test cell whose
+spectral response differs from the reference cell's then receives a different share of
+the simulator spectrum than of AM1.5G (IEC 60904-7; Osterwald 1986):
+
+  M = [∫E_ref S_R dλ ∫E_sim S_T dλ] / [∫E_sim S_R dλ ∫E_ref S_T dλ],
+
+with E_ref the bundled ASTM G173-03 global spectrum, E_sim the simulator spectrum (any
+scale; photon units are converted with the factor hc/λ), and S_R, S_T the spectral
+responsivities of the reference and test cells. The test cell reads J_sc,sim = M J_sc,AM1.5
+on the simulator, so the current to report is J_sc,measured/M. M depends on the shapes
+only, not on the scale of any of the four functions; an EQE is turned into a
+responsivity with SR = EQE λ/1239.84 A/W (λ in nm), which changes the shape. Whether a
+file holds an EQE (fraction or per cent) or a responsivity in A/W is taken from the
+column name (`A/W`, `SR`, `responsivity` → responsivity; `EQE`, `IPCE`, `%` → EQE) or
+chosen; unnamed test files are read as EQE and unnamed reference files as
+responsivities. The integrals are evaluated on a 0.5 nm grid over the simulator range
+within 280-4000 nm; a response is zero outside its measured range. Also reported:
+J_sc,AM1.5 of the test cell from its response, the current it gets on the simulator
+(M J_sc,AM1.5), the reference cell's AM1.5G current, the share of each cell's AM1.5G
+current inside the simulator range, and the wavelengths where each response exceeds
+10 % of its maximum.
+
+**Spectral match** (IEC 60904-9): the share of the simulator irradiance in each interval
+divided by the share of AM1.5G in it. Edition 2 (2007): 400-500, 500-600, 600-700,
+700-800, 800-900, 900-1100 nm, AM1.5G shares 18.4, 19.9, 18.4, 14.9, 12.5, 15.9 % (the
+bundled spectrum gives 18.40, 19.91, 18.36, 14.92, 12.46, 15.94 %); edition 3 (2020):
+300-470, 470-561, 561-657, 657-772, 772-919, 919-1200 nm, about 16.7 % each. The shares
+are computed from the bundled spectrum for both editions. Classes per interval: A+
+0.875-1.125 (edition 3 only), A 0.75-1.25, B 0.6-1.4, C 0.4-2.0; the simulator class is
+that of its worst interval. The spectral coverage and spectral deviation of edition 3
+are not computed.
+
+**Validity checks**: the simulator spectrum holding less than 99 % of a cell's AM1.5G
+current; a responsivity above λ/1239.84 A/W (an EQE above 100 %: the response kind is
+wrong); a response still above 5 % of its maximum at the end of its file; no class
+(spectrum does not cover 400-1100 nm) or edition 2 only; reference and test cells whose
+long-wavelength edges differ by more than 150 nm while |M − 1| > 2 %.
+
+References: IEC 60904-7:2019; IEC 60904-9:2007 and IEC 60904-9:2020; ASTM G173-03;
+Osterwald, Solar Cells 18, 269 (1986); Shrotriya et al., Adv. Funct. Mater. 16, 2016
+(2006).
