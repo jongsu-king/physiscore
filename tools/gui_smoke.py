@@ -7,7 +7,7 @@ destroying the first is not something the program ever does, and some Tk 9
 builds crash on it. A final 'Session' check reproduces real use instead - one
 launcher, every tool window opened and closed as its child.
 
-The six curve windows (SCLC ... Stability) also load their built-in example,
+The curve windows (SCLC ... Stability, PLQY, Mismatch) also load their built-in example,
 analyse it and write the workbook with its analysis record. 'Workspace' builds
 a small project folder, lets the launcher classify it and hands one file to
 its tool.
@@ -36,9 +36,10 @@ TOOLS = {
     "Device": "scripts.Device.run_device", "Compare": "scripts.common.compare_window",
     "SCLC": "scripts.SCLC.run_sclc", "Intensity": "scripts.Intensity.run_intensity",
     "TRPL": "scripts.TRPL.run_trpl", "EIS": "scripts.EIS.run_eis", "CV": "scripts.CV.run_cv",
-    "Stability": "scripts.Stability.run_stability",
+    "Stability": "scripts.Stability.run_stability", "PLQY": "scripts.PLQY.run_plqy",
+    "Mismatch": "scripts.Mismatch.run_mismatch",
 }
-CURVE_TOOLS = ("SCLC", "Intensity", "TRPL", "EIS", "CV", "Stability")
+CURVE_TOOLS = ("SCLC", "Intensity", "TRPL", "EIS", "CV", "Stability", "PLQY", "Mismatch")
 EXTRA = ("Launcher", "Workspace", "Session")
 
 

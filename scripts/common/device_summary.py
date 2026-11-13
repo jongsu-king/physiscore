@@ -46,7 +46,8 @@ def summarize_device(jv: Optional[Dict[str, float]] = None,
                      temperature_k: float = 300.0,
                      diode_fit: Optional[Dict[str, float]] = None,
                      mismatch_warn_percent: float = 5.0,
-                     eg_spread_warn_mev: float = 60.0) -> Dict[str, object]:
+                     eg_spread_warn_mev: float = 60.0,
+                     spectral_mismatch: float = 1.0) -> Dict[str, object]:
     """Combine the per-technique results of one device.
 
     jv          dict from compute_jv_parameters (Voc, Jsc, FF, PCE, Rs, Rsh ...)
@@ -54,6 +55,9 @@ def summarize_device(jv: Optional[Dict[str, float]] = None,
     eg_abs_ev   Tauc band gap of the absorber film (optional)
     pl_peak_ev  PL peak energy, Jacobian-corrected (optional)
     diode_fit   dict from fit_single_diode (optional; copied into the summary)
+    spectral_mismatch  mismatch factor M of the simulator for this cell (Spectral
+                mismatch tool); the J-V current is divided by it before the
+                cross-check with the EQE, and the corrected Jsc and PCE are reported
 
     Returns a flat dict of quantities plus 'warnings' (list of str) and
     'notes' (list of str). NaN marks what could not be derived.
@@ -89,7 +93,21 @@ def summarize_device(jv: Optional[Dict[str, float]] = None,
             out["EQE_Eg_inflection"] = r["Eg_inflection_eV"]
 
     # --- Jsc mismatch ------------------------------------------------------
-    mm = jsc_mismatch(jsc_jv, jsc_eqe)
+    m_fac = float(spectral_mismatch) if spectral_mismatch is not None else 1.0
+    if not (_finite(m_fac) and m_fac > 0):
+        raise ValueError("the spectral mismatch factor M must be a positive number")
+    jsc_cmp = jsc_jv
+    if m_fac != 1.0:
+        out["spectral_mismatch_M"] = m_fac
+        if _finite(jsc_jv):
+            jsc_cmp = jsc_jv / m_fac
+            out["JV_Jsc_corrected"] = jsc_cmp
+            if _finite(pce):
+                out["JV_PCE_corrected"] = pce / m_fac
+            notes.append(f"The J-V current was divided by the spectral mismatch factor M = {m_fac:.4f} "
+                         "before the comparison with the EQE (IEC 60904-7); the PCE is scaled the same way, "
+                         "neglecting the change of Voc by kT ln(1/M).")
+    mm = jsc_mismatch(jsc_cmp, jsc_eqe)
     out["Jsc_mismatch_percent"] = mm
     if _finite(mm) and abs(mm) > mismatch_warn_percent:
         warnings.append(f"Jsc from J-V and from EQE differ by {mm:+.1f} % (threshold {mismatch_warn_percent:g} %): "
@@ -162,6 +180,9 @@ def summary_table(summary: Dict[str, object]) -> pd.DataFrame:
 
     add("JV_Voc", "Voc", "V", "J-V curve", ".4f")
     add("JV_Jsc", "Jsc", "mA/cm²", "J-V curve", ".3f")
+    add("spectral_mismatch_M", "Spectral mismatch factor M", "-", "entered (Spectral mismatch tool)", ".4f")
+    add("JV_Jsc_corrected", "Jsc / M", "mA/cm²", "J-V curve, mismatch corrected", ".3f")
+    add("JV_PCE_corrected", "PCE / M", "%", "J-V curve, mismatch corrected", ".3f")
     add("EQE_Jsc", "Jsc, AM1.5G-integrated EQE", "mA/cm²", "EQE", ".3f")
     add("Jsc_mismatch_percent", "Jsc mismatch (J-V vs EQE)", "%", "cross-check", "+.2f")
     add("JV_FF", "Fill factor", "%", "J-V curve", ".2f")

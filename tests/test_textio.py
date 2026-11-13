@@ -44,7 +44,7 @@ def test_plain_files_are_passed_to_pandas_unchanged(tmp_path):
 
 
 @pytest.mark.parametrize("enc", ENCODINGS)
-@pytest.mark.parametrize("tool", ["trpl", "eis", "cv", "stability", "sclc"])
+@pytest.mark.parametrize("tool", ["trpl", "eis", "cv", "stability", "sclc", "plqy", "mismatch"])
 def test_curve_tools_read_every_encoding(tmp_path, tool, enc):
     ref = write_measurement(tmp_path, tool, f"ref_{tool}.csv")
     other = _write(tmp_path, tool, enc, header_suffix=" 값" if enc == "cp949" else "")

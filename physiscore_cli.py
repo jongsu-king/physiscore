@@ -11,7 +11,7 @@ for scripted and reproducible batch processing.
     python physiscore_cli.py vib  FILE --technique raman|ftir [--baseline arpls] [--lam 1e5] [--json]
     python physiscore_cli.py sem-stats FILE_OR_VALUES... [--json]
     python physiscore_cli.py sq   EG_EV [--temperature 300]
-    python physiscore_cli.py device --jv FILE --eqe FILE [--abs FILE] [--pl FILE] [--sweep reverse] [--out x.xlsx] [--json]
+    python physiscore_cli.py device --jv FILE --eqe FILE [--abs FILE] [--pl FILE] [--sweep reverse] [--mismatch M] [--out x.xlsx] [--json]
     python physiscore_cli.py batch eqe|abs|pl|xrd|raman|ftir FOLDER_OR_FILES... [--all-columns] [--out summary.xlsx] [--json]
     python physiscore_cli.py sclc      FILE... [--thickness NM] [--eps 25] [--area CM2] [--field-dependent] [--out x.xlsx] [--interpret] [--json]
     python physiscore_cli.py intensity FILE... | --jv-set JV_FILE... [--temperature 300] [--i-min X] [--i-max X] [--out x.xlsx] [--interpret] [--json]
@@ -19,6 +19,8 @@ for scripted and reproducible batch processing.
     python physiscore_cli.py eis       FILE... [--model auto|"R(RC)"|"R(RQ)"|...] [--f-min HZ] [--f-max HZ] [--area CM2] [--out x.xlsx] [--interpret] [--json]
     python physiscore_cli.py cv        FILE... [--area CM2] [--eps 25] [--thickness NM] [--c-unit F|nF|...] [--out x.xlsx] [--interpret] [--json]
     python physiscore_cli.py stability FILE... [--time-unit h] [--threshold 0.8] [--model auto] [--protocol ISOS-L-1] [--out x.xlsx] [--interpret] [--json]
+    python physiscore_cli.py plqy      FILE... [--radiative eqe|bandgap|j0|none] [--eqe-file EQE] [--eg EV] [--j0 MA] [--jsc MA] [--power MW] [--voc V] [--out x.xlsx] [--interpret] [--json]
+    python physiscore_cli.py mismatch  EQE_FILE... --sim LAMP_FILE|AM1.5G --ref REF_FILE [--sim-units energy|photons] [--ref-kind auto|eqe|sr] [--out x.xlsx] [--interpret] [--json]
     python physiscore_cli.py detect  FILE_OR_FOLDER... [--depth 2] [--json]
     python physiscore_cli.py collect FOLDER [--out results_index.xlsx] [--depth 4] [--json]
     python physiscore_cli.py validate [--csv]
@@ -278,7 +280,8 @@ def cmd_device(a):
         x, y, _ = batch.read_xy(a.pl)
         pl_ev = batch.analyse_pl(x, y)["Peak (eV)"]
         inputs.append(a.pl)
-    s = ds.summarize_device(jv, ex, ey, eg_abs_ev=eg_abs, pl_peak_ev=pl_ev, temperature_k=a.temperature, diode_fit=fit)
+    s = ds.summarize_device(jv, ex, ey, eg_abs_ev=eg_abs, pl_peak_ev=pl_ev, temperature_k=a.temperature, diode_fit=fit,
+                            spectral_mismatch=a.mismatch)
     tbl = ds.summary_table(s)
     if a.out:
         with pd.ExcelWriter(a.out, engine="openpyxl") as w:
@@ -372,6 +375,32 @@ CURVE_OPTIONS = {
                   ("--threshold", "threshold", float, "fraction of the initial value, 0.8 for T80 (default 0.8)"),
                   ("--model", "model", str, "degradation model (default auto)"),
                   ("--protocol", "protocol", str, "ageing protocol recorded with the result (default: not stated)")],
+    "plqy": [("--input", "input", str, "what the file holds: auto (default), series (intensity, PLQY) or sphere "
+              "(wavelength, A empty, B out of beam, C in beam)"),
+             ("--intensity-unit", "intensity_unit", str, "intensity column of a series: suns (default), mW/cm2 or percent"),
+             ("--radiative", "radiative", str, "J0,rad from: eqe (--eqe-file), bandgap (--eg), j0 (--j0) or none "
+              "(default: no QFLS)"),
+             ("--eqe-file", "eqe_file", str, "EQE or absorptance (wavelength, value) of the same stack"),
+             ("--eg", "eg_ev", float, "band gap in eV for --radiative bandgap"),
+             ("--j0", "j0_rad", float, "J0,rad in mA/cm2 for --radiative j0"),
+             ("--jsc", "jsc_1sun", float, "one-sun generation current in mA/cm2 (default: from the EQE or band gap)"),
+             ("--temperature", "temperature_k", float, "temperature in K (default 300)"),
+             ("--i-min", "i_min", float, "lowest intensity used in the fits (unit of the file)"),
+             ("--i-max", "i_max", float, "highest intensity used in the fits (unit of the file)"),
+             ("--units", "units", str, "sphere spectra in photons (counts, default) or energy (W/nm)"),
+             ("--laser-lo", "laser_lo", float, "start of the laser window, nm (default: found)"),
+             ("--laser-hi", "laser_hi", float, "end of the laser window, nm"),
+             ("--em-lo", "em_lo", float, "start of the emission window, nm (default: found)"),
+             ("--em-hi", "em_hi", float, "end of the emission window, nm"),
+             ("--power", "power_mw_cm2", float, "laser power density in mW/cm2 (default 0: use --suns)"),
+             ("--suns", "excitation_suns", float, "excitation in sun equivalents when no power is given (default 1)"),
+             ("--voc", "voc_v", float, "Voc of the device at the same excitation, V (sphere files)")],
+    "mismatch": [("--sim", "sim_file", str, "simulator spectrum (wavelength, irradiance); AM1.5G for the reference "
+                  "spectrum itself"),
+                 ("--ref", "ref_file", str, "reference cell response (wavelength, SR in A/W or EQE)"),
+                 ("--sim-units", "sim_units", str, "simulator spectrum in energy (W/nm, default) or photon units"),
+                 ("--test-kind", "test_kind", str, "test files hold: auto (default, from the column name), eqe or sr"),
+                 ("--ref-kind", "ref_kind", str, "reference file holds: auto (default; sr unless named EQE), eqe or sr")],
 }
 CURVE_HELP = {
     "sclc": "space-charge-limited current of a single-carrier device (trap density, mobility)",
@@ -380,6 +409,8 @@ CURVE_HELP = {
     "eis": "impedance spectrum (Kramers-Kronig test, equivalent circuit)",
     "cv": "capacitance-voltage (Mott-Schottky doping density, built-in voltage, resolution limit)",
     "stability": "stability trace (T80, burn-in, Ts80, loss rate)",
+    "plqy": "absolute PLQY (integrating sphere, de Mello) or a PLQY series: QFLS, non-radiative loss, implied J-V",
+    "mismatch": "spectral mismatch factor M of a solar simulator for each test cell, IEC 60904-9 spectral class",
 }
 
 
@@ -405,8 +436,8 @@ def _item_lines(cb, tool, it, interpret=False):
 
 
 def cmd_curve(a):
-    """SCLC, light intensity, TRPL, impedance, C-V and stability: the analysis
-    of the window of the same name, file by file."""
+    """SCLC, light intensity, TRPL, impedance, C-V, stability, PLQY and
+    spectral mismatch: the analysis of the window of the same name, file by file."""
     from scripts.common import curve_batch as cb
     tool = a.cmd
     try:
@@ -580,6 +611,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--mode", default="direct", choices=["direct", "indirect"], help="Tauc transition for --abs")
     p.add_argument("--area", type=float, default=None); p.add_argument("--irradiance", type=float, default=100.0)
     p.add_argument("--temperature", type=float, default=300.0); p.add_argument("--out", help="Excel path")
+    p.add_argument("--mismatch", type=float, default=1.0,
+                   help="spectral mismatch factor M of the simulator for this cell (physiscore mismatch); "
+                        "the J-V current is divided by it (default 1)")
     common(p); p.set_defaults(func=cmd_device)
 
     p = sub.add_parser("batch", help="analyse every file of a folder (or the listed files) and tabulate")

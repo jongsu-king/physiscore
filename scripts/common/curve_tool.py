@@ -1,8 +1,9 @@
 """Common window for the curve-analysis tools added in 3.5 (SCLC, light-
-intensity dependence, TRPL, impedance, Mott-Schottky, stability).
+intensity dependence, TRPL, impedance, Mott-Schottky, stability) and 3.7
+(PLQY and QFLS, spectral mismatch).
 
 Each tool is a small subclass that states its parameters and views and hands
-the numbers to its core module; this class owns everything the six windows
+the numbers to its core module; this class owns everything these windows
 share:
 
     left    data files (several at once), parameters, Run
@@ -147,6 +148,7 @@ class CurveToolWindow(ctk.CTkToplevel):
         self.current: Optional[str] = None
         self._memory: Dict[str, Any] = {}
         self._vars: Dict[str, Any] = {}
+        self._text_entries: Dict[str, Any] = {}
         self._busy = False
         self._syncing = False
         self.grid_columnconfigure(1, weight=1)
@@ -220,7 +222,10 @@ class CurveToolWindow(ctk.CTkToplevel):
                                       dropdown_font=_pal.font(11), corner_radius=_pal.R_INPUT).grid(
                         row=r, column=1, sticky="e", pady=3)
                 else:
-                    _theme.entry(body, width=124, textvariable=var).grid(row=r, column=1, sticky="e", pady=3)
+                    ent = _theme.entry(body, width=124, textvariable=var)
+                    ent.grid(row=r, column=1, sticky="e", pady=3)
+                    if kind == "text":
+                        self._text_entries[f["key"]] = ent
             self._vars[f["key"]] = var
             groups[name][1] = r + 1
         ctk.CTkButton(left, text="Run   (F5)", command=self.run, height=32, fg_color=_pal.ACCENT,
@@ -347,6 +352,10 @@ class CurveToolWindow(ctk.CTkToplevel):
     def set_param(self, key: str, value) -> None:
         if key in self._vars:
             self._vars[key].set(value if isinstance(value, bool) else str(value))
+            ent = self._text_entries.get(key)
+            if ent is not None and os.sep in str(value):
+                # a path: show its end (the file name), not the folders it starts with
+                self.after_idle(lambda e=ent: e.winfo_exists() and e.xview_moveto(1.0))
 
     def _restore_params(self):
         try:

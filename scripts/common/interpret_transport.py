@@ -1,5 +1,6 @@
 """Rule-based interpretation of the transport, dynamics and stability tools
-added in 3.5 (SCLC, intensity dependence, TRPL, impedance, C-V, stability).
+added in 3.5 (SCLC, intensity dependence, TRPL, impedance, C-V, stability)
+and of the PLQY/QFLS and spectral-mismatch tools added in 3.7.
 
 Same contract as scripts.common.interpret: each finding states the evidence,
 the rule and a reference. The plain-language checks each core already
@@ -8,6 +9,7 @@ values inside their normal range and raise to "problem" the cases where a
 number must not be reported as it stands."""
 from __future__ import annotations
 
+import math
 from typing import Sequence
 
 import numpy as np
@@ -37,6 +39,14 @@ REF_KIRCHARTZ_CV = "Kirchartz et al., J. Phys. Chem. C 116, 7672 (2012)"
 REF_ALMORA = "Almora et al., Appl. Phys. Lett. 109, 173903 (2016)"
 REF_KHENKIN = "Khenkin et al., Nat. Energy 5, 35 (2020)"
 REF_ROESCH = "Roesch et al., Adv. Energy Mater. 5, 1501407 (2015)"
+REF_DEMELLO = "de Mello, Wittmann, Friend, Adv. Mater. 9, 230 (1997)"
+REF_STOLTERFOHT18 = "Stolterfoht et al., Nat. Energy 3, 847 (2018)"
+REF_STOLTERFOHT19 = "Stolterfoht et al., Energy Environ. Sci. 12, 2778 (2019)"
+REF_CAPRIOGLIO19 = "Caprioglio et al., Adv. Energy Mater. 9, 1901631 (2019)"
+REF_ROSS = "Ross, J. Chem. Phys. 46, 4590 (1967)"
+REF_IEC_60904_7 = "IEC 60904-7:2019; Osterwald, Solar Cells 18, 269 (1986)"
+REF_IEC_60904_9 = "IEC 60904-9:2020 (Ed. 3)"
+REF_SHROTRIYA = "Shrotriya et al., Adv. Funct. Mater. 16, 2016 (2006)"
 
 
 def _pass_checks(rep: Report, warnings: Sequence[str], skip: Sequence[str] = (), ref: str = "") -> None:
@@ -380,4 +390,129 @@ def interpret_stability(r: dict, subject: str = "") -> Report:
                 f"std. error {_f(r.get('rate_err'), '.2g')} %/1000 h; mean output {100 * r['mean_output']:.1f} %",
                 "linear regression of the normalised trace", REF_ROESCH)
     _pass_checks(rep, r.get("warnings"), skip=("is extrapolated",), ref=REF_KHENKIN)
+    return rep
+
+
+# --------------------------------------------------------------------------- PLQY and QFLS
+def interpret_plqy(r: dict, subject: str = "") -> Report:
+    rep = Report("PLQY and QFLS", subject)
+    y, at = r.get("PLQY_ref"), r.get("suns_ref")
+    where = f" at {float(at):.3g} sun" if _ok(at) else ""
+    if not _ok(y) or float(y) <= 0:
+        rep.add("problem", "PLQY", "No positive PLQY could be computed, so neither the non-radiative loss nor the "
+                "QFLS can be given.", "", "PLQY > 0", REF_DEMELLO,
+                "Check the column order (A empty, B out of beam, C in beam) and the windows.")
+        _pass_checks(rep, r.get("warnings"), ref=REF_DEMELLO)
+        return rep
+    y = float(y)
+    dv = 1000.0 * float(r["dV_nr_ref"])
+    if y > 1.0:
+        lvl = "problem"
+    else:
+        lvl = "good" if y >= 0.01 else "note" if y >= 1e-3 else "warning"
+    text = {"good": "a non-radiative loss small enough for a high open-circuit voltage",
+            "note": "typical of a perovskite film on a transport layer, where interface recombination sets the loss",
+            "warning": "a large non-radiative loss: the bulk or an interface recombines most carriers",
+            "problem": "above 100 %, which no sample can have"}[lvl]
+    rep.add(lvl, "PLQY", f"PLQY = {100 * y:.3g} %{where}: {text}.",
+            f"non-radiative loss -kT ln(PLQY) = {dv:.0f} mV",
+            ">= 1 % good, 0.1-1 % note, < 0.1 % warning (the loss in Voc is -kT ln PLQY)", REF_STOLTERFOHT19,
+            "" if lvl == "good" else "Measure the neat film and the film on each transport layer: the layer that "
+            "lowers the PLQY most sets the loss.")
+    s = r.get("sphere")
+    if s is not None and _ok(s.get("absorptance")):
+        a = float(s["absorptance"])
+        rep.add("good" if a >= 0.3 else "note" if a >= 0.1 else "warning", "Absorptance",
+                f"The sample absorbs {100 * a:.1f} % of the {s['laser_nm']:.0f} nm laser"
+                + (" (de Mello, corrected for indirect excitation)." if s["method"] == "three" else
+                   " (two measurements; indirect excitation by scattered light is not separated)."),
+                f"L_C / L_{'B' if s['method'] == 'three' else 'A'} = {1 - a:.3f}",
+                "A >= 30 % good, < 10 % warning (the PLQY is divided by A)", REF_DEMELLO)
+    q = r.get("QFLS_ref")
+    ref = r.get("reference") or {}
+    if _ok(q):
+        vrad = ref.get("Voc_rad_1sun")
+        rep.add("note", "QFLS", f"The quasi-Fermi-level splitting{where} is {float(q):.3f} eV"
+                + (f", {dv:.0f} mV below the radiative limit {float(vrad):.3f} V at one sun." if _ok(vrad) and
+                   abs(math.log(float(at))) < 1e-6 else "."),
+                ref.get("source", ""), "QFLS = kT ln(PLQY J_G / J0,rad)", REF_ROSS)
+    else:
+        rep.add("note", "QFLS", "The QFLS was not computed: give the EQE (or absorptance) of the stack, its band gap "
+                "or J0,rad.", "", "QFLS needs J0,rad and the generation current", REF_ROSS)
+    dvi = r.get("dV_int_ref")
+    if _ok(dvi):
+        d = 1000.0 * float(dvi)
+        if d < -10:
+            lvl, text = "problem", ("the measured Voc is above the QFLS, which detailed balance forbids: the PLQY or "
+                                    "J0,rad is wrong, or the two were measured on different samples or intensities")
+        elif d <= 20:
+            lvl, text = "good", "the contacts keep the splitting of the absorber"
+        elif d <= 50:
+            lvl, text = "note", "part of the splitting is lost at the contacts"
+        else:
+            lvl, text = "warning", ("the contacts lose much of the splitting: energy-level misalignment or "
+                                    "recombination at the electrodes")
+        rep.add(lvl, "QFLS and Voc", f"QFLS/q - Voc = {d:.0f} mV: {text}.",
+                f"QFLS {float(r['QFLS_ref']):.3f} eV, Voc {float(r['Voc_ref']):.3f} V",
+                "<= 20 mV good, 20-50 mV note, > 50 mV warning", REF_CAPRIOGLIO19,
+                "" if lvl == "good" else "Compare the QFLS of the full device with that of the absorber on each "
+                "transport layer to find where the voltage goes.")
+    qf = r.get("qfls_fit")
+    if qf:
+        n = float(qf["n_id"])
+        lvl = "note" if 0.9 <= n <= 2.2 else "warning"
+        rep.add(lvl, "Implied ideality factor", f"The QFLS rises by {n:.2f} kT per e-fold of intensity (implied "
+                "ideality factor"
+                + (f"; Voc gives {float(r['voc_fit']['n_id']):.2f}" if r.get("voc_fit") else "")
+                + "). It belongs to the absorber and its interfaces, without the transport losses of the J-V curve.",
+                f"R² {float(qf['r2']):.4f}, {qf['n']} points over {float(r['decades']):.1f} decades",
+                "n_id = (1/kT) dQFLS / d ln I", REF_STOLTERFOHT18)
+    iff = r.get("iFF")
+    if _ok(iff):
+        tl = r.get("transport_loss_FF")
+        if _ok(tl):
+            lvl = "good" if float(tl) <= 3 else "note" if float(tl) <= 6 else "warning"
+            rep.add(lvl, "Implied fill factor", f"The implied fill factor is {float(iff):.1f} %; the measured FF is "
+                    f"{float(tl):.1f} % (absolute) below it.", f"implied Voc {float(r['iVoc']):.3f} V, implied "
+                    f"efficiency {_f(r.get('iPCE'), '.1f')} %", "loss <= 3 % good, > 6 % warning",
+                    REF_STOLTERFOHT18, "" if lvl == "good" else "The gap is transport (contacts, transport layers, "
+                    "electrode resistance), not recombination in the absorber.")
+        else:
+            rep.add("note", "Implied fill factor", f"The implied J-V curve has FF {float(iff):.1f} % and an implied "
+                    f"efficiency of {_f(r.get('iPCE'), '.1f')} %: the device without transport losses.",
+                    f"implied Voc {float(r['iVoc']):.3f} V", "Suns-PLQY pseudo J-V", REF_STOLTERFOHT18)
+    _pass_checks(rep, r.get("warnings"), skip=("measured Voc is above the QFLS",), ref=REF_DEMELLO)
+    return rep
+
+
+# --------------------------------------------------------------------------- spectral mismatch
+def interpret_mismatch(r: dict, subject: str = "") -> Report:
+    rep = Report("Spectral mismatch", subject)
+    m = float(r["M"])
+    dev = abs(m - 1.0)
+    lvl = "good" if dev <= 0.01 else "note" if dev <= 0.03 else "warning"
+    rep.add(lvl, "Mismatch factor", f"M = {m:.4f}: with the lamp set by the reference cell, this cell gets "
+            f"{100 * abs(m - 1):.1f} % {'more' if m > 1 else 'less'} current from the simulator than from AM1.5G."
+            + ("" if lvl == "good" else f" Divide the J-V current by M (expected on the simulator: "
+               f"{float(r['Jsc_expected_sim']):.2f} mA/cm², AM1.5G: {float(r['Jsc_AM15_test']):.2f} mA/cm²)."),
+            f"integration {r['range_nm'][0]:.0f}-{r['range_nm'][1]:.0f} nm", "|M - 1| <= 1 % good, > 3 % warning",
+            REF_IEC_60904_7, "" if lvl == "good" else "State M and the corrected Jsc with the J-V results.")
+    cls, ed = r.get("sim_class"), r.get("sim_class_edition")
+    if cls:
+        lvl = {"A+": "good", "A": "good", "B": "note", "C": "warning"}.get(cls, "problem")
+        worst = [row for row in r["match"][ed]["rows"] if row["class"] == cls]
+        rep.add(lvl, "Spectral match", f"The simulator spectrum is class {cls} ({ed}); its worst interval is "
+                f"{worst[0]['interval']} nm at {worst[0]['ratio']:.2f} times the AM1.5G share.",
+                ", ".join(f"{row['interval']}: {row['ratio']:.2f}" for row in r["match"][ed]["rows"]),
+                "A+ 0.875-1.125, A 0.75-1.25, B 0.6-1.4, C 0.4-2.0 per interval", REF_IEC_60904_9,
+                "" if lvl == "good" else "A class says nothing about M for a given cell: correct with M.")
+    if np.isfinite(r["test_edges"][1]) and np.isfinite(r["ref_edges"][1]):
+        gap = r["ref_edges"][1] - r["test_edges"][1]
+        if abs(gap) > 150:
+            rep.add("note", "Reference cell", f"The reference cell responds {abs(gap):.0f} nm "
+                    f"{'further' if gap > 0 else 'less far'} into the infrared than the test cell, so lamp lines "
+                    "outside the test cell's range enter M.",
+                    f"reference to {r['ref_edges'][1]:.0f} nm, test to {r['test_edges'][1]:.0f} nm",
+                    "matched reference cells keep M near 1", REF_SHROTRIYA)
+    _pass_checks(rep, r.get("warnings"), skip=("a reference cell matched to the test cell",), ref=REF_IEC_60904_7)
     return rep

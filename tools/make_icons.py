@@ -1,10 +1,10 @@
-"""Draw the launcher icons of the tools added in 3.5 (logo/<name>.png).
+"""Draw the launcher icons of the tools added since 3.5 (logo/<name>.png).
 
-The older icons are bitmaps of unknown origin; these six are drawn here so
+The older icons are bitmaps of unknown origin; these are drawn here so
 they can be regenerated: a framed miniature of the tool's main graph with
 the tool's name under it, in the same size and colours.
 
-    python tools/make_icons.py [output folder]
+    python tools/make_icons.py [output folder] [icon name ...]
 """
 from __future__ import annotations
 
@@ -116,6 +116,24 @@ def draw_stability(d):
     _line(d, pts)
 
 
+def draw_plqy(d):
+    _line(d, [(0.0, 0.05), (0.16, 0.05), (0.19, 0.95), (0.22, 0.05)], ACCENT, 1.8)        # laser line
+    pts = [(0.30 + 0.66 * i / 40, 0.05 + 0.48 * math.exp(-0.5 * ((i / 40 - 0.5) / 0.15) ** 2)) for i in range(41)]
+    _line(d, [(0.22, 0.05), (0.30, 0.05)] + pts)                                         # emission band
+
+
+def draw_mismatch(d):
+    smooth = [(u / 40, 0.10 + 0.62 * math.exp(-0.5 * ((u / 40 - 0.35) / 0.30) ** 2)) for u in range(41)]
+    _line(d, smooth)
+    lamp = []
+    for i in range(61):
+        u = i / 60
+        v = 0.10 + 0.52 * math.exp(-0.5 * ((u - 0.30) / 0.26) ** 2)
+        v += sum(h * math.exp(-0.5 * ((u - c) / 0.012) ** 2) for c, h in ((0.66, 0.40), (0.74, 0.28), (0.86, 0.22)))
+        lamp.append((u, v))
+    _line(d, lamp, ACCENT, 1.6)
+
+
 ICONS = [
     ("SCLC", "SCLC", draw_sclc),
     ("Light intensity", "Suns-Voc", draw_intensity),
@@ -123,6 +141,8 @@ ICONS = [
     ("Impedance", "Impedance", draw_eis),
     ("C-V", "C-V", draw_cv),
     ("Stability", "Stability", draw_stability),
+    ("PLQY", "PLQY", draw_plqy),
+    ("Mismatch", "Mismatch", draw_mismatch),
 ]
 
 
@@ -154,13 +174,16 @@ def make(label: str, draw) -> Image.Image:
     return big.resize((W, H), Image.LANCZOS).convert("RGBA")
 
 
-def main(out_dir: str) -> None:
+def main(out_dir: str, names=None) -> None:
     os.makedirs(out_dir, exist_ok=True)
     for name, label, draw in ICONS:
+        if names and name not in names:
+            continue
         path = os.path.join(out_dir, f"{name}.png")
         make(label, draw).save(path)
         print(path)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logo"))
+    main(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logo"),
+         sys.argv[2:] or None)

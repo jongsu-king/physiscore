@@ -518,6 +518,60 @@ def transport():
     record("Stability", "loss rate after burn-in", 10.0, r["rate_pct_per_1000h"], "%/1000 h", note)
 
 
+def plqy_and_mismatch():
+    """3.7: PLQY by de Mello, QFLS, implied J-V; spectral mismatch factor and class."""
+    import math
+    from scripts.PLQY import plqy_core
+    from scripts.Mismatch import mismatch_core
+    kt = plqy_core.KB_EV * 300.0
+    ref = plqy_core.radiative_reference("j0", j0_rad=1e-21, jsc_1sun=24.0)
+    d = plqy_core.simulate_sphere(plqy=0.05, absorptance=0.8, indirect=0.15, noise=False)
+    r = plqy_core.analyse_sphere(d["wl"], d["a"], d["c"], d["b"], reference=ref)
+    note = "sphere spectra A, B, C; laser 532 nm; band 1.60 eV; 15 % indirect absorption; no noise"
+    record("PLQY", "PLQY, de Mello (three measurements)", 5.0, 100.0 * r["PLQY_ref"], "%", note)
+    record("PLQY", "absorptance at the laser", 80.0, 100.0 * r["sphere"]["absorptance"], "%", note)
+    record("PLQY", "QFLS at one sun", kt * math.log(0.05 * 24.0 / 1e-21), r["QFLS_ref"], "eV",
+           "QFLS = kT ln(PLQY J_G / J0,rad), J0,rad 1e-21 mA/cm2, J_G 24 mA/cm2")
+    two = plqy_core.analyse_sphere(d["wl"], d["a"], d["c"], None)
+    record("PLQY", "PLQY, two measurements (A, C)", 5.0, 100.0 * two["PLQY_ref"], "%", "the same spectra without B")
+    vals = [plqy_core.analyse_sphere(*(lambda s: (s["wl"], s["a"], s["c"], s["b"]))(
+        plqy_core.simulate_sphere(seed=k)))["PLQY_ref"] for k in range(12)]
+    record("PLQY", "PLQY with counting noise (median of 12)", 5.0, 100.0 * float(np.median(vals)), "%",
+           "Poisson noise, laser peak 2e5 counts, band peak about 400 counts")
+    s = plqy_core.simulate_series(plqy_1sun=0.02, n_id=1.3, dv_int=0.03, transport_ff_loss=4.0)
+    r = plqy_core.analyse_series(s["intensity"], s["plqy"], s["voc"], s["jsc"], s["ff"], reference=ref)
+    note = "PLQY 2 % at 1 sun rising as I^0.3, 16 intensities 1e-3-1 sun"
+    record("PLQY", "implied ideality factor", 1.3, r["qfls_fit"]["n_id"], "-", note)
+    record("PLQY", "QFLS/q - Voc", 30.0, 1000.0 * r["dV_int_1sun"], "mV", note)
+    record("PLQY", "implied fill factor", 100.0 * plqy_core.ideal_ff(float(s["qfls"][-1]), 1.3), r["iFF"], "%",
+           "against J = J_G (1 - exp((V - Voc)/(n kT))) on a fine grid")
+
+    tw, ty = mismatch_core.example_test()
+    r = mismatch_core.analyse(tw, ty, sim_file=mismatch_core.AM15G, ref_file=mismatch_core.EXAMPLE)
+    record("Mismatch", "M with AM1.5G as the simulator", 1.0, r["M"], "-", "perovskite test cell, c-Si reference")
+    record("Mismatch", "Jsc(AM1.5G) from the responsivity", eqe_core.calculate_jsc(tw, ty), r["Jsc_AM15_test"],
+           "mA/cm2", "SR = EQE lambda / 1239.84 against the EQE integration")
+    wl, e = eqe_core.get_am15g_spectrum()
+
+    def integral(a, b):
+        g = np.arange(a, b + 1e-9, 0.01)
+        return float(np.trapezoid(np.interp(g, wl, e), g))
+
+    expect = 1.2 * integral(400, 800) / (1.2 * integral(400, 600) + integral(600, 800))
+    sim_wl = np.arange(280.0, 1300.0, 0.25)
+    sim = np.interp(sim_wl, wl, e) * np.where(sim_wl < 600.0, 1.2, 1.0)
+    bw = np.array([280.0, 399.99, 400.0, 600.0, 600.01, 1300.0])
+    rw = np.array([280.0, 399.99, 400.0, 800.0, 800.01, 1300.0])
+    one = np.array([0.0, 0.0, 1.0, 1.0, 0.0, 0.0])
+    r = mismatch_core.analyse(bw, one, sim=(sim_wl, sim), ref=(rw, one), test_kind="sr", ref_kind="sr")
+    record("Mismatch", "M of box responses", expect, r["M"], "-",
+           "test 400-600 nm, reference 400-800 nm, lamp +20 % below 600 nm; closed form from the G173 table")
+    match = mismatch_core.spectral_match(wl, e)["Ed. 2 (2007)"]["rows"]
+    for k in (0, 5):
+        record("Mismatch", f"AM1.5G share {match[k]['interval']} nm", mismatch_core.IEC_ED2_TABLE[k],
+               match[k]["ref_pct"], "%", "bundled ASTM G173-03 against IEC 60904-9 (2007) Table 1")
+
+
 def as_markdown():
     head = ("| Technique | Quantity | Reference | Recovered | Unit | Dev. (%) | Conditions |\n"
             "|---|---|---:|---:|---|---:|---|\n")
@@ -555,6 +609,7 @@ def main():
     autofit()
     cross_technique()
     transport()
+    plqy_and_mismatch()
 
     sys.stdout.write(as_csv() if args.csv else as_markdown())
 

@@ -36,6 +36,7 @@ KINDS: Dict[str, Tuple[str, str]] = {
     "eis": ("Impedance", "Impedance spectrum"),
     "cv": ("C-V (Mott-Schottky)", "Capacitance-voltage"),
     "trpl": ("TRPL", "Time-resolved PL"),
+    "plqy": ("PLQY and QFLS", "PLQY (sphere spectra or series)"),
     "abs": ("Absorbance", "Absorbance (UV-Vis)"),
     "pl": ("PL", "Photoluminescence"),
     "xrd": ("XRD", "X-ray diffraction"),
@@ -56,6 +57,7 @@ _B, _E = r"(?<![a-z])", r"(?![a-z])"              # token edges: no letter on ei
 
 # (kind, pattern on the lower-case file name without extension, weight)
 _NAME_RULES: List[Tuple[str, str, float]] = [
+    ("plqy", rf"plqy|{_B}qy{_E}|integrating[-_ ]?sphere|{_B}sphere{_E}|de[-_ ]?mello|qfls|quantum[-_ ]?yield", 4.5),
     ("trpl", rf"trpl|tcspc|{_B}tr[-_ ]pl{_E}|pl[-_ ]?decay|lifetime", 4.0),
     ("eqe", rf"{_B}eqe{_E}|ipce|{_B}qe{_E}", 4.0),
     ("abs", rf"uv[-_ ]?vis|absorb|{_B}abs{_E}|tauc|transmittance", 4.0),
@@ -77,6 +79,8 @@ _NAME_RULES: List[Tuple[str, str, float]] = [
 _WL = r"wavelength|lambda|\bnm\b|\bwl\b"
 # (kind, patterns that must each match some column name, weight, description)
 _COLUMN_RULES: List[Tuple[str, Tuple[str, ...], float, str]] = [
+    ("plqy", (r"plqy|quantum.?yield|\bqy\b",), 4.5, "a PLQY column"),
+    ("plqy", (_WL, r"empty|blank|in.?beam|out.?of.?beam|indirect"), 4.5, "wavelength and integrating-sphere columns"),
     ("eis", (r"freq|\bhz\b|^f\b", r"z'|z_?re|re\s*\(?z|real|z_?im|imag|\|z\||phase"), 4.5, "frequency and impedance columns"),
     ("cv", (r"volt|bias|^v\b|v_?dc", r"capac|^c\b|^cp\b|^cs\b|^c\s*\("), 4.5, "voltage and capacitance columns"),
     ("trpl", (r"time|delay|^t\b", r"count|decay"), 4.5, "time and counts columns"),

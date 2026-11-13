@@ -30,7 +30,7 @@ from scripts.common import app_config  # noqa: E402
 from scripts.common import palette as _pal  # noqa: E402
 
 CONFIG_FILE = app_config.config_path()
-APP_VERSION = "3.6.0"
+APP_VERSION = "3.7.0"
 REPO_URL = "https://github.com/jongsu-king/physiscore"
 
 ctk.set_appearance_mode("Dark" if _pal.IS_DARK else "Light")
@@ -53,6 +53,8 @@ TOOLS = [
      "AM1.5G-integrated Jsc, band gap (Rau), Urbach energy, Voc,rad and voltage-loss breakdown"),
     ("Stability", "Device", "Stability.png", "scripts.Stability.run_stability", None,
      "T80, burn-in and stabilised Ts80, degradation rate from a power or efficiency trace; ISOS protocol on record"),
+    ("Spectral mismatch", "Device", "Mismatch.png", "scripts.Mismatch.run_mismatch", None,
+     "Mismatch factor M of the solar simulator for each test cell (IEC 60904-7), spectral match class (IEC 60904-9)"),
     ("Light intensity", "Transport and recombination", "Light intensity.png", "scripts.Intensity.run_intensity", None,
      "Ideality factor from Voc(I), Jsc power law, Suns-Voc pseudo J-V, pseudo fill factor and transport loss"),
     ("SCLC", "Transport and recombination", "SCLC.png", "scripts.SCLC.run_sclc", None,
@@ -63,6 +65,8 @@ TOOLS = [
      "1/C² against V: doping density, built-in voltage, depletion width, doping profile, full-depletion limit"),
     ("TRPL", "Transport and recombination", "TRPL.png", "scripts.TRPL.run_trpl", None,
      "Multi-exponential and stretched tail fits chosen by AICc, average and differential lifetimes, diffusion length"),
+    ("PLQY and QFLS", "Transport and recombination", "PLQY.png", "scripts.PLQY.run_plqy", None,
+     "Absolute PLQY from integrating-sphere spectra (de Mello), QFLS, non-radiative loss, implied ideality and J-V"),
     ("Absorbance", "Optical", "Abs.png", "scripts.Abs.run_abs", None,
      "Tauc plot with automatic linear-region selection, Urbach tail, derivative band gap"),
     ("PL", "Optical", "PL.png", "scripts.PL.run_pl", "PL",
@@ -115,6 +119,18 @@ TOOL_DETAILS = {
         results="T80 (measured or extrapolated, marked), burn-in amplitude and time constant, Ts80, rate per 1000 h, final value",
         defaults="time in h; normalised to the first point; level 0.8; model chosen by AICc; protocol not stated",
         refs="Reese et al. 2011 (ISOS); Roesch et al. 2015; Khenkin et al. 2020", sections=["22."]),
+    "Spectral mismatch": dict(
+        input="EQE (or responsivity) of each test cell; simulator spectrum and reference cell response, once",
+        output="Excel: Summary, Results, Checks, Parameters, Integrands, Spectral match; side-car",
+        results="Mismatch factor M, Jsc under AM1.5G and on the simulator, IEC 60904-9 class per interval (Ed. 2, Ed. 3)",
+        defaults="ASTM G173-03 AM1.5G; simulator in energy units; responses from the column names (EQE or A/W)",
+        refs="IEC 60904-7 (2019); IEC 60904-9 (2007, 2020); Osterwald 1986; Shrotriya et al. 2006", sections=["25."]),
+    "PLQY and QFLS": dict(
+        input="Integrating-sphere spectra (wavelength, A empty, B out of beam, C in beam) or a PLQY series against intensity",
+        output="Excel: Summary, Results, Checks, Parameters, Spectra or Series, Implied J-V; side-car",
+        results="PLQY, absorptance, -kT ln PLQY, QFLS (with J0,rad from the EQE, band gap or entered), QFLS - qVoc, implied n_id, FF, PCE",
+        defaults="windows found automatically; spectra in photon counts; excitation 1 sun unless the laser power is given; 300 K",
+        refs="de Mello et al. 1997; Ross 1967; Stolterfoht et al. 2018, 2019; Caprioglio et al. 2019", sections=["24."]),
     "Light intensity": dict(
         input="Irradiance with Voc (and Jsc, FF, PCE), one row per intensity; or J-V files with the intensity in the name",
         output="Excel: Summary, Results, Checks, Parameters, Series, Pseudo J-V; side-car",
@@ -1344,7 +1360,8 @@ def selftest(out=None) -> int:
                 "scripts.common.results_index", "scripts.common.plot_tools", "scripts.common.curve_tool",
                 "scripts.common.workspace_panel", "scripts.SCLC.run_sclc", "scripts.Intensity.run_intensity",
                 "scripts.TRPL.run_trpl", "scripts.EIS.run_eis", "scripts.CV.run_cv",
-                "scripts.Stability.run_stability"):
+                "scripts.Stability.run_stability", "scripts.PLQY.plqy_core", "scripts.PLQY.run_plqy",
+                "scripts.Mismatch.mismatch_core", "scripts.Mismatch.run_mismatch"):
         try:
             importlib.import_module(mod)
             result["imports"][mod] = "ok"
@@ -1399,11 +1416,19 @@ def selftest(out=None) -> int:
         t, y = _st.simulate()
         r = _st.analyse(t, y)
         tr["stability_model"] = str(r["model"])
+        # 3.7: PLQY (de Mello) of synthetic sphere spectra and the mismatch factor of AM1.5G itself
+        from scripts.PLQY import plqy_core as _pq
+        from scripts.Mismatch import mismatch_core as _mm
+        sp = _pq.simulate_sphere(plqy=0.05, noise=False)
+        tr["plqy"] = float(_pq.analyse_sphere(sp["wl"], sp["a"], sp["c"], sp["b"])["PLQY_ref"])
+        tw, ty = _mm.example_test()
+        tr["mismatch_am15"] = float(_mm.analyse(tw, ty, sim_file=_mm.AM15G, ref_file=_mm.EXAMPLE)["M"])
         checks["transport"] = tr
         checks["transport_ok"] = bool(
             abs(tr["sclc_n_t_cm3"] / 5e16 - 1) < 0.15 and abs(tr["cv_N_cm3"] / 1e17 - 1) < 0.05
             and abs(tr["cv_Vbi_V"] - 0.9) < 0.03 and tr["eis_rms_pct"] < 2.0
-            and tr["trpl_model"] == "exp2" and 1.0 < tr["intensity_n_id"] < 2.2)
+            and tr["trpl_model"] == "exp2" and 1.0 < tr["intensity_n_id"] < 2.2
+            and abs(tr["plqy"] / 0.05 - 1) < 0.01 and abs(tr["mismatch_am15"] - 1) < 1e-9)
     except Exception as e:  # noqa: BLE001
         checks["transport"] = f"failed: {e!r}"
         checks["transport_ok"] = False

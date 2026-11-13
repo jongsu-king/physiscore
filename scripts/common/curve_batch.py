@@ -1,7 +1,7 @@
-"""The six curve analyses without a window.
+"""The curve analyses without a window.
 
-One place states, for SCLC, light-intensity dependence, TRPL, impedance, C-V
-and stability, how a file is read, which parameters the analysis takes, how
+One place states, for SCLC, light-intensity dependence, TRPL, impedance, C-V,
+stability, PLQY/QFLS and the spectral mismatch factor, how a file is read, which parameters the analysis takes, how
 they are passed to the core, and which numbers go in the summary table. The
 windows (`scripts/<Tool>/run_*.py`) and the command line (`physiscore sclc`,
 ...) both go through it, so a file analysed with the same parameters gives the
@@ -84,6 +84,25 @@ TOOLS: Dict[str, Dict[str, Any]] = {
                   ("Ts", lambda r: r["Ts_measured"] if r["Ts_reached"] else r["Ts_extrapolated"], "h"),
                   ("Loss rate", "rate_pct_per_1000h", "%/1000 h"), ("Final", lambda r: 100.0 * r["final"], "%")],
     },
+    "plqy": {
+        "name": "PLQY and QFLS", "core": "scripts.PLQY.plqy_core", "interpret": "interpret_plqy",
+        "defaults": {"input": "auto", "intensity_unit": "suns", "radiative": "none", "eqe_file": "", "eg_ev": 0.0,
+                     "j0_rad": 0.0, "jsc_1sun": 0.0, "temperature_k": 300.0, "i_min": None, "i_max": None,
+                     "units": "photons", "laser_lo": None, "laser_hi": None, "em_lo": None, "em_hi": None,
+                     "power_mw_cm2": 0.0, "excitation_suns": 1.0, "voc_v": None},
+        "batch": [("Input", "kind", ""), ("PLQY", lambda r: 100.0 * r["PLQY_ref"], "%"), ("at", "suns_ref", "suns"),
+                  ("dV_nr", lambda r: 1000.0 * r["dV_nr_ref"], "mV"), ("QFLS", "QFLS_ref", "eV"),
+                  ("QFLS - qVoc", lambda r: 1000.0 * r["dV_int_ref"], "mV"),
+                  ("Implied n_id", _sub("qfls_fit", "n_id"), ""), ("Implied FF", "iFF", "%")],
+    },
+    "mismatch": {
+        "name": "Spectral mismatch", "core": "scripts.Mismatch.mismatch_core", "interpret": "interpret_mismatch",
+        "defaults": {"sim_file": "", "ref_file": "", "sim_units": "energy", "test_kind": "auto", "ref_kind": "auto"},
+        "batch": [("M", "M", ""), ("Error without correction", "current_error_pct", "%"),
+                  ("Jsc AM1.5G", "Jsc_AM15_test", "mA/cm2"), ("Jsc on the simulator", "Jsc_expected_sim", "mA/cm2"),
+                  ("Simulator class", lambda r: f"{r['sim_class']}, {r['sim_class_edition'].split(' (')[0]}"
+                   if r["sim_class"] else "", "")],
+    },
 }
 AREA_FROM_SETTINGS = ("sclc", "intensity", "cv")       # tools whose area defaults to the configured cell area
 MAX_TABLE_FILES = 20                                 # files whose curves get their own sheets
@@ -135,6 +154,9 @@ def choices(tool: str) -> Dict[str, List[str]]:
         "cv": lambda: {"c_unit": ["F", "mF", "uF", "nF", "pF"]},
         "stability": lambda: {"time_unit": list(c.TIME_TO_HOURS), "norm": ["initial", "maximum", "none"],
                               "model": ["auto"] + list(c.MODELS), "protocol": list(c.PROTOCOLS)},
+        "plqy": lambda: {"input": list(c.INPUTS), "intensity_unit": list(c.INTENSITY_UNITS),
+                         "radiative": list(c.RADIATIVE), "units": list(c.SPECTRUM_UNITS)},
+        "mismatch": lambda: {"sim_units": list(c.SIM_UNITS), "test_kind": list(c.KINDS), "ref_kind": list(c.KINDS)},
     }[tool]()
 
 
@@ -183,6 +205,11 @@ def load(tool: str, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
     if tool == "sclc":
         v, j, how = c.read_curve(path, params["area_cm2"])
         return {"v": v, "j": j, "_how": how}
+    if tool == "plqy":
+        return c.read_curve(path, params["input"])
+    if tool == "mismatch":
+        wl, y, names = c.read_curve(path, names=True)
+        return {"wl": wl, "y": y, "_columns": names, "_column": names["response"]}
     df = curve_io.read_numeric_table(path)
     data, names = curve_io.pick_columns(df, c.COLUMN_SPEC)
     data["_columns"] = names
@@ -234,6 +261,12 @@ def analyse(tool: str, data: Dict[str, Any], params: Dict[str, Any]) -> Dict[str
     if tool == "stability":
         return c.analyse(data["t"], data["y"], time_unit=p["time_unit"], norm=p["norm"], threshold=p["threshold"],
                          model=p["model"], protocol=p["protocol"], n_initial=int(p["n_initial"]))
+    if tool == "plqy":
+        return c.analyse(data, **p)
+    if tool == "mismatch":
+        return c.analyse(data["wl"], data["y"], sim_file=p["sim_file"], ref_file=p["ref_file"],
+                         test_kind=p["test_kind"], ref_kind=p["ref_kind"], sim_units=p["sim_units"],
+                         test_column=data.get("_column", ""))
     raise KeyError(tool)
 
 
@@ -252,7 +285,7 @@ def interpret(tool: str, result: Dict[str, Any], subject: str = ""):
 
 
 # kinds of the detector that one tool reads without a remark (default: its own kind)
-_SAME_FAMILY = {"sclc": ("sclc", "dark_jv", "jv")}
+_SAME_FAMILY = {"sclc": ("sclc", "dark_jv", "jv"), "plqy": ("plqy", "pl"), "mismatch": ("eqe",)}
 
 
 def file_check(tool: str, path: str) -> List[str]:
@@ -367,8 +400,47 @@ def _tables_stability(data, r):
     return {"Trace": pd.DataFrame({"t (h)": r["t"], "Raw": r["raw"], "Normalised": r["e"], "Model": model})}
 
 
+def _tables_plqy(data, r):
+    s = r.get("sphere")
+    if s is not None:
+        cols = {"Wavelength (nm)": s["wl"], "A empty sphere": s["a"]}
+        if s["b"] is not None:
+            cols["B out of beam"] = s["b"]
+        cols["C in beam"] = s["c"]
+        lo, hi = s["laser"]
+        e0, e1 = s["emission"]
+        cols["In laser window"] = (s["wl"] >= lo) & (s["wl"] <= hi)
+        cols["In emission window"] = (s["wl"] >= e0) & (s["wl"] <= e1)
+        integ = pd.DataFrame([{"Integral": k, "Value": s[k]} for k in ("L_A", "L_B", "L_C", "P_B", "P_C")
+                              if np.isfinite(s[k])])
+        return {"Spectra": pd.DataFrame(cols), "Integrals": integ}
+    cols = {"Intensity (suns)": r["suns"], "PLQY (%)": 100.0 * r["plqy"], "QFLS (eV)": r["qfls"],
+            "-kT ln PLQY (mV)": 1000.0 * r["dv_nr"]}
+    if _has(r.get("voc")):
+        cols["Voc (V)"] = r["voc"]
+        cols["QFLS/q - Voc (mV)"] = 1000.0 * r["dv_int"]
+    cols["Used in the fit"] = np.asarray(r["fit_mask"], bool)
+    out = {"Series": pd.DataFrame(cols)}
+    imp = r.get("implied")
+    if imp is not None:
+        out["Implied J-V"] = pd.DataFrame({"V = QFLS/q (V)": imp["v"], "J (mA/cm2)": imp["j"]})
+    return out
+
+
+def _tables_mismatch(data, r):
+    out = {"Integrands": pd.DataFrame({"Wavelength (nm)": r["grid"], "AM1.5G (W m-2 nm-1)": r["e_ref"],
+                                       "Simulator (as given)": r["e_sim"], "Test SR (A/W)": r["s_test"],
+                                       "Reference SR (A/W)": r["s_ref"]})}
+    rows = [{"Edition": name, "Interval (nm)": row["interval"], "AM1.5G (%)": row["ref_pct"],
+             "Simulator (%)": row["sim_pct"], "Ratio": row["ratio"], "Class": row["class"]}
+            for name, m in r["match"].items() if m for row in m["rows"]]
+    if rows:
+        out["Spectral match"] = pd.DataFrame(rows)
+    return out
+
+
 _TABLES = {"sclc": _tables_sclc, "intensity": _tables_intensity, "trpl": _tables_trpl, "eis": _tables_eis,
-           "cv": _tables_cv, "stability": _tables_stability}
+           "cv": _tables_cv, "stability": _tables_stability, "plqy": _tables_plqy, "mismatch": _tables_mismatch}
 
 
 def tables(tool: str, data: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, pd.DataFrame]:

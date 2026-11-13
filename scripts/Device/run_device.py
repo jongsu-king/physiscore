@@ -104,7 +104,8 @@ class AnalysisWindow(ctk.CTkToplevel):
         grid.pack(fill="x", padx=4, pady=4)
         grid.grid_columnconfigure(1, weight=1)
         items = [("Device area (cm²)", f"{app_config.cell_area_cm2():g}"), ("Irradiance (mW/cm²)", "100"),
-                 ("Temperature (K)", "300"), ("Jsc mismatch warning (%)", "5"), ("Band-gap spread warning (meV)", "60")]
+                 ("Temperature (K)", "300"), ("Jsc mismatch warning (%)", "5"), ("Band-gap spread warning (meV)", "60"),
+                 ("Spectral mismatch M", "1")]
         self.entries = {}
         for i, (lab, val) in enumerate(items):
             ctk.CTkLabel(grid, text=lab, font=_pal.font(10), text_color=_pal.TXT_SUB).grid(row=i, column=0, sticky="w", pady=2)
@@ -235,6 +236,7 @@ class AnalysisWindow(ctk.CTkToplevel):
         temp = self._num("Temperature (K)", 300.0)
         mm_warn = self._num("Jsc mismatch warning (%)", 5.0)
         gap_warn = self._num("Band-gap spread warning (meV)", 60.0)
+        m_fac = self._num("Spectral mismatch M", 1.0)
         paths = {k: v.get().strip() for k, v in self.paths.items()}
         scan, mode = self.var_scan.get(), self.var_mode.get()   # Tk variables: read on the main thread
         if not paths["jv"] and not paths["eqe"]:
@@ -275,7 +277,8 @@ class AnalysisWindow(ctk.CTkToplevel):
                     notes.append(f"PL: column '{col}', peak from a Gaussian fit on the energy axis (Jacobian applied).")
                 summary = _ds.summarize_device(jv, eqe_x, eqe_y, eg_abs_ev=eg_abs, pl_peak_ev=pl_ev,
                                                temperature_k=temp, diode_fit=fit,
-                                               mismatch_warn_percent=mm_warn, eg_spread_warn_mev=gap_warn)
+                                               mismatch_warn_percent=mm_warn, eg_spread_warn_mev=gap_warn,
+                                               spectral_mismatch=m_fac)
                 summary["input_notes"] = notes
                 self.after(0, lambda: self._show(summary, data, paths, dict(area=area, pin=pin, temperature=temp,
                                                                               sweep=scan, transition=mode)))

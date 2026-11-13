@@ -1,5 +1,6 @@
-"""The shared runner of the six curve analyses (SCLC, light intensity, TRPL,
-impedance, C-V, stability): one code path for the windows and the command line.
+"""The shared runner of the curve analyses (SCLC, light intensity, TRPL,
+impedance, C-V, stability, PLQY, spectral mismatch): one code path for the
+windows and the command line.
 
 The files are written the way an instrument exports them, from the forward model
 of each analysis, so every number checked here has a known value.
@@ -19,12 +20,14 @@ from scripts.common import curve_io, provenance
 
 import physiscore_cli as cli
 
-TOOLS = ("sclc", "intensity", "trpl", "eis", "cv", "stability")
+TOOLS = ("sclc", "intensity", "trpl", "eis", "cv", "stability", "plqy", "mismatch")
 WINDOWS = {"sclc": "scripts.SCLC.run_sclc", "intensity": "scripts.Intensity.run_intensity",
            "trpl": "scripts.TRPL.run_trpl", "eis": "scripts.EIS.run_eis", "cv": "scripts.CV.run_cv",
-           "stability": "scripts.Stability.run_stability"}
+           "stability": "scripts.Stability.run_stability", "plqy": "scripts.PLQY.run_plqy",
+           "mismatch": "scripts.Mismatch.run_mismatch"}
 # parameters a measurement needs beyond the defaults (the cell area comes from the settings in the app)
-GIVEN = {"sclc": {"area_cm2": 0.04}, "intensity": {"area_cm2": 0.04}, "cv": {"area_cm2": 0.1, "thickness_nm": 500.0}}
+GIVEN = {"sclc": {"area_cm2": 0.04}, "intensity": {"area_cm2": 0.04}, "cv": {"area_cm2": 0.1, "thickness_nm": 500.0},
+         "mismatch": {"sim_file": "<example>", "ref_file": "<example>"}}
 
 
 def run(capsys, argv):
@@ -39,7 +42,7 @@ def stem(path):
 
 
 # ------------------------------------------------------------------ registry
-def test_registry_names_the_six_analyses():
+def test_registry_names_the_curve_analyses():
     assert tuple(cb.TOOLS) == TOOLS
     for tool in TOOLS:
         entry = cb.TOOLS[tool]
@@ -115,6 +118,8 @@ EXPECTED = {
     "eis": lambda r: r["model"] == "R(RQ)(RQ)" and r["R_total"] == pytest.approx(1700.0, rel=0.02),
     "cv": lambda r: r["N_cm3"] == pytest.approx(1e17, rel=0.01),
     "stability": lambda r: r["T_measured"] == pytest.approx(800.0, rel=0.03),
+    "plqy": lambda r: r["PLQY_ref"] == pytest.approx(0.05, rel=0.02) and r["sphere"]["absorptance"] == pytest.approx(0.8, abs=0.002),
+    "mismatch": lambda r: r["M"] == pytest.approx(0.9124, abs=5e-4),
 }
 
 
@@ -246,8 +251,10 @@ def test_straight_line_fit_and_student_factor():
 
 # --------------------------------------------------------------- command line
 CLI_ARGS = {"sclc": ["--area", "0.04"], "intensity": [], "trpl": [], "eis": [],
-            "cv": ["--area", "0.1", "--thickness", "500"], "stability": []}
-CLI_QUANTITY = {"sclc": 5e16, "intensity": 1.5, "trpl": 27.5, "eis": 1700.0, "cv": 1e17, "stability": 800.0}
+            "cv": ["--area", "0.1", "--thickness", "500"], "stability": [], "plqy": [],
+            "mismatch": ["--sim", "<example>", "--ref", "<example>"]}
+CLI_QUANTITY = {"sclc": 5e16, "intensity": 1.5, "trpl": 27.5, "eis": 1700.0, "cv": 1e17, "stability": 800.0,
+                "plqy": 5.0, "mismatch": 0.9124}
 
 
 @pytest.mark.parametrize("tool", TOOLS)

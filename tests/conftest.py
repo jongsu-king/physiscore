@@ -156,7 +156,7 @@ MEASUREMENT_NAMES = {
     "sclc": "EOD_Ref_sclc.csv", "intensity": "Ref_intensity.csv", "trpl": "Ref_TRPL.csv",
     "eis": "Ref_EIS_0V_dark.csv", "cv": "Ref_MottSchottky_10kHz.csv", "stability": "Ref_MPPT_ISOS-L-1.csv",
     "eqe": "Ref_EQE.csv", "xrd": "Ref_XRD.xy", "raman": "Ref_Raman.csv", "ftir": "Ref_FTIR.csv",
-    "xps": "Ref_XPS_Pb4f.csv", "pl": "Ref_PL.csv",
+    "xps": "Ref_XPS_Pb4f.csv", "pl": "Ref_PL.csv", "plqy": "Ref_PLQY_sphere.csv", "mismatch": "Ref_cell_EQE.csv",
 }
 
 
@@ -213,6 +213,16 @@ def measurement_columns(kind):
     elif kind == "pl":
         wl = np.arange(700.0, 901.0, 0.5)
         cols = {"Wavelength (nm)": wl, "PL intensity (a.u.)": 4200 * np.exp(-0.5 * ((wl - 805) / 17) ** 2) + 30}
+    elif kind == "plqy":
+        from scripts.PLQY import plqy_core
+        d = plqy_core.simulate_sphere(plqy=0.05, absorptance=0.8, seed=0)
+        cols = {"Wavelength (nm)": d["wl"], "Empty sphere (A)": d["a"], "Out of beam (B)": d["b"],
+                "In beam (C)": d["c"]}
+        pre = "# integrating sphere, 532 nm laser\n"
+    elif kind == "mismatch":
+        from scripts.Mismatch import mismatch_core
+        wl, eqe = mismatch_core.example_test()
+        cols = {"Wavelength (nm)": wl, "EQE (%)": np.round(eqe, 4)}
     else:
         raise KeyError(kind)
     return cols, pre, sep

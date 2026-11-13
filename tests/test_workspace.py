@@ -20,6 +20,7 @@ from scripts.common import results_index as index
 @pytest.mark.parametrize("kind", sorted(MEASUREMENT_NAMES))
 def test_instrument_export_is_recognised_with_high_confidence(kind, tmp_path):
     d = detect.detect_file(write_measurement(tmp_path, kind))
+    kind = {"mismatch": "eqe"}.get(kind, kind)          # the mismatch tool takes EQE files of test cells
     assert d.kind == kind
     assert d.confidence == "high"
     assert d.tool == detect.KINDS[kind][0] and d.label == detect.KINDS[kind][1]
@@ -152,9 +153,12 @@ def test_every_kind_opens_an_existing_tool():
         assert tool in tools, f"{kind} points to a tool the launcher does not have"
         assert label
     assert set(detect.FOLDER_TOOLS) <= tools
-    # each of the six curve analyses is a tool of the launcher under the name the runner uses
+    # each curve analysis is a tool of the launcher under the name the runner uses
     for slug in curve_batch.TOOLS:
         assert curve_batch.tool_name(slug) in tools
+        if slug == "mismatch":                         # its files are EQE spectra, which open the EQE tool
+            assert slug not in detect.KINDS
+            continue
         assert detect.KINDS[slug][0] == curve_batch.tool_name(slug)
     for name in tools:
         assert name in launcher.TOOL_DETAILS, f"{name} has no description in the launcher"
